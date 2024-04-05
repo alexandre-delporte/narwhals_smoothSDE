@@ -43,7 +43,6 @@ bbox_polygon <- st_as_sfc(st_bbox(bbox)
                           , crs = st_crs(coastline_utm))
 
 land_utm<- land_utm %>% st_intersection(bbox_polygon)
-test_utm<- test_utm %>% st_intersection(bbox_polygon)
 coastline_utm<- coastline_utm %>% st_intersection(bbox_polygon)
 
 #check polygons
