@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE, error = TRUE, eval = TRUE)
 
 ## Import necessary packages
 
-```{r import packages,message=FALSE}
+```{r libraries,message=FALSE}
 
 #for tex code
 library(tinytex)
@@ -71,7 +71,7 @@ if (!(dir.exists(plots_folder))) {
 
 ## Read
 
-```{r read raw data, cache=TRUE}
+```{r read raw data}
 # Set the path to the directory containing the data
 par_dir=dirname(dirname(getwd())) #parent directory 
 narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")
@@ -158,7 +158,7 @@ Thus, the time $T_k$ of the $k$-th measurement is $$T_{k}=\frac{k}{3600}\mbox{ h
 \texttt{ExpShip} is a proxy for sound exposure level (SEL).
 ```
 
-```{r preprocess data 1, cache=TRUE}
+```{r preprocess data 1}
 
 #keep only 2018 data
 data=rawData[rawData$Year==2018,]
@@ -222,7 +222,7 @@ During the experiment, two types of exposure can be distinguished
 See Jorgensen et al. for more details.
 ```
 
-```{r plot trials, cache=TRUE}
+```{r plot trials}
 
 
 #plot with all the narwhals rescaled so that the experiments start at the same time 
@@ -251,7 +251,7 @@ ggsave(path=plots_folder,filename="trials.png",plot=trials2,width=10,height=5)
 
 ## Ship exposure through time and depending on trial type
 
-```{r define ExpShipI and ExpShipT, cache=TRUE}
+```{r define ExpShipI and ExpShipT}
 
 data$ExpShipI=data$ExpShip
 data$ExpShipT=data$ExpShip
@@ -268,7 +268,7 @@ This phenomenon appears when the values in DistShip suddenly change to NA.
 Moreover, exposure times are relatively short compare to the overall duration of the measurement period, so that most of the time, ExpShip is zero but short peaks appear when trials or intertrials are happening.
 We would need to zoom on these peaks to assess their smoothness.
 
-```{r ggplot ship exposure, cache=TRUE}
+```{r ggplot ship exposure}
 #plot exposure
 pExpAll=ggplot(data,aes(time,ExpShip,col=ID))+geom_line()+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
@@ -312,7 +312,7 @@ pExpInt
 The true measured distance to ship are in the rows for which the column \texttt{pos\_org}  has value 1.}
 ```
 
-```{r plot exposure per individual,cache=TRUE}
+```{r plot exposure per individual}
 
 for (id in unique(data$ID)) {
   plot_exp=ggplot(data[data$ID==id,],aes(time,ExpShip))+geom_line()+
@@ -344,7 +344,7 @@ The positions of the narwhals are in the UTM zone 26 north (in Greenland).
 ```
 
 
-```{r preprocess data 2, cache=TRUE}
+```{r preprocess data 2}
 
 
 dataprep=data[!(is.na(data$Lat)) & !(is.na(data$Long)),]
@@ -475,7 +475,7 @@ print(summary(dtimes$delta*60))
 ```
 
 
-```{r}
+```{r time steps histogram}
 times_histo=ggplot(dtimes, aes(x =60*delta,col=ID)) +
   geom_histogram(fill="white",bins=100)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
@@ -504,7 +504,7 @@ Only two time steps exceed $4$h.
 
 ## Plot all GPS tracks (without interpolation) on a map
 
-```{r milne land map, cache=TRUE}
+```{r milne land map}
 height <- max(dataprep$Lat) - min(dataprep$Lat)
 width <- max(dataprep$Long) - min(dataprep$Long)
 borders <- c(bottom  = min(dataprep$Lat), 
@@ -518,7 +518,7 @@ milne_land_map=ggmap(milne_land)
 
 ```
 
-```{r trajectories map, cache=TRUE}
+```{r trajectories map}
 
 #static map
 map=milne_land_map + 
@@ -551,18 +551,18 @@ map
 
 ## Extract coastline and land polygons
 
-```{r extract coastline and land,cache=TRUE}
+```{r extract coastline and land}
 
 # Set the path to the directory containing coastline data
 par_dir=dirname(dirname(getwd())) #parent directory 
 greenland_data_path <- file.path(par_dir,"Data", "Greenland")
 
 #get the coastline geometry from the geojson file
-coastline_utm<-st_read(file.path(greenland_data_path,"filtered_coastline_utm.geojson"))
+coastline_utm<-st_read(file.path(greenland_data_path,"coastline_utm.geojson"))
 st_crs(coastline_utm)="+init=EPSG:32626"
 
 #get land polygons
-land_utm<-st_read(file.path(greenland_data_path,"filtered_land_utm.shp"))
+land_utm<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 
 
 ```
@@ -586,9 +586,7 @@ plot_coastline
 
 ## Compute nearest point on land and coastline for each GPS position
 
-```{r compute nearest shore points,cache=TRUE}
-
-
+```{r compute nearest shore points}
 
 nearest_points=function(positions,coastline) {
   #positions: dataframe of positions in UTM coordinates in metres
@@ -662,6 +660,7 @@ cat("Elapsed time:", result[3]/60, "minutes\n")
 plot(res_land$min_distances/1000-dataprep$DistanceShore)
 plot(res_coastline$min_distances/1000-dataprep$DistanceShore)
 ```
+
 ```{r summary distances to shore}
 summary(res_land$min_distances)
 summary(res_coastline$min_distances)
@@ -764,16 +763,15 @@ table(df[df$DistanceShore==0,"ID"])/table(dataprep$ID)*100
 We expect the narwhals to stay at a certain distance from land, say 50 meters.
 Let's check the distribution of points near land to choose a minimum value for the distance to shore below which we should drop the points.
 
-```{r}
+```{r distribution of points close to the shore}
 
 df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<100 & res_land$min_distances>0  ])
 histo=ggplot(df, aes(x =DistanceShore)) +
   geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (m)")
-```
 
-```{r}
 histo
 ```
+
 
 This seems to be pretty uniformly distributed, so let's choose arbitrarily a threshold of 50 metres.
 
@@ -832,7 +830,7 @@ dataprep$y=dataprep$y/1000
 
 ## Compute deviation angles related to the shore
 
-```{r empirical velocities and deviation angles, cache=TRUE}
+```{r empirical velocities and deviation angles}
 
 signed_angle <- function(u, v) {
     #Compute signed angle in [-pi,pi] that rotates first vector into second vector 

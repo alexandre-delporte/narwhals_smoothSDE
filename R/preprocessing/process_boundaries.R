@@ -45,13 +45,6 @@ bbox_polygon <- st_as_sfc(st_bbox(bbox)
 land_utm<- land_utm %>% st_intersection(bbox_polygon)
 coastline_utm<- coastline_utm %>% st_intersection(bbox_polygon)
 
-#check polygons
-ggplot()+geom_sf(data=coastline_utm$geometry,fill=NA)+
-  coord_sf(datum=st_crs(32626))
-ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
-  coord_sf(datum=st_crs(32626))
-
-
 #save the sf object in the Data directory
 st_write(coastline_utm,file.path(data_path,"coastline_utm.geojson"),append=FALSE)
 st_write(land_utm,file.path(data_path,"land_utm.shp"),append=FALSE)
