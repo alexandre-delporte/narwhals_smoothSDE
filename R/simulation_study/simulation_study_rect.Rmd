@@ -1,0 +1,1014 @@
+---
+title: "Simulation study in rectangular domain"
+output: html_notebook
+---
+
+# Import libraries and data
+
+```{r}
+#seed for reproducibility 
+set.seed(1)
+
+#for tex code
+library(tinytex)
+
+#for tex expression in plot legends
+library(latex2exp)
+
+#for pipeline operator
+library(dplyr)
+
+#plots
+library(ggplot2)
+library(plotly)
+library(htmlwidgets)
+
+#data managing
+library(tidyr)
+
+#progress bar
+library(progress)
+
+#for land polygons
+library(sf)
+
+#SDE fit
+library(smoothSDE)
+
+#some auxiliary functions
+source(file.path("/home","delporta","Documents","Recherche","Codes","CVM","CVM_functions.R"))
+```
+
+
+
+# Create the rectangle
+
+We create a square with sides of length 8km.
+```{r}
+
+#rectangular domain 
+large_rectangle_coords <- matrix(c(0, 0, 0, 10000, 10000, 10000, 10000, 0, 0, 0), ncol = 2, byrow = TRUE)
+small_rectangle_coords <- matrix(c(1000,1000, 1000, 9000, 9000, 9000, 9000, 1000, 1000, 1000), ncol = 2, byrow = TRUE)
+
+# Create an sf object representing the rectangles
+large_rectangle <- st_sfc(st_polygon(list(large_rectangle_coords)))
+large_rectangle<-st_sf(geometry = large_rectangle)
+
+small_rectangle <- st_sfc(st_polygon(list(small_rectangle_coords)))
+small_rectangle<-st_sf(geometry = small_rectangle)
+
+#change its crs
+domain<- st_sym_difference(large_rectangle, small_rectangle)
+
+
+
+
+```
+
+```{r}
+
+plot_domain=ggplot()+geom_sf(data=domain$geometry,fill="blue")
+plot_domain
+```
+
+# Sample initial positions uniformly in the domain
+
+```{r}
+
+#number of tracks
+n_samples=100
+
+#initial velocity and location
+v0=c(0,0)
+
+#generate random initial points
+x0=matrix(rep(NA,n_samples*2),ncol=2)
+colnames(x0)=c("x1","x2")
+
+for (i in 1:n_samples) {
+  #choose location uniformly in the domain
+  x=c(runif(1,min=1.5,max=8.5),runif(1,min=1.5,max=8.5))
+  x0[i,]=x
+  }
+```
+
+# Fix time steps for observations 
+
+```{r}
+#observation times
+Tmax=3*24 #max time in hour
+
+hf=1/60 #1 minute time step
+lf=5/60 #5 minute time step
+
+#high frequency time steps
+times_hf=seq(0,Tmax,by=hf)
+n_hf=length(times_hf)-1
+
+#low frequency time step
+times_lf=seq(0,Tmax,by=lf)
+n_lf=length(times_lf)-1
+```
+
+# Set observation error
+
+```{r}
+#no measurement error (we cannot put 0 because only the log of this quantity is used)
+sigma_obs_0=0.003
+H0_lf=array(rep(sigma_obs_0^2*diag(2),n_lf),dim=c(2,2,n_lf))
+H0_hf=array(rep(sigma_obs_0^2*diag(2),n_hf),dim=c(2,2,n_hf))
+#GPS measurement error 
+sigma_obs_1=0.03
+H1_lf=array(rep(sigma_obs_1^2*diag(2),n_lf),dim=c(2,2,n_lf))
+H1_hf=array(rep(sigma_obs_1^2*diag(2),n_hf),dim=c(2,2,n_hf))
+
+```
+
+# Smooth parameters of the CRCVM
+
+Define smooth functions for tau and omega.
+
+```{r}
+
+
+#smooth parameters
+
+
+ftau=function(Dshore,theta,D0=0.3,delta0=0.2,tau0=1,tau1=2,tau2=2,lambda=4,kappa=0.1) {
+  coeff=exp(-kappa*(Dshore/D0)^2)
+  tau=tau0*(1-coeff)+(delta0+(tau0-delta0)*exp(-theta^2/pi^2)+(tau1-delta0)*exp(-lambda*(theta-pi/2)^2)+(tau2-delta0)*exp(-lambda*(theta+pi/2)^2))*coeff
+  return (tau)
+}
+
+#mixture of independent gaussian
+ftau_gauss=function(Dshore,theta,D0=0.5,tau0=1,tau1=1.5) {
+  tau=tau0+(tau1-tau0)*exp(-((theta-pi/2)/(pi/10))^2-(Dshore/D0)^2)+(tau1-tau0)*exp(-((theta+pi/2)/(pi/10))^2-(Dshore/D0)^2)
+  return (tau)
+}
+
+#constant tau
+ftau_constant=function(Dshore,theta,tau=1) {
+  return (tau)
+}
+
+fomega=function(Dshore,theta,D0=0.3,omega0=60*pi,lambda=1.5,kappa=0.5) {
+    coeff=exp(-kappa*(Dshore/D0)^2)
+    omega=omega0/2*(tanh(lambda*(theta+pi/2-atanh(-0.9)/lambda))+tanh(lambda*(theta-(pi/2-atanh(-0.9)/lambda))))*coeff
+    return(omega)
+}
+
+
+nu=4
+```
+
+Plot smooth functions.
+```{r}
+
+Dshore=seq(from=0.3,to=2,length.out=30)
+theta=seq(from=-pi,to=pi,length.out=30)
+grid<- expand.grid(Dshore,theta)
+colnames(grid)=c("DistanceShore","theta")
+true_par=grid
+true_par$tau=ftau_gauss(grid$DistanceShore,grid$theta)
+true_par$omega=fomega(grid$DistanceShore,grid$theta)
+
+
+plot_true_tau <- plot_ly(true_par,type = "mesh3d",
+                         x = ~theta,y = ~DistanceShore,z=~tau,intensity=~tau,
+                         colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("True tau"),scene=list(xaxis = list(title = "Theta",showgrid = F),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "tau"))) 
+
+plot_true_omega <- plot_ly(true_par,type = "mesh3d",
+                         x = ~theta,y = ~DistanceShore,z=~omega,intensity=~omega,
+                         colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("True omega"),scene=list(xaxis = list(title = "Theta",showgrid = F),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
+
+plot_true_tau
+plot_true_omega
+```
+
+# Simulation and estimation when only omega is smooth (other parameters are fixed)
+
+## Generate samples : no measurement errors and high frequency 
+
+```{r}
+
+#initialize data frame
+data_rect_hf_ne=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
+
+for (i in 1:n_samples) {
+  
+  res=sim_theta_CRCVM(ftau_constant,fomega,nu,log_sigma_obs=log(sigma_obs_0),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
+
+  data_sim=res$sim
+  data_sim$ID=factor(rep(i,length(data_sim$y1)))
+  data_shore=res$shore[,c("p1","p2")]
+  data_rect_hf_ne=rbind(data_rect_hf_ne,cbind(data_sim,data_shore))
+}
+
+#for the first value we cannot compute the angle theta
+data_rect_hf_ne=data_rect_hf_ne[-1,]
+
+```
+
+
+## percentage of samples that reached land
+
+```{r}
+count=0
+for (id in unique(data_rect_hf_ne$ID)){
+  sub_data=data_rect_hf_ne[data_rect_hf_ne$ID==id,]
+  if (nrow(sub_data) < n_hf) {
+    print(id)
+    count=count+1
+  }
+}
+cat(count,"percent of the samples reached land")
+```
+
+
+## plot one sample
+
+```{r}
+
+plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_hf_ne[data_rect_hf_ne$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_path(data=data_rect_hf_ne[data_rect_hf_ne$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_point(data = data_rect_hf_ne[data_rect_hf_ne$ID==1,]%>% filter(!duplicated(ID)),
+             aes(x = y1* 1000, y = y2 * 1000), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
+
+
+ggsave(filename="samples_rect_hf_ne_omega.png",plot=plot_samples_rect_hf_ne)
+ggplotly(plot_samples_rect_hf_ne)
+```
+
+## Subsample : no measurement errors and low frequency 
+
+```{r}
+
+data_rect_lf_ne=data_rect_hf_ne[seq(1,n_hf,by=lf/hf),]
+
+```
+
+## plot subsamples
+
+```{r}
+
+plot_samples_rect_lf_ne=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_lf_ne[data_rect_lf_ne$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_path(data=data_rect_lf_ne[data_rect_lf_ne$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_point(data = data_rect_lf_ne[data_rect_lf_ne$ID==1,]%>% filter(!duplicated(ID)),
+             aes(x = y1* 1000, y = y2 * 1000), shape = 3, size = 4, col = "red")+
+    xlab("x") + ylab("y")
+
+
+ggsave(filename="samples_rect_lf_ne_omega.png",plot=plot_samples_rect_lf_ne)
+ggplotly(plot_samples_rect_lf_ne)
+```
+
+## Generate samples : 30m measurement errors and high frequency 
+
+```{r}
+
+#initialize data frame
+data_rect_hf_e=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
+
+for (i in 1:n_samples) {
+  
+  res=sim_theta_CRCVM(ftau_constant,fomega,nu,log_sigma_obs=log(sigma_obs_1),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
+
+  data_sim=res$sim
+  data_sim$ID=factor(rep(i,length(data_sim$y1)))
+  data_shore=res$shore[,c("p1","p2")]
+  data_rect_hf_e=rbind(data_rect_hf_e,cbind(data_sim,data_shore))
+}
+
+#for the first value we cannot compute the angle theta
+data_rect_hf_e=data_rect_hf_e[-1,]
+
+```
+
+## percentage of samples that reached land
+
+```{r}
+count=0
+for (id in unique(data_rect_hf_ne$ID)){
+  sub_data=data_rect_hf_e[data_rect_hf_e$ID==id,]
+  if (nrow(sub_data) < n_hf) {
+    print(id)
+    count=count+1
+  }
+}
+cat(count,"percent of the samples reached land")
+```
+## plot samples
+
+```{r}
+
+plot_samples_rect_hf_e=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_hf_e[data_rect_hf_e$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_path(data=data_rect_hf_e[data_rect_hf_e$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_point(data = data_rect_hf_e[data_rect_hf_e$ID==1,]%>% filter(!duplicated(ID)),
+             aes(x = y1* 1000, y = y2 * 1000), shape = 3, size = 4, col = "red")+
+    xlab("x") + ylab("y")
+
+
+ggsave(filename="samples_rect_hf_e_omega.png",plot=plot_samples_rect_hf_e)
+ggplotly(plot_samples_rect_hf_e)
+```
+
+
+
+## Subsample : measurement errors and low frequency 
+
+```{r}
+
+data_rect_lf_e=data_rect_hf_e[seq(1,n_hf,by=lf/hf),]
+
+```
+
+## plot subsamples
+
+```{r}
+
+plot_samples_rect_lf_e=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_lf_e[data_rect_lf_e$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_path(data=data_rect_hf_e[data_rect_hf_e$ID==1,],mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_point(data = data_rect_hf_e[data_rect_hf_e$ID==1,]%>% filter(!duplicated(ID)),
+             aes(x = y1* 1000, y = y2 * 1000), shape = 3, size = 4, col = "red")+
+    xlab("x") + ylab("y")
+
+
+ggsave(filename="samples_rect_lf_e_omega.png",plot=plot_samples_rect_lf_e)
+ggplotly(plot_samples_rect_lf_e)
+```
+## Compute distance to shore and empirical deviation angles
+
+```{r}
+
+signed_angle <- function(u, v) {
+    #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
+    # as in 
+    # https://math.stackexchange.com/questions/529555/signed-angle-between-2-vectors
+    u <- matrix(u, ncol = 2)
+    v <- matrix(v, ncol = 2)
+    if (nrow(u) != nrow(v)) stop("u and v must have the same number of 
+                                  rows")
+    result <- as.numeric(atan2(v[,2], v[,1]) - atan2(u[,2], u[,1]))
+    ind1 <- which(result > pi)
+    ind2 <- which(result <= -pi)
+    result[ind1] <- result[ind1] - 2*pi
+    result[ind2] <- result[ind2] + 2*pi
+    return(result) 
+} 
+
+add_covs=function(data) {
+  #data has at least columns "time","y1" "y2", "p1","p2"
+  #this function modifies data to add columns "theta", "DistanceShore" and "ExpShore"
+  
+  new_data=data
+  #observed deviation angles
+  n=length(new_data$time)
+
+  new_data$theta=rep(NA,n)
+
+  for (id in unique(new_data$ID)) {
+  
+    #filter data with specific id
+    sub_ind=(new_data$ID==id)
+    sub_data=new_data[sub_ind,]
+    n_sub=length(sub_data$time)
+  
+    #time steps
+    dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
+  
+    #step lengths
+    dx=sub_data[2:n_sub,"y1"]-sub_data[1:(n_sub-1),"y1"]
+    dy=sub_data[2:n_sub,"y2"]-sub_data[1:(n_sub-1),"y2"]
+  
+    #matrix of empirical velocity
+    vexp_df=cbind(dx/dtimes,dy/dtimes)
+
+    #matrix of normal vectors
+    normal=as.matrix(sub_data[2:n_sub,c("y1","y2")]-sub_data[2:n_sub,c("p1","p2")])
+  
+    #angle between velocity and normal vector
+    theta_coast=signed_angle(normal,vexp_df)
+  
+    #adjust lengths 
+    theta_coast=c(theta_coast,1) 
+  
+    new_data[sub_ind,"theta"]=theta_coast
+  }
+
+  #distance to shore
+  Dshore=sqrt((new_data$y1-new_data$p1)^2+(new_data$y2-new_data$p2)^2)
+  new_data$DistanceShore=Dshore
+  new_data$ExpShore=1/Dshore
+  
+  return(new_data)
+}
+
+
+data_rect_hf_ne=add_covs(data_rect_hf_ne)
+data_rect_lf_ne=add_covs(data_rect_lf_ne)
+
+data_rect_hf_e=add_covs(data_rect_hf_e)
+data_rect_lf_e=add_covs(data_rect_lf_e)
+```
+
+
+## Estimate from high frequency data without error : ExpShore and tensor splines te
+
+### Fit sde
+```{r}
+
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,ExpShore,k=c(10,5),bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_hf_ne1 <- SDE$new(formulas = formulas,data = data_rect_hf_ne[data_rect_hf_ne$ID==1 & data_rect_hf_ne$time<2*24,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H0_hf))
+crcvm_rect_hf_ne1$fit(method="BFGS")
+```
+
+### Plot smooth parameter omega in 3D
+
+```{r}
+xmin=list("theta"=-pi,"ExpShore"=1/2)
+xmax=list("theta"=pi,"ExpShore"=1/0.3)
+xlabel=list("ExpShore"="Distance to shore")
+link=list("ExpShore"=(\(x) 1/x))
+res=crcvm_rect_hf_ne1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne1",npost=1000,level=0.95,xmin=xmin,xmax=xmax,xlabel=xlabel,link=link)
+res$plot_omega_theta_ExpShore
+```
+
+### Plot true and estimated omega as a function of theta for fixed values of DistanceShore, with confidence intervals.
+
+```{r}
+
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_close=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/0.5,100))
+predict_far=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/3,100))
+
+sde_par_close <- crcvm_rect_hf_ne1$par(t = "all",new_data=predict_close)
+sde_CI_close <- crcvm_rect_hf_ne1$CI_simultaneous(t = "all",new_data=predict_close)
+sde_par_far <- crcvm_rect_hf_ne1$par(t = "all",new_data=predict_far)
+sde_CI_far <- crcvm_rect_hf_ne1$CI_simultaneous(t = "all",new_data=predict_far)
+
+
+# Data frame for point estimates
+sde_par_df_close <- data.frame(theta=predict_close$theta,omega_estimates = sde_par_close[, "omega"])
+sde_par_df_far<- data.frame(theta=predict_far$theta,omega_estimates = sde_par_far[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_close<- data.frame(theta=predict_close$theta,
+                          lowomega = sde_CI_close["omega", "low",],
+                          upomega = sde_CI_close["omega", "upp",])
+sde_ci_df_far<- data.frame(theta=predict_far$theta,
+                          lowomega = sde_CI_far["omega", "low",],
+                          upomega = sde_CI_far["omega", "upp",])
+
+
+omega_df=data.frame(theta=predict_close$theta,omega_close=fomega(rep(0.5,100),predict_close$theta),omega_far=fomega(rep(3,100),predict_close$theta))
+
+
+plot_omega_close=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_close) + 
+  geom_ribbon(data=sde_ci_df_close,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(theta,omega_close),col="red")+xlab("Theta")+
+  ylab("omega")+ggtitle("Distance to shore = 0.5 km")
+
+plot_omega_far=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_far) + 
+  geom_ribbon(data=sde_ci_df_far,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(theta,omega_far),col="red")+xlab("Theta")+
+  ylab("omega")+ggtitle("Distance to shore = 3 km")
+
+plot_omega_close
+plot_omega_far
+
+ggsave(filename="crcvm_rect_hf_ne1/crcvm_rect_hf_ne1_omega_close.png",plot=plot_omega_close)
+ggsave(filename="crcvm_rect_hf_ne1/crcvm_rect_hf_ne1_omega_far.png",plot=plot_omega_far)
+
+```
+
+### Plot true and estimated omega as a function of DistanceShore for fixed values of theta, with confidence intervals.
+
+```{r}
+
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_away=data.frame(ExpShore=seq(1/2,1/0.3,length.out=100),theta=rep(pi/3,100))
+predict_toward=data.frame(ExpShore=seq(1/2,1/0.3,length.out=100),theta=rep(2*pi/3,100))
+
+sde_par_away <- crcvm_rect_hf_ne1$par(t = "all",new_data=predict_away)
+sde_CI_away <- crcvm_rect_hf_ne1$CI_simultaneous(t = "all",new_data=predict_away)
+sde_par_toward<- crcvm_rect_hf_ne1$par(t = "all",new_data=predict_toward)
+sde_CI_toward <- crcvm_rect_hf_ne1$CI_simultaneous(t = "all",new_data=predict_toward)
+
+
+# Data frame for point estimates
+sde_par_df_away<- data.frame(ExpShore=predict_away$ExpShore,omega_estimates = sde_par_away[, "omega"])
+sde_par_df_toward<- data.frame(ExpShore=predict_toward$ExpShore,omega_estimates = sde_par_toward[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_away<- data.frame(ExpShore=predict_away$ExpShore,
+                          lowomega = sde_CI_away["omega", "low",],
+                          upomega = sde_CI_away["omega", "upp",])
+sde_ci_df_toward<- data.frame(ExpShore=predict_toward$ExpShore,
+                          lowomega = sde_CI_toward["omega", "low",],
+                          upomega = sde_CI_toward["omega", "upp",])
+
+
+omega_df=data.frame(DistanceShore=1/predict_away$ExpShore,omega_away=fomega(1/predict_away$ExpShore,rep(pi/3,100)),
+                    omega_toward=fomega(1/predict_toward$ExpShore,rep(2*pi/3,100)))
+
+
+plot_omega_away=ggplot()+geom_line(aes(1/ExpShore,omega_estimates),data=sde_par_df_away) + 
+  geom_ribbon(data=sde_ci_df_away,aes(x=1/ExpShore,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(DistanceShore,omega_away),col="red")+xlab("Distance to shore (km)")+
+  ylab(TeX(r'(\omega)'))+ggtitle(TeX(r'(\Theta = \pi/3)'))
+
+plot_omega_toward=ggplot()+geom_line(aes(1/ExpShore, omega_estimates),data=sde_par_df_toward) + 
+  geom_ribbon(data=sde_ci_df_toward,aes(x=1/ExpShore,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(DistanceShore,omega_toward),col="red")+xlab("Distance to shore (km)")+
+  ylab("Omega")+ggtitle(TeX(r'(\Theta = 2\pi/3)'))
+
+plot_omega_away
+plot_omega_toward
+
+ggsave(filename="crcvm_rect_hf_ne1/crcvm_rect_hf_ne1_omega_away.png",plot=plot_omega_away)
+ggsave(filename="crcvm_rect_hf_ne1/crcvm_rect_hf_ne1_omega_toward.png",plot=plot_omega_toward)
+
+
+```
+
+### Simulate from fitted model
+
+```{r}
+
+
+fExpShore=function(z,v,p) {
+  
+  
+  #normal vector
+  normal=c(z[1]-p[1],z[2]-p[2])
+  
+  #distance to shore
+  Dshore=sqrt(normal[1]^2+normal[2]^2)
+  if (Dshore>0.5){
+    return (0)
+  }
+  else if (Dshore<0.01) {
+    return (100)
+  }
+  else {
+    return (1/Dshore)
+  }
+}
+
+fangle=function(z,v,p) {
+  
+  #normal vector
+  normal=c(z[1]-p[1],z[2]-p[2])
+  
+  #return angle
+  return (signed_angle(normal,v))
+}
+
+
+atw=list("ExpShore"=fExpShore,"AngleNormal"=fangle)
+sim_data=crcvm_rect_hf_e1$simulate(z0=x0[1,],data=crcvm_rect_hf_e1$data(),atw=atw,land=domain)
+
+```
+
+```{r}
+
+plot_sim=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=sim_data,mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_path(data=sim_data,mapping=aes(1000*y1,1000*y2),size=0.1)+
+  geom_point(data = sim_data%>% filter(!duplicated(ID)),
+             aes(x = y1* 1000, y = y2 * 1000), shape = 3, size = 4, col = "red")+
+    xlab("x") + ylab("y")
+
+
+ggplotly(plot_sim)
+```
+
+
+### S
+
+## Estimate from high frequency data without error: DistanceShore and tensor splines ti
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_hf_ne2 <- SDE$new(formulas = formulas,data = data_rect_hf_ne[data_rect_hf_ne$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H0_hf))
+crcvm_rect_hf_ne2$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"DistanceShore"=0.3)
+xmax=list("theta"=pi,"DistanceShore"=2)
+res=crcvm_rect_hf_ne2$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne2",npost=1000,level=0.95,
+                          xmin=xmin,xmax=xmax)
+res$plot_omega_theta_DistanceShore
+```
+
+Plot true and estimated omega as a function of theta for fixed values of DistanceShore, with confidence intervals.
+
+```{r}
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_close=data.frame(theta=seq(-pi,pi,length.out=100),DistanceShore=rep(0.3,100))
+predict_far=data.frame(theta=seq(-pi,pi,length.out=100),DistanceShore=rep(2,100))
+
+sde_par_close <- crcvm_rect_hf_ne2$par(t = "all",new_data=predict_close)
+sde_CI_close <- crcvm_rect_hf_ne2$CI_simultaneous(t = "all",new_data=predict_close)
+sde_par_far <- crcvm_rect_hf_ne2$par(t = "all",new_data=predict_far)
+sde_CI_far <- crcvm_rect_hf_ne2$CI_simultaneous(t = "all",new_data=predict_far)
+
+
+# Data frame for point estimates
+sde_par_df_close <- data.frame(theta=predict_close$theta,omega_estimates = sde_par_close[, "omega"])
+sde_par_df_far<- data.frame(theta=predict_far$theta,omega_estimates = sde_par_far[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_close<- data.frame(theta=predict_close$theta,
+                          lowomega = sde_CI_close["omega", "low",],
+                          upomega = sde_CI_close["omega", "upp",])
+sde_ci_df_far<- data.frame(theta=predict_far$theta,
+                          lowomega = sde_CI_far["omega", "low",],
+                          upomega = sde_CI_far["omega", "upp",])
+
+
+omega_df=data.frame(theta=predict_close$theta,omega_close=fomega(rep(0.3,100),predict_close$theta),omega_far=fomega(rep(2,100),predict_close$theta))
+
+
+plot_omega_close=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_close) + 
+  geom_ribbon(data=sde_ci_df_close,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  xlab("Theta")+
+  geom_line(data=omega_df,aes(theta,omega_close),col="red")
+
+plot_omega_far=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_far) + 
+  geom_ribbon(data=sde_ci_df_far,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  xlab("Theta")+
+  geom_line(data=omega_df,aes(theta,omega_far),col="red")
+
+plot_omega_close
+plot_omega_far
+```
+
+
+## Estimate from low frequency data without error : ExpShore and tensor splines ti
+
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,ExpShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_lf_ne1 <- SDE$new(formulas = formulas,data = data_rect_lf_ne[data_rect_lf_ne$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),other_data=list(H=H0_lf))
+crcvm_rect_lf_ne1$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"ExpShore"=1/2)
+xmax=list("theta"=pi,"ExpShore"=1/0.1)
+xlabel=list("ExpShore"="Distance to shore")
+link=list("ExpShore"=(\(x) 1/x))
+crcvm_rect_lf_ne1$get_all_plots(baseline=NULL,model_name="crcvm_rect_lf_ne1",npost=1000,level=0.95,xmin=xmin,xmax=xmax,xlabel=xlabel,link=link)
+
+```
+
+```{r}
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_close=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/0.3,100))
+predict_far=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/2,100))
+
+sde_par_close <- crcvm_rect_lf_ne1$par(t = "all",new_data=predict_close)
+sde_CI_close <- crcvm_rect_lf_ne1$CI_simultaneous(t = "all",new_data=predict_close)
+sde_par_far <- crcvm_rect_lf_ne1$par(t = "all",new_data=predict_far)
+sde_CI_far <- crcvm_rect_lf_ne1$CI_simultaneous(t = "all",new_data=predict_far)
+
+
+# Data frame for point estimates
+sde_par_df_close <- data.frame(theta=predict_close$theta,omega_estimates = sde_par_close[, "omega"])
+sde_par_df_far<- data.frame(theta=predict_far$theta,omega_estimates = sde_par_far[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_close<- data.frame(theta=predict_close$theta,
+                          lowomega = sde_CI_close["omega", "low",],
+                          upomega = sde_CI_close["omega", "upp",])
+sde_ci_df_far<- data.frame(theta=predict_far$theta,
+                          lowomega = sde_CI_far["omega", "low",],
+                          upomega = sde_CI_far["omega", "upp",])
+
+
+omega_df=data.frame(theta=predict_close$theta,omega_close=fomega(rep(0.3,100),predict_close$theta),omega_far=fomega(rep(2,100),predict_close$theta))
+
+
+plot_omega_close=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_close) + 
+  geom_ribbon(data=sde_ci_df_close,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  xlab("Theta")+
+  geom_line(data=omega_df,aes(theta,omega_close),col="red")
+
+plot_omega_far=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_far) + 
+  geom_ribbon(data=sde_ci_df_far,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  xlab("Theta")+
+  geom_line(data=omega_df,aes(theta,omega_far),col="red")
+
+plot_omega_close
+plot_omega_far
+```
+
+
+## Estimate from low frequency data without error : DistanceShore and tensor splines ti
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_lf_ne2 <- SDE$new(formulas = formulas,data = data_rect_lf_ne[data_rect_lf_ne$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H0_lf))
+crcvm_rect_lf_ne2$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"DistanceShore"=0.1)
+xmax=list("theta"=pi,"DistanceShore"=2)
+crcvm_rect_lf_ne2$get_all_plots(baseline=NULL,model_name="crcvm_rect_lf_ne2",npost=1000,level=0.95,
+                          xmin=xmin,xmax=xmax)
+
+```
+
+
+
+
+## Estimate from high frequency data with error : ExpShore and tensor splines ti
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,ExpShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_hf_e1 <- SDE$new(formulas = formulas,data = data_rect_hf_e[data_rect_hf_e$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H1_hf))
+crcvm_rect_hf_e1$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"ExpShore"=1/2)
+xmax=list("theta"=pi,"ExpShore"=1/0.3)
+xlabel=list("ExpShore"="Distance to shore")
+link=list("ExpShore"=(\(x) 1/x))
+res=crcvm_rect_hf_e1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_e1",npost=1000,level=0.95,xmin=xmin,xmax=xmax,xlabel=xlabel,link=link)
+res$plot_omega_theta_ExpShore
+```
+
+### Plot true and estimated omega as a function of theta for fixed values of DistanceShore, with confidence intervals.
+
+```{r}
+
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_close=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/0.5,100))
+predict_far=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/2,100))
+
+sde_par_close <- crcvm_rect_hf_e1$par(t = "all",new_data=predict_close)
+sde_CI_close <- crcvm_rect_hf_e1$CI_simultaneous(t = "all",new_data=predict_close)
+sde_par_far <- crcvm_rect_hf_e1$par(t = "all",new_data=predict_far)
+sde_CI_far <- crcvm_rect_hf_e1$CI_simultaneous(t = "all",new_data=predict_far)
+
+
+# Data frame for point estimates
+sde_par_df_close <- data.frame(theta=predict_close$theta,omega_estimates = sde_par_close[, "omega"])
+sde_par_df_far<- data.frame(theta=predict_far$theta,omega_estimates = sde_par_far[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_close<- data.frame(theta=predict_close$theta,
+                          lowomega = sde_CI_close["omega", "low",],
+                          upomega = sde_CI_close["omega", "upp",])
+sde_ci_df_far<- data.frame(theta=predict_far$theta,
+                          lowomega = sde_CI_far["omega", "low",],
+                          upomega = sde_CI_far["omega", "upp",])
+
+
+omega_df=data.frame(theta=predict_close$theta,omega_close=fomega(rep(0.5,100),predict_close$theta),omega_far=fomega(rep(2,100),predict_close$theta))
+
+
+plot_omega_close=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_close) + 
+  geom_ribbon(data=sde_ci_df_close,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(theta,omega_close),col="red")+xlab("Theta")+
+  ylab("omega")+ggtitle("Distance to shore = 0.5 km")
+
+plot_omega_far=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_far) + 
+  geom_ribbon(data=sde_ci_df_far,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(theta,omega_far),col="red")+xlab("Theta")+
+  ylab("omega")+ggtitle("Distance to shore = 3 km")
+
+plot_omega_close
+plot_omega_far
+
+
+ggsave(filename="crcvm_rect_hf_e1/crcvm_rect_hf_e1_omega_close.png",plot=plot_omega_close)
+ggsave(filename="crcvm_rect_hf_e1/crcvm_rect_hf_e1_omega_far.png",plot=plot_omega_far)
+```
+
+
+
+### Plot true and estimated omega as a function of DistanceShore for fixed values of theta, with confidence intervals.
+
+```{r}
+
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_away=data.frame(ExpShore=seq(1/2,1/0.3,length.out=100),theta=rep(pi/3,100))
+predict_toward=data.frame(ExpShore=seq(1/2,1/0.3,length.out=100),theta=rep(2*pi/3,100))
+
+sde_par_away <- crcvm_rect_hf_e1$par(t = "all",new_data=predict_away)
+sde_CI_away <- crcvm_rect_hf_e1$CI_simultaneous(t = "all",new_data=predict_away)
+sde_par_toward<- crcvm_rect_hf_e1$par(t = "all",new_data=predict_toward)
+sde_CI_toward <- crcvm_rect_hf_e1$CI_simultaneous(t = "all",new_data=predict_toward)
+
+
+# Data frame for point estimates
+sde_par_df_away<- data.frame(ExpShore=predict_away$ExpShore,omega_estimates = sde_par_away[, "omega"])
+sde_par_df_toward<- data.frame(ExpShore=predict_toward$ExpShore,omega_estimates = sde_par_toward[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_away<- data.frame(ExpShore=predict_away$ExpShore,
+                          lowomega = sde_CI_away["omega", "low",],
+                          upomega = sde_CI_away["omega", "upp",])
+sde_ci_df_toward<- data.frame(ExpShore=predict_toward$ExpShore,
+                          lowomega = sde_CI_toward["omega", "low",],
+                          upomega = sde_CI_toward["omega", "upp",])
+
+
+omega_df=data.frame(DistanceShore=1/predict_away$ExpShore,omega_away=fomega(1/predict_away$ExpShore,rep(pi/3,100)),
+                    omega_toward=fomega(1/predict_toward$ExpShore,rep(2*pi/3,100)))
+
+
+plot_omega_away=ggplot()+geom_line(aes(1/ExpShore,omega_estimates),data=sde_par_df_away) + 
+  geom_ribbon(data=sde_ci_df_away,aes(x=1/ExpShore,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(DistanceShore,omega_away),col="red")+xlab("Distance to shore (km)")+
+  ylab(TeX(r'(\omega)'))+ggtitle(TeX(r'(\Theta = \pi/3)'))
+
+plot_omega_toward=ggplot()+geom_line(aes(1/ExpShore, omega_estimates),data=sde_par_df_toward) + 
+  geom_ribbon(data=sde_ci_df_toward,aes(x=1/ExpShore,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(DistanceShore,omega_toward),col="red")+xlab("Distance to shore (km)")+
+  ylab(TeX(r'(\omega)'))+ggtitle(TeX(r'(\Theta = 2\pi/3)'))
+
+plot_omega_away
+plot_omega_toward
+```
+## Estimate from high frequency data with error : DistanceShore and tensor splines ti
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~ti(theta,k=5,bs="cs")+ti(DistanceShore,k=5,bs="cs")+ti(theta,DistanceShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_hf_e2 <- SDE$new(formulas = formulas,data = data_rect_hf_e[data_rect_hf_e$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H1_hf))
+crcvm_rect_hf_e2$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"DistanceShore"=0.3)
+xmax=list("theta"=pi,"DistanceShore"=2)
+crcvm_rect_hf_e2$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_e2",npost=1000,level=0.95,
+                          xmin=xmin,xmax=xmax)
+
+```
+
+
+
+
+## Estimate from low frequency data with error : ExpShore and tensor splines ti
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,ExpShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_lf_e1 <- SDE$new(formulas = formulas,data = data_rect_lf_e[data_rect_lf_e$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H1_lf))
+crcvm_rect_lf_e1$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"ExpShore"=1/2)
+xmax=list("theta"=pi,"ExpShore"=1/0.3)
+xlabel=list("ExpShore"="Distance to shore")
+link=list("ExpShore"=(\(x) 1/x))
+crcvm_rect_lf_e1$get_all_plots(baseline=NULL,model_name="crcvm_rect_lf_e1",npost=1000,level=0.95,xmin=xmin,xmax=xmax,xlabel=xlabel,link=link)
+
+```
+
+
+
+```{r}
+
+#plot spline estimates of the parameter omega close and far to the shore
+
+predict_close=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/0.5,100))
+predict_far=data.frame(theta=seq(-pi,pi,length.out=100),ExpShore=rep(1/2,100))
+
+sde_par_close <- crcvm_rect_lf_e1$par(t = "all",new_data=predict_close)
+sde_CI_close <- crcvm_rect_lf_e1$CI_simultaneous(t = "all",new_data=predict_close)
+sde_par_far <- crcvm_rect_lf_e1$par(t = "all",new_data=predict_far)
+sde_CI_far <- crcvm_rect_lf_e1$CI_simultaneous(t = "all",new_data=predict_far)
+
+
+# Data frame for point estimates
+sde_par_df_close <- data.frame(theta=predict_close$theta,omega_estimates = sde_par_close[, "omega"])
+sde_par_df_far<- data.frame(theta=predict_far$theta,omega_estimates = sde_par_far[, "omega"])
+
+
+# Data frame for CIs
+sde_ci_df_close<- data.frame(theta=predict_close$theta,
+                          lowomega = sde_CI_close["omega", "low",],
+                          upomega = sde_CI_close["omega", "upp",])
+sde_ci_df_far<- data.frame(theta=predict_far$theta,
+                          lowomega = sde_CI_far["omega", "low",],
+                          upomega = sde_CI_far["omega", "upp",])
+
+
+omega_df=data.frame(theta=predict_close$theta,omega_close=fomega(rep(0.5,100),predict_close$theta),omega_far=fomega(rep(2,100),predict_close$theta))
+
+
+plot_omega_close=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_close) + 
+  geom_ribbon(data=sde_ci_df_close,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(theta,omega_close),col="red")+xlab("Theta")+ xlab("Omega")
+
+plot_omega_far=ggplot() +geom_line(aes(theta, omega_estimates),data=sde_par_df_far) + 
+  geom_ribbon(data=sde_ci_df_far,aes(x=theta,ymin=lowomega,ymax=upomega),alpha=0.2)+
+  geom_line(data=omega_df,aes(theta,omega_far),col="red")+xlab("Theta")+ xlab("Omega")
+
+plot_omega_close
+plot_omega_far
+```
+
+## Estimate from low frequency data with error : DistanceShore and tensor splines ti
+
+```{r}
+#estimation with tensor splines
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~ti(theta,k=5,bs="cs")+ti(DistanceShore,k=5,bs="cs")+ti(theta,DistanceShore,k=5,bs="cs"))
+par0 <- c(0,0,1,4,0)
+
+
+crcvm_rect_lf_e2 <- SDE$new(formulas = formulas,data = data_rect_lf_e[data_rect_lf_e$ID==1,],type = "RACVM1",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+                      other_data=list("H"=H1_lf))
+crcvm_rect_lf_e2$fit(method="BFGS")
+```
+
+```{r}
+xmin=list("theta"=-pi,"DistanceShore"=0.3)
+xmax=list("theta"=pi,"DistanceShore"=2)
+crcvm_rect_lf_e2$get_all_plots(baseline=NULL,model_name="crcvm_rect_lf_e2",npost=1000,level=0.95,
+                          xmin=xmin,xmax=xmax)
+
+```
+
+
+
+# ESTIMATION WHEN TAU AND OMEGA ARE SMOOTH
+

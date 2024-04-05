@@ -1,0 +1,1390 @@
+---
+title: "Preprocessing and exploration of the narwhal data for the analysis with smoothSDE"
+author: "Alexandre Delporte"
+date: "2023-03-01"
+output: 
+  pdf_document: default
+  html_document: default
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+# Set up
+
+## Set up Rmarkdown options
+
+```{r options}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, eval = TRUE)
+```
+
+## Import necessary packages
+
+```{r import packages,message=FALSE}
+
+#for tex code
+library(tinytex)
+
+#for the plots
+library(ggplot2)
+library(plotly)
+
+#to manage dataframes 
+library(dplyr)
+
+#to get polygons for the shore
+library(jsonlite)
+library(sf)
+
+#to convert to UTM coordinates
+library(sp)
+
+#to get stamenmap
+library(ggmap)
+
+#to get animation of the narwhals trajectories
+library(gganimate)
+library(transformr)
+library(gifski)
+
+#to show progress bars
+library(progress)
+
+#to get function na.approx to replace NA values by interpolation
+library(zoo)
+
+```
+
+## Choose directory where the plots should be saved
+
+```{r create plots folder}
+
+plots_folder <-"plots"
+
+if (!(dir.exists(plots_folder))) {
+  dir.create(plots_folder)
+}
+
+```
+
+# Read the raw data
+
+## Read
+
+```{r read raw data, cache=TRUE}
+# Set the path to the directory containing the data
+par_dir=dirname(dirname(getwd())) #parent directory 
+narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")
+
+#get narwhal data
+data_file="db_narwhal_2017_2018_with_gps.txt"
+rawData <- read.table(file.path(narwhal_data_path,data_file),
+                      header = TRUE, sep = "\t",dec = ".")
+
+```
+
+## Summary
+
+```{r summary raw data}
+print(summary(rawData))
+```
+
+```{=tex}
+Here is a brief description of the raw dataframe.
+We have $4132760$ observations and $32$ variables.
+The columns are
+\begin{itemize}
+\item \texttt{rawData\$Posixct} : The date and hour in characters
+\item \texttt{rawData\$Depth} : The narwhal depth in metres. It goes from $0$ to $-1044$ metres. The GPS positions given by \texttt{rawData\$Lat} and 
+\texttt{rawData\$Long} should be known only when depth is reasonably low (close to 0). 
+\item \texttt{rawData\$ODBA} : overall dynamic body acceleration, sometimes used as a proxy for energy expenditure, expressed in $m/s^{-2}$ or in $g$ ($1 g=9.8 m s^{-2}$). It is computed from accelerometer data (see "Moving towards acceleration for estimates of
+activity-specific metabolic rate in free-living animals: the case of the cormorant)" wILSON 2006 for details.
+\item \texttt{rawData\$VeDBA} : vector dynamic body acceleration
+\item \texttt{rawData\$Acou\_qua} : 
+\item \texttt{rawData\$GPS\_time} : character for date and time when signal was emitted by the GPS : $54$ seconds ahead compared to \texttt{rawData\$Posixct}
+\item \texttt{rawData\$Lat} : latitude in $[-90,90]$ degrees in the World Geodetic System 1984. It is either a latitude measure by the GPS or linearly interpolated using previous and next latitude.
+\item \texttt{rawData\$DistanceShore} : distance to the nearest shore point, in metres.
+\item \texttt{rawData\$Long] : }  longitude in $[-180,180]$ degrees in the World Geodetic System 1984. It is either a latitude measure by the GPS or linearly interpolated using previous and next latitude.
+\item \texttt{rawData\$LOS} : binary variable : 1 if the narwhal is in Line of sight from the ship, 0 otherwise.
+\item \texttt{rawData\$Seismik} : binary variable
+\item \texttt{rawData\$Type} : categorical variable with values "trial" when the narwhal is exposed to the ship and the ship is shooting airguns,
+"intertrial" when the narwhal is exposed to the ship without airguns being shot.
+\item \texttt{rawData\$TrialNo} : categorical variable with values "T1", ..., "T8", "I1", ..., "I9" where the letter stands for the type 
+(intertrial  or trial) and the number for the number of the trial.
+\item \texttt{rawData\$Exposure} : categorical variable with levels from 1 to 8.
+\item \texttt{rawData\$Year} : year when the data was collected
+\item \texttt{rawData\$Click} : binary variable, indicating whether the narwhal is emitting click sounds or not
+\item \texttt{rawData\$Call} : binary variable, indicating whether the narwhal is emitting call sounds or not
+\item \texttt{rawData\$Buzz} : binary variable, indicating whether the narwhal is buzzing
+"The closer the narwhals get to their food, the faster they click, until the noise becomes a buzz". Calls are emitted for communication with
+other individuals.
+\item \texttt{rawData\$Dist\_Ship} : Distance to the military ship in metres
+\item \texttt{rawData\$Area} : categorical variable with "IF" "R"  "O"  "H"  "OG" (outer Gasefjord) "G"  "Vi" "F"(Fonfjord)  "IG" matching the area in Scoresby Sound :
+
+\item \texttt{rawData\$GunSize} : categorical variable with values "B" (big) and "S" (small). 
+Big airguns were used only in 2018, and small airgun in 2017 (see Jorgensen 2021)
+\item \texttt{rawData\$temperatureCorrected} : 
+\item \texttt{rawData\$Dist\_to\_CPA} : Distance in km to the closest point of approach (CPA), that is the point where the narwhals and the ship would be the 
+closest if they kept moving linearly (see "CPA calculation method based on AIS position prediction", Yan)
+\item \texttt{rawData\$Time\_to\_CPA} : time needed to reach the CPA (I don't get why some values are negative)
+\item \texttt{rawData\$Direction\_cat} : categorical variable with values "increasing" or "decreasing".
+\item \texttt{rawData\$NoOfStrokes\_20sec} : number of strokes per 20 seconds
+\item \texttt{rawData\$Divecat} : categorical variable with values "S", "M", "D" (for surface, medium, deep ?).
+\item \texttt{rawData\$Target\_depth} : target depth in metres
+\item \texttt{rawData\$Dive\_phase} : categorical variable with values "surface","Descent","Bottom","Ascent","0".
+\item \texttt{rawData\$GPS\_time\_chr} : Character for the date and time : this column is identical to column rawData\$GPS\_time. Can be deleted
+\item \texttt{rawData\$pos\_org} : binary variable with value $0$ if latitude and longitude have been interpolated, $1$ if it is an actual GPS measure.
+\end{itemize}
+```
+
+# First preprocessing steps
+
+```{=tex}
+Two controlled exposure experiments were performed in 2017 and 2018.
+The main differences are that only small guns were used in 2017 while only big guns were used in 2018, and the tagged whales used a much larger part of Scoresby Sound in 2018.
+
+First preprocessing steps include : 
+\begin{itemize}
+\item keeping only 2018 data - adding a time since tagging column 
+\item converting distance to ship and distance to shore to km - adding an ExpShip column defined as the inverse of the \texttt{Dist\_Ship} column when the narwhals are in line of sight from the boat.
+\item Renaming the "Ind" column to "ID" and converting it to factors.
+\item Converting column "Type" in factor with levels trial and intertrial 
+\item Converting column "Posixct" to POSIXct format for date and time
+\end{itemize}
+
+The first measurement time is set to $1$ second and then measures are interpolated every second (see Jorgensen et al.).
+Thus, the time $T_k$ of the $k$-th measurement is $$T_{k}=\frac{k}{3600}\mbox{ h }$$ As proposed in Jorgensen et al., we also add a column with a covariate $E$ defined as $$E(t)=\frac{1}{\mbox{distance to ship}(t)}$$ where distance to ship has been converted in km.
+
+\texttt{ExpShip} is a proxy for sound exposure level (SEL).
+```
+
+```{r preprocess data 1, cache=TRUE}
+
+#keep only 2018 data
+data=rawData[rawData$Year==2018,]
+
+#convert Distance Shore and Dist_ship to km
+data$Dist_Ship=data$Dist_Ship/1000
+data$DistanceShore=data$DistanceShore/1000
+
+#add time since tagging column
+
+TimeFunction <- function(n, dt = 1){
+  ## n: Number of observations. Positive integer
+  ## dt: Time step between observations in seconds
+  Time <- (1:n)*(dt/3600) ## Time in hours since tagging
+}
+
+nrows=length(data[,1])
+data$time <- rep(0,nrows)
+for(ind in unique(data$Ind)){
+  indicator <- (data$Ind == ind)
+  data$time[indicator] <- TimeFunction(n = sum(indicator))
+}
+
+
+## Defining exposures
+
+ExposureFunction <- function(X){
+  ## X: Distance to ship in meters measured each second. Supposed to be positive
+  
+  ## Exposure variable
+  E <- 1/X ## Inverse of distance to ship in kilometers
+  E[is.na(E)] <- 0 ## If not in line of sight, exposure is zero
+  E
+}
+
+## Ship Exposure variable based on 1/distance in km
+data$ExpShip <- ExposureFunction(X = data$Dist_Ship) 
+
+
+#change name of the IDs column to ID
+colnames(data)[1]="ID"
+data$ID=factor(data$ID)
+
+#convert Type to factors
+data$Type <- factor(data$Type, levels = c("intertrial", "trial"))
+
+#convert Posixct to POSIXct class for time and dates
+data$Posixct=as.POSIXct(data$Posixct)
+```
+
+# Data exploration after first preprocessing
+
+## Trials and intertrials periods
+
+```{=tex}
+During the experiment, two types of exposure can be distinguished
+\begin{itemize}
+\item[1] Trials : Narwhals are in line of sight with the military ship and the ship is shooting airguns in the sea.
+\item[2] Intertrials: Narwhals are in line of sight with the military ship but it has stopped shooting airguns.
+\end{itemize}
+See Jorgensen et al. for more details.
+```
+
+```{r plot trials, cache=TRUE}
+
+
+#plot with all the narwhals rescaled so that the experiments start at the same time 
+trials1=ggplot(data[!is.na(data$Type), ], aes(time/24,ID,fill=Type)) + 
+  xlab("Number of days after tagging")+ylab("Exposure")+
+  geom_tile(lwd = 1,linetype = 1)+ 
+  scale_fill_manual(values=c("blue","red"),na.value="white",
+                    name="Trial type",labels=c("Intertrial","Trial"))+
+  scale_y_discrete(labels=c("A1", "A2", "A3", "A4","A5", "A6"))
+
+
+
+#plot with all the narwhals at the real experiments time
+trials2=ggplot(data[!is.na(data$Type), ], aes(Posixct,ID,fill=Type)) + 
+  xlab("Day")+ylab("Exposure")+
+  geom_tile(lwd = 1.5,linetype = 1)+ 
+   scale_fill_manual(values=c("blue","red"), na.value="white",
+                     name="Trial type",labels=c("Intertrial","Trial"))+
+  scale_y_discrete(labels=c("A1", "A2", "A3", "A4","A5", "A6"))
+
+ggsave(path=plots_folder,filename="trials_rescaled.png",plot=trials1,width=10,height=5)
+ggsave(path=plots_folder,filename="trials.png",plot=trials2,width=10,height=5)
+```
+
+
+
+## Ship exposure through time and depending on trial type
+
+```{r define ExpShipI and ExpShipT, cache=TRUE}
+
+data$ExpShipI=data$ExpShip
+data$ExpShipT=data$ExpShip
+
+data$ExpShipI[data$Type=="trial"]=0
+data$ExpShipT[data$Type=="intertrial"]=0
+
+
+```
+
+It appears that the exposure is not so smooth with respect to time, meaning that a narwhal can be highly exposed at some time and be completely out of sight from the airguns a few seconds later.
+This phenomenon appears when the values in DistShip suddenly change to NA.
+
+Moreover, exposure times are relatively short compare to the overall duration of the measurement period, so that most of the time, ExpShip is zero but short peaks appear when trials or intertrials are happening.
+We would need to zoom on these peaks to assess their smoothness.
+
+```{r ggplot ship exposure, cache=TRUE}
+#plot exposure
+pExpAll=ggplot(data,aes(time,ExpShip,col=ID))+geom_line()+
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+#plot exposure durinh intertrial
+pExpInt=ggplot(data,aes(time,ExpShipI,col=ID))+geom_line()+
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+#plot exposure during trial
+pExpTr=ggplot(data,aes(time,ExpShipT,col=ID))+geom_line()+
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+
+ggsave(path=plots_folder,filename="exposure_through_time.png",
+       pExpAll,width=10,height=5)
+ggsave(path=plots_folder,filename="intertrial_exp_through_time.png",
+       pExpInt,width=10,height=5)
+ggsave(path=plots_folder,filename="trial_exp_through_time.png",
+       pExpTr,width=10,height=5)
+
+
+
+```
+
+```{r display pExpAll, fig.cap="Global exposure to ship through time"}
+pExpAll
+```
+
+```{r display pExpTr, fig.cap="Trial exposure to ship through time"}
+pExpTr
+```
+
+```{r display pExpInt, fig.cap="Intertrial exposure to ship through time"}
+pExpInt
+```
+
+## True exposure per individual
+
+```{=tex}
+\textbf{\texttt{Lat} and \texttt{Long} columns have been interpolated every second, and distance to ship has been computed from these interpolations.
+The true measured distance to ship are in the rows for which the column \texttt{pos\_org}  has value 1.}
+```
+
+```{r plot exposure per individual,cache=TRUE}
+
+for (id in unique(data$ID)) {
+  plot_exp=ggplot(data[data$ID==id,],aes(time,ExpShip))+geom_line()+
+  geom_point(data=data[(data$pos_org==1)&(data$ID==id),],
+             aes(time,ExpShip),shape=3,colour="red",size=1)
+  
+  ggsave(path=plots_folder,
+         filename=paste(id,"ship_exposure_through_time.png",sep="_"),
+         plot_exp,width=10,height=5)
+}
+```
+
+```{r example of individual exposure with red points for measured values, fig.cap=""}
+ggplotly(plot_exp)
+```
+
+
+# Second preprocesssing step
+
+```{=tex}
+\begin{itemize}
+\item  Drop missing latitude and longitude
+\item Keep GPS positions indicated by value 1 in \texttt{pos\_org} column
+\item  Project to UTM zone 26. The narwhal positions are in latitude and longitude.To analyze the track and visualize it better we project it on a plane in UTM coordinates.
+The positions of the narwhals are in the UTM zone 26 north (in Greenland).
+\item Add a column "speed" with empirical horizontal speed obtained from the GPS positions (not interpolated)
+\end{itemize}
+
+```
+
+
+```{r preprocess data 2, cache=TRUE}
+
+
+dataprep=data[!(is.na(data$Lat)) & !(is.na(data$Long)),]
+dataprep=dataprep[dataprep$pos_org==1,]
+nrows=length(dataprep[,1])
+
+
+
+#project to UTM (Universal Transverse Mercator coordinate system)
+
+llcoord=SpatialPoints(dataprep[,c("Long","Lat")],
+                      proj4string=CRS("+proj=longlat +datum=WGS84"))
+utmcoord=spTransform(llcoord,CRS("+proj=utm +zone=26 +north,ellps=WGS84"))
+
+#add UTM locations in km to data frame
+dataprep$x=attr(utmcoord,"coords")[,1]
+dataprep$y=attr(utmcoord,"coords")[,2]
+
+#compute empirical horizontal speed
+n=length(dataprep$time)
+dataprep$horizontal_speed=rep(NA,n)
+  
+  
+rows_index=c()
+for (id in unique(dataprep$ID)){
+  
+  #filter data with specific id
+  sub_ind=(dataprep$ID==id)
+  sub_data=dataprep[sub_ind,]
+  n_sub=length(sub_data$time)
+  
+  #time steps
+  dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
+  
+  #step lengths
+  dx=(sub_data[2:n_sub,"x"]-sub_data[1:(n_sub-1),"x"])/1000
+  dy=(sub_data[2:n_sub,"y"]-sub_data[1:(n_sub-1),"y"])/1000
+  
+  speed=c(NA,sqrt((dx/dtimes)^2+(dy/dtimes)^2))
+  
+  dataprep[sub_ind,"horizontal_speed"]=speed
+}
+
+```
+
+
+# Data exploration after second preprocessing
+
+## measurement periods for each narwhal
+```{r measurement periods}
+#print measurement periods for each narwhal
+
+for (id in unique(dataprep$ID)) {
+  dataid=dataprep[dataprep$ID==id,]
+  print(paste(id,"measurement period : ",min(as.POSIXct(dataid$Posixct)),"to",
+              max(as.POSIXct(dataid$Posixct))))
+}
+```
+
+## Explore horizontal speed
+
+```{r summary horizontal speed}
+summary(dataprep$horizontal_speed)
+```
+
+```{=tex}
+The mean speed is about 4.5 km/h.
+Usually, computing the empirical horizontal speed between two positions amounts to consider that the narwhal moved in a straight line between
+the two points. But this is obviously not true, especially for long time steps, because the narwhal make U-turns for instance, and more importantly, it dives to find food. Therefore the empirical horizontal speed always underestimates the true horizontal speed.
+Anormal values of the speed may indicate outliers to remove from the data.  Here we clearly see some outliers in the histogram
+```
+
+```{r histogram horizontal speed,warnings=FALSE}
+speed_histo=ggplot(dataprep, aes(x =horizontal_speed,col=ID)) +
+  geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="top")+xlab("Empirical horizontal speed (km/h)")
+
+speed_histo
+ggsave(path=plots_folder,"speed_histo.png", plot = speed_histo)
+```
+
+
+## Filter horizontal speed
+
+```{r speed higher than 20km/h }
+dataprep[dataprep$horizontal_speed>20,c("ID","time","horizontal_speed")]
+```
+
+```{=tex}
+There are only two horizontal speeds (both for Kyrri track) higher than $20$ km/h. We decide to keep this threshold of 20 km/h to filter the rows.
+```
+
+```{r remove rows with speed > 20km/h}
+rows_index=which(dataprep$horizontal_speed>20)
+dataprep=dataprep[-rows_index,]
+```
+
+```{r check filtered dataprep}
+#check that now all speeds are inferior to 20 km/h
+dataprep[dataprep$horizontal_speed>20,]
+```
+
+
+# More data exploration
+
+## Time steps distribution 
+
+
+```{r compute time steps,warnings=FALSE}
+
+dtimes=data.frame("delta"=rep(NA,nrow(dataprep)),"ID"=rep(NA,nrow(dataprep)))
+
+for (id in unique(dataprep$ID)) {
+  ind=dataprep$ID==id
+  data_id=dataprep[ind,]
+  nrows=length(data_id[,1])
+  delta_id=data_id[2:nrows,"time"]-data_id[1:(nrows-1),"time"]
+  delta_id=c(NA,delta_id)
+  dtimes[ind,"delta"]=delta_id
+  dtimes[ind,"ID"]=rep(id,nrows)
+}
+
+```
+
+```{r summary time steps, cache=FALSE, echo=TRUE}
+print(summary(dtimes$delta*60))
+```
+
+
+```{r}
+times_histo=ggplot(dtimes, aes(x =60*delta,col=ID)) +
+  geom_histogram(fill="white",bins=100)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="top")+xlab("Time step (min) ")
+
+
+times_histo
+ggsave(path=plots_folder,"time_steps_histo.png", plot = times_histo)
+```
+
+```{r time steps >2h, cache=FALSE, echo=TRUE}
+
+cat("Percentage of time steps > 2h :",length(delta[delta>2])/length(delta)*100)
+```
+
+```{r display hist , fig.cap="Histogram of time steps",warnings=FALSE}
+all_times_histo=ggplot(data=dtimes,aes(x=60*delta))+geom_histogram(bins=120,color="black",fill="grey")+xlab("Time step (min)")
+all_times_histo
+ggsave(path=plots_folder,"all_time_steps_histo.png", plot = all_times_histo)
+```
+
+```{=tex}
+The median of the time steps between consecutive measurement is about $5$ minutes.
+Only two time steps exceed $4$h.
+```
+
+## Plot all GPS tracks (without interpolation) on a map
+
+```{r milne land map, cache=TRUE}
+height <- max(dataprep$Lat) - min(dataprep$Lat)
+width <- max(dataprep$Long) - min(dataprep$Long)
+borders <- c(bottom  = min(dataprep$Lat), 
+                 top     = max(dataprep$Lat),
+                 left    = min(dataprep$Long),
+                 right   = max(dataprep$Long))
+
+register_stadiamaps(key ="a3062dd7-0f3d-44ea-a6ac-e11c9eeb94b4")
+milne_land <- get_stadiamap(borders, zoom = 10, maptype = c("stamen_terrain"))
+milne_land_map=ggmap(milne_land)
+
+```
+
+```{r trajectories map, cache=TRUE}
+
+#static map
+map=milne_land_map + 
+  geom_point(dataprep[,c("ID","Long","Lat","time")],
+             mapping=aes(Long, Lat, col = ID),size= 0.5,alpha=1) +
+   geom_path(dataprep[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
+  geom_point(data = dataprep[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
+             aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+ggsave(path=plots_folder,filename="all_narwhals_tracks.png", 
+       plot = map,width=10,height=5)
+
+#animated map with gganimate
+animate_map=milne_land_map + 
+  geom_line(dataprep[,c("ID","Long","Lat","time")], 
+            mapping=aes(Long, Lat, col = ID),size= 1,alpha=0.5) +
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+transition_reveal(time)
+
+animation=animate(animate_map,renderer = gifski_renderer())
+anim_save(path=plots_folder,filename="all_narwhals_tracks.gif", 
+          animation = animation,width=10,height=5)
+```
+
+```{r display map , fig.cap="All narwhal tracks"}
+map
+```
+
+# Coastline and land data
+
+## Extract coastline and land polygons
+
+```{r extract coastline and land,cache=TRUE}
+
+# Set the path to the directory containing coastline data
+par_dir=dirname(dirname(getwd())) #parent directory 
+greenland_data_path <- file.path(par_dir,"Data", "Greenland")
+
+#get the coastline geometry from the geojson file
+coastline_utm<-st_read(file.path(greenland_data_path,"filtered_coastline_utm.geojson"))
+st_crs(coastline_utm)="+init=EPSG:32626"
+
+#get land polygons
+land_utm<-st_read(file.path(greenland_data_path,"filtered_land_utm.shp"))
+
+
+```
+
+## Plot coastline and land
+
+```{r plot coastline and land}
+plot_land=ggplot()+geom_sf(data=land_utm$geometry,fill=NA,col="brown")+
+  coord_sf(datum=st_crs(32626))
+plot_coastline=ggplot()+geom_sf(data=coastline_utm$geometry,fill=NA,col="blue")+
+  coord_sf(datum=st_crs(32626))
+```
+
+```{r display land , fig.cap="Land polygons"}
+plot_land
+```
+
+```{r display coastline , fig.cap="Coastline polygons and linestrings"}
+plot_coastline
+```
+
+## Compute nearest point on land and coastline for each GPS position
+
+```{r compute nearest shore points,cache=TRUE}
+
+
+
+nearest_points=function(positions,coastline) {
+  #positions: dataframe of positions in UTM coordinates in metres
+  #coastline : geometry of the coastline projected in the same UTM zone as positions in metres
+  
+  # Create an empty vector to store the nearest points
+  nearest_points <- matrix(nrow = nrow(positions), ncol = 2)
+  min_distances<-matrix(nrow = nrow(positions), ncol = 1)
+  
+   #progress bar
+  pb <- progress_bar$new(format = "[:bar] :percent",total = nrow(positions), clear = FALSE, width = 60)
+  
+  # Iterate over each position
+  for (i in 1:nrow(positions)) {
+  
+    pb$tick()
+  
+    # Extract the position coordinates
+    coords <- st_point(c(positions$x[i], positions$y[i]))
+  
+  
+    # Initialize variables to store the minimum distance and nearest point
+    min_distance <- Inf
+    nearest_point <- NULL
+ 
+  
+    # Iterate over each polygon in coastline
+    for (j in 1:length(coastline$geometry)) {
+    
+      # Get the current polygon
+      polygon <- coastline$geometry[[j]]
+    
+      distance <- st_distance(coords,polygon)
+    
+      candidate=st_nearest_points(coords,polygon)
+    
+      coordinates=st_coordinates(candidate)[2,c("X","Y")]
+    
+      if (distance < min_distance) {
+        min_distance=distance
+        nearest_point=coordinates
+      }
+    }
+  
+    # Store the nearest point as an 'sf' point
+    nearest_points[i, ] <- nearest_point
+    min_distances[i,]<-min_distance
+  }
+  return (list("nearest_points"=nearest_points,"min_distances"=min_distances))
+}
+  
+narwhal_positions=dataprep[,c("x","y")]
+
+#nearest points in coastline and land
+
+result=system.time({
+
+res_land=nearest_points(positions=narwhal_positions,coastline=land_utm)
+res_coastline=nearest_points(positions=narwhal_positions,coastline=coastline_utm)
+})
+
+```
+
+```{r computation time}
+cat("Elapsed time:", result[3]/60, "minutes\n")
+```
+
+## Compare computed distances to shore
+
+```{r compare distances to shore}
+plot(res_land$min_distances/1000-dataprep$DistanceShore)
+plot(res_coastline$min_distances/1000-dataprep$DistanceShore)
+```
+```{r summary distances to shore}
+summary(res_land$min_distances)
+summary(res_coastline$min_distances)
+summary(dataprep$DistanceShore*1000)
+```
+Coastline distances are a bit closer to original distances in the dataset.
+Anyway, we shall keep distance computed from the land in the sequel, since the land polygons will be the reference domain
+for constrained movement of the narwhals.
+
+```{r histograms distances to shore}
+histo1=ggplot(dataprep, aes(x = DistanceShore*1000)) +
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Original distance to shore (m)")
+
+df=data.frame(DistanceShore=res_coastline$min_distances)
+histo2=ggplot(df, aes(x =DistanceShore)) +
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance from coastline (m)")
+
+df=data.frame(DistanceShore=res_land$min_distances)
+histo3=ggplot(df, aes(x =DistanceShore)) +
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance fom land (m)")
+```
+
+```{r display histograms}
+histo1
+histo2
+histo3
+```
+
+
+```{=tex}
+There are pretty big differences between distances calculates with the coastline data and the land data.
+
+For the rest of the analysis, we'll keep the bounded domain defined by the polygons in \texttt{land\_utm} sf object as a reference.
+Doing that involves having some points on land, that is points with Distance to shore equal to 0.
+This should be essentially due to the error in the land polygons than to the error in GPS measurements.
+```
+
+## Points on land
+
+For coastline, distance is 0 only if the position of the narwhal is exactly on the coastline or on a small island. A proper "land domain" is not defined in this case, but only the boundary of the domain (the coastline).
+
+```{r percentages of points on land}
+cat("Percentage of points on land with the original distance to shore : \n",
+    length(dataprep[dataprep$DistanceShore==0,"time"])/length(dataprep$time)*100,"\n")
+
+cat("Percentage of points on land with distance from land : \n",
+    length(which(res_land$min_distances/1000==0))/length(dataprep$time)*100,"\n")
+
+
+cat("Percentage of points on land with distance from coastline : \n",
+    length(which(res_coastline$min_distances/1000==0))/length(dataprep$time)*100)
+```
+
+
+
+## Check points on land on a map
+
+Some points that appear on land on the map don't have distance to shore 0. This may be due to the map inaccuracy.
+If we compute the distance to shore based on the map, as done in res_land, we get more points on the land.
+
+```{r check original points on land}
+check_plot1=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
+    coord_sf(datum=st_crs(32626))+
+  geom_point(data=dataprep,aes(x,y,col=(DistanceShore==0)),size=0.2)+
+    scale_color_viridis_d()
+
+ggplotly(check_plot1)
+```
+
+
+```{r inspect points on land}
+dataprep[dataprep$DistanceShore==0,c("Depth","time")]
+```
+
+
+
+```{r check new points on land}
+df=dataprep
+df$DistanceShore=res_land$min_distances
+
+check_plot2=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
+    coord_sf(datum=st_crs(32626))+
+  geom_point(data=df,aes(x,y,col=(DistanceShore==0)),size=0.2)+
+    scale_color_viridis_d()
+
+ggplotly(check_plot2)
+```
+
+```{r percentage points on land per ID}
+
+#percentage of points on land per ID
+table(df[df$DistanceShore==0,"ID"])/table(dataprep$ID)*100
+
+
+```
+
+
+## Points too close to land
+
+We expect the narwhals to stay at a certain distance from land, say 50 meters.
+Let's check the distribution of points near land to choose a minimum value for the distance to shore below which we should drop the points.
+
+```{r}
+
+df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<100 & res_land$min_distances>0  ])
+histo=ggplot(df, aes(x =DistanceShore)) +
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (m)")
+```
+
+```{r}
+histo
+```
+
+This seems to be pretty uniformly distributed, so let's choose arbitrarily a threshold of 50 metres.
+
+
+
+# Third preprocessing step
+
+##  Add distance and coordinates of the nearest shore point in the dataframe
+
+```{r add shore points to the df}
+
+#keep points calculated from land polygons
+nearest_points=res_land$nearest_points
+min_distances=res_land$min_distances
+
+#add columns px and py with coordinates of the nearest point on the shore line
+dataprep$px=nearest_points[,1]
+dataprep$py=nearest_points[,2]
+
+# add columns with difference between narwhal position and nearest point on the shoreline
+dataprep$nx=dataprep$x-dataprep$px
+dataprep$ny=dataprep$y-dataprep$py
+
+#replace distance to shore with distances calculated from land polygons (in km)
+dataprep$DistanceShore=min_distances/1000
+
+```
+
+
+
+# Add shore exposure covariate
+
+
+```{r}
+#add ExpShore covariate based on 1/distance in km
+dataprep$ExpShore <- ExposureFunction(X = dataprep$DistanceShore) 
+
+```
+
+# Convert all UTM coordinates in km
+
+```{r convert to km}
+
+dataprep$px=dataprep$px/1000
+dataprep$py=dataprep$py/1000
+dataprep$nx=dataprep$nx/1000
+dataprep$ny=dataprep$ny/1000
+
+
+dataprep$x=dataprep$x/1000
+dataprep$y=dataprep$y/1000
+
+```
+
+# Some quantities of interest : empirical velocities and deviation angles
+
+## Compute deviation angles related to the shore
+
+```{r empirical velocities and deviation angles, cache=TRUE}
+
+signed_angle <- function(u, v) {
+    #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
+    # as in 
+    # https://math.stackexchange.com/questions/529555/signed-angle-between-2-vectors
+    u <- matrix(u, ncol = 2)
+    v <- matrix(v, ncol = 2)
+    if (nrow(u) != nrow(v)) stop("u and v must have the same number of 
+                                  rows")
+    result <- as.numeric(atan2(v[,2], v[,1]) - atan2(u[,2], u[,1]))
+    ind1 <- which(result > pi)
+    ind2 <- which(result <= -pi)
+    result[ind1] <- result[ind1] - 2*pi
+    result[ind2] <- result[ind2] + 2*pi
+    return(result) 
+} 
+
+
+#observed deviation angles
+n=length(dataprep$time)
+
+dataprep$AngleShore=rep(NA,n)
+dataprep$AngleVelocities=rep(NA,n)
+dataprep$AngleNormal=rep(NA,n)
+dataprep$VelocityPhase=rep(NA,n)
+
+for (id in unique(dataprep$ID)) {
+  
+  #filter data with specific id
+  sub_ind=(dataprep$ID==id)
+  sub_data=dataprep[sub_ind,]
+  n_sub=length(sub_data$time)
+  
+  #time steps
+  dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
+  
+  #step lengths
+  dx=sub_data[2:n_sub,"x"]-sub_data[1:(n_sub-1),"x"]
+  dy=sub_data[2:n_sub,"y"]-sub_data[1:(n_sub-1),"y"]
+  
+  #matrix of empirical velocity
+  vexp_df=cbind(dx/dtimes,dy/dtimes)
+  
+  #matrix of normal vectors
+  normal=as.matrix(sub_data[2:n_sub,c("nx","ny")])
+  
+  #angle between velocity and normal vector
+  theta_coast=signed_angle(vexp_df,normal)
+  
+  #deviation angle between consecutive velocities
+  theta_vel=signed_angle(vexp_df[1:(n_sub-2),],vexp_df[2:(n_sub-1),])
+  
+  #velocity phase angle
+  vel_phase=signed_angle(matrix(rep(c(1,0),each=n_sub-2),ncol=2),vexp_df[1:(n_sub-2),])
+  
+  #deviation from trajectory parallel to coastline
+  phi=ifelse(theta_coast > 0, theta_coast - pi/2, theta_coast + pi/2)
+  
+  
+  #adjust lengths by adding NA when necessary
+  theta_vel=c(NA,theta_vel,NA)
+  phi=c(NA,phi)
+  theta=c(NA,theta_coast)
+  vel_phase=c(NA,vel_phase,NA)
+  
+  dataprep[sub_ind,"AngleShore"]=phi
+  dataprep[sub_ind,"AngleVelocities"]=theta_vel
+  dataprep[sub_ind,"AngleNormal"]=-theta
+  dataprep[sub_ind,"VelocityPhase"]=vel_phase
+}
+
+
+```
+
+## Plot empirical velocities and deviation angles through time
+
+```{=tex}
+$9 \%$ of the points are on land.
+If the points are too close to then land (let's say distance to shore < 50m), the covariates AngleShore and Angle Normal are likely to be irrelevant.
+```
+
+```{r plot empirical velocities and deviation angles through time}
+
+
+#highlight regions when the narwhals are exposed to the ship
+#get starting times of experiment
+start_times <- dataprep %>%
+  filter((Type == "intertrial" | Type == "trial") & lag(is.na(Type))) %>% 
+  select(time,ID)%>% rename(start_time = time)
+#get ending times of experiments
+end_times <- dataprep %>%
+  filter((Type == "intertrial" | Type == "trial") & lead(is.na(Type))) %>% 
+  select(time)%>% rename(end_time = time)
+#dataframe with time period when the narwhals are exposed
+regions=cbind(start_times,end_times)
+
+
+#plot with highlight on the periods when the narwhals are exposed
+plot_speed=ggplot()+ geom_line(data=dataprep,aes(time,horizontal_speed,col=ID))+ 
+  geom_rect(data = regions, 
+            aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),
+            alpha = 0.3,col="lightblue")+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical velocity")
+
+plot_AngleShore=ggplot()+geom_line(data=dataprep[dataprep$DistanceShore>0.05,],aes(time,AngleShore,col=ID))+
+  geom_rect(data = regions, aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),alpha = 0.3,col="lightblue")+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical deviation from coastline")
+
+plot_AngleVelocities=ggplot()+geom_line(data=dataprep,aes(time,AngleVelocities,col=ID))+
+  geom_rect(data = regions, aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),alpha = 0.3,col="lightblue")+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical deviation between consecutive velocities")
+
+plot_AngleNormal=ggplot()+geom_line(data=dataprep[dataprep$DistanceShore>0.05,],aes(time,AngleNormal,col=ID))+
+  geom_rect(data = regions, aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),alpha = 0.3,col="lightblue")+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Angle between empirical velocity and normal vector")
+
+
+
+ggsave(path=plots_folder,"plot_horizontal_speed.png", plot = plot_speed)
+ggsave(path=plots_folder,"plot_AngleShore.png", plot = plot_AngleShore)
+ggsave(path=plots_folder,"plot_AngleVelocities.png", plot = plot_AngleVelocities)
+ggsave(path=plots_folder,"plot_AngleNormal.png", plot = plot_AngleNormal)
+
+```
+
+```{r display plot_vexp , fig.cap="",warning=FALSE}
+plot_speed
+```
+
+```{r display plot_AngleShore , fig.cap="",warning=FALSE}
+plot_AngleShore
+plot_AngleVelocities
+```
+
+```{r display plot_AngleVelocities , fig.cap="",warning=FALSE}
+plot_AngleVelocities
+```
+
+## Histograms deviation angles
+
+```{r histogram deviation angles}
+
+
+AngleShore_histo=ggplot(dataprep[dataprep$DistanceShore>0.05,], aes(x = AngleShore,col=ID)) +
+  geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="top")+xlab("Empirical deviation from coastline (rad)")
+
+
+AngleVelocities_histo=ggplot(dataprep, aes(x = AngleVelocities,col=ID)) +
+  geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="top")+xlab("Empirical deviation between consecutive velocities (rad) ")
+
+AngleNormal_histo=ggplot(dataprep[dataprep$DistanceShore>0.05,], aes(x = AngleNormal,col=ID)) +
+  geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="top")+xlab("Angle between empirical velocity and normal vector (rad) ")
+
+
+VelocityPhase_histo=ggplot(dataprep, aes(x = VelocityPhase,col=ID)) +
+  geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="top")+xlab("Velocity phase angele (rad) ")
+
+ggsave(path=plots_folder,"AngleShore_histo.png", plot = AngleShore_histo)
+ggsave(path=plots_folder,"AngleVelocities.png", plot = AngleVelocities_histo)
+ggsave(path=plots_folder,"AngleNormal.png", plot = AngleNormal_histo)
+ggsave(path=plots_folder,"VelocityPhase.png", plot = VelocityPhase_histo)
+```
+
+
+
+```{r display AngleShore_histo, fig.cap="",warning=FALSE}
+AngleShore_histo
+```
+
+```{r display AngleVelocities_histo, fig.cap="",warning=FALSE}
+AngleVelocities_histo
+```
+
+```{r, display AngleNormal_histo,warning=FALSE}
+AngleNormal_histo
+```
+
+```{r, display VelocityPhase_histo,warning=FALSE}
+VelocityPhase_histo
+```
+
+## Empirical velocity and deviation angle depending on ExpShip
+
+```{r plot empirical velocity and deviation angle depending on ExpSHip }
+
+
+plot_AngleVelocitiesExp=ggplot()+geom_point(data=dataprep,aes(ExpShip,AngleVelocities,col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Exposure to ship (km)")+ylab("Empirical deviation between consecutive velocities")
+
+ggsave(path=plots_folder,"plot_AngleVelocities_ExpShip.png", plot = plot_AngleVelocitiesExp)
+
+plot_speedExp=ggplot()+geom_point(data=dataprep,aes(ExpShip,horizontal_speed,col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Exposure to ship (km)")+ylab("Empirical velocity")
+
+ggsave(path=plots_folder,"plot_speed_ExpShip.png", plot = plot_speedExp)
+```
+
+```{r display plot_AngleVelocitiesExp, fig.cap=""}
+plot_AngleVelocitiesExp
+```
+
+```{r display plot_vexpExp, fig.cap=""}
+plot_speedExp
+```
+
+No clear pattern can be identified from these plots.
+
+
+## Empirical velocity and deviation angles depending on Distance to shore
+
+```{r plot empirical velocity and deviation angle depending on DistanceShore }
+
+plot_AngleShoreDistance=ggplot()+geom_point(data=dataprep,aes(DistanceShore,AngleShore,col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Distance to shore (km)")+ylab("Empirical deviation from coastline")
+
+
+ggsave(path=plots_folder,"plot_AngleShore_DistanceShore.png", plot = plot_AngleShoreDistance)
+
+
+plot_AngleVelocitiesDistance=ggplot()+geom_point(data=dataprep,aes(DistanceShore,AngleVelocities,col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Distance to shore (km)")+ylab("Empirical deviation between consecutive velocities")
+
+
+ggsave(path=plots_folder,"plot_AngleVelocities_DistanceShore.png", plot = plot_AngleVelocitiesDistance)
+
+plot_speedDistance=ggplot()+geom_point(data=dataprep,aes(DistanceShore,horizontal_speed,col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Distance to shore (km)")+ylab("Empirical velocity")
+
+ggsave(path=plots_folder,"plot_speed_DistanceShore.png", plot = plot_speedDistance)
+```
+
+```{r display plot_AngleShoreDistance, fig.cap=""}
+plot_AngleShoreDistance
+```
+
+
+```{r display plot_AngleVelocitiesDistance, fig.cap=""}
+plot_AngleVelocitiesDistance
+```
+
+
+```{r display plot_vexpDistance, fig.cap=""}
+plot_speedDistance
+```
+
+## Deviation angles and velocity as a smooth function of DistanceShore
+
+
+```{=tex}
+We are using \texttt{geom\_smooth} function to get a "smooth" version of the previous plots. The smooth approximation is computed with \texttt{gam} package and cubic spline basis functions.
+```
+
+```{r deviation angles and velocity as a smooth function of DistanceShore}
+
+# Plot smoothed AngleSHore
+plot_AngleShoreDistanceSmoothed <-  ggplot()+ geom_smooth(data=dataprep,aes(DistanceShore,abs(AngleShore),col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Distance to shore (km)")+ylab("Empirical deviation from coastline")
+
+# Plot smoothed AngleVelocities
+plot_AngleVelocitiesDistanceSmoothed <-  ggplot()+ geom_smooth(data=dataprep,aes(DistanceShore,abs(AngleVelocities),col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Distance to shore (km)")+ylab("Empirical deviation between consecutive velocities")
+
+#Plot smoothed speed
+plot_speedDistanceSmoothed <- ggplot() +geom_smooth(data=dataprep,aes(DistanceShore,horizontal_speed,col=ID))+
+  facet_grid(ID ~ ., labeller = as_labeller(c("Asgeir" = "A1", "Frederik" = "A2", "Helge18" = "A3", "Kyrri" = "A4", "Nemo" = "A5", "Siggi" = "A6"))) +
+  scale_color_viridis_d(guide = "none") +
+  theme(legend.position = "none") +
+  xlab("Distance to shore (km)") +
+  ylab("Empirical velocity")
+```
+
+
+
+```{r display plot_AngleShoreDistanceSmoothed, fig.cap=""}
+plot_AngleShoreDistanceSmoothed
+```
+
+```{r display plot_AngleVelocitiesDistanceSmoothed, fig.cap=""}
+plot_AngleVelocitiesDistanceSmoothed
+```
+
+```{r display plot_vexpDistanceSmoothed, fig.cap=""}
+plot_speedDistanceSmoothed
+```
+
+
+```{=tex}
+The increase in deviation angle from coastline for small values of Distance to shore might indicate a rotation of the narwhals at a certain threshold. However, it may also be due to the points on land ($2 \%$ of the data), that is the points for which \texttt{DistanceShore} is $0$. This can be checked by removing these points from the plot.
+```
+
+## Same plots without points on land
+
+```{r plot empirical velocities and deviation angles without points on land}
+# Plot smoothed AngleSHore
+plot_AngleShoreDistanceSmoothed <-  ggplot()+
+  geom_smooth(data=dataprep[dataprep$DistanceShore>0,],aes(DistanceShore,abs(AngleShore),col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+
+  theme(legend.position="none")+xlab("Distance to shore (km)")+
+  ylab("Empirical deviation from coastline")
+
+# Plot smoothed AngleVelocities
+plot_AngleVelocitiesDistanceSmoothed <-  ggplot()+
+  geom_smooth(data=dataprep[dataprep$DistanceShore>0,],aes(DistanceShore,abs(AngleVelocities),col=ID))+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Distance to shore (km)")+
+  ylab("Empirical deviation between consecutive velocities")
+
+#Plot smoothed vexp
+plot_speedDistanceSmoothed <- ggplot() +geom_smooth(data=dataprep[dataprep$DistanceShore>0,],aes(DistanceShore,horizontal_speed,col=ID))+
+  facet_grid(ID ~ ., labeller = as_labeller(c("Asgeir" = "A1", "Frederik" = "A2", "Helge18" = "A3", "Kyrri" = "A4", "Nemo" = "A5", "Siggi" = "A6"))) +
+  scale_color_viridis_d(guide = "none") +
+  theme(legend.position = "none") +
+  xlab("Distance to shore (km)") +
+  ylab("Empirical velocity")
+
+```
+
+```{r display plot_AngleShoreDistanceSmoothed without points on land, fig.cap=""}
+plot_AngleShoreDistanceSmoothed
+```
+
+```{r display plot_AngleVelocitiesDistanceSmoothed without points on land, fig.cap=""}
+plot_AngleVelocitiesDistanceSmoothed
+```
+
+```{r display plot_vexpDistanceSmoothed without points on land, fig.cap=""}
+plot_speedDistanceSmoothed
+```
+
+
+```{=tex}
+It turns out that the effect was due to points on land. 
+We can now observe a slight decrease in the angle of deviation from the coastline, which may indicate that narwhals tend to move parallel to the coast when close enough.
+However, no effects of Distance to shore is observed on the empirical deviation between consecutive velocities.
+This may be due to the averaging that is made to get those plots. The narwhal only turns for a few positions and then keep its heading paralell to the shore.
+```
+
+# Visualize individual tracks
+
+
+## Plot individual tracks on the map
+
+```{r}
+
+for (id in unique(dataprep$ID)) {
+  sub_data=dataprep[dataprep$ID==id,]
+ mapID=milne_land_map + 
+  geom_point(sub_data[,c("ID","Long","Lat","time")],
+             mapping=aes(Long, Lat, col = time),size= 1,alpha=0.5) +
+  scale_color_viridis_c()
+  
+  ggsave(path=plots_folder,paste(id,"map_track.png",sep="_"), 
+         plot =mapID,width=10,height=5)
+  
+}
+
+```
+
+## Plot each individual track along with nearest shore points
+
+The UTM coordinates for the coastlines are in meters, so that we need to multiply by 1000 when plotting the nearest shore points.
+
+```{r individual tracks}
+
+for (id in unique(dataprep$ID)) {
+  sub_data=dataprep[dataprep$ID==id,]
+  id_track=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
+    coord_sf(datum=st_crs(32626))+
+  geom_point(data=sub_data,aes(1000*px,1000*py),shape=5,size=0.1,col="red")+
+  geom_point(data=sub_data,aes(1000*x,1000*y,col=time),size=0.1)+
+    geom_path(data=sub_data,mapping=aes(1000*x,1000*y),linewidth=0.1)+
+    geom_point(data = sub_data %>% filter(!duplicated(ID)),
+             aes(1000*x,1000*y,col=ID), shape = 3, size = 4,col = "red")+
+    scale_color_viridis_c()
+  
+  ggsave(path=plots_folder,paste(id,"track.png",sep="_"), 
+         plot =id_track)
+  
+}
+
+```
+
+```{r display one track, fig.cap="Example of individual track with computed nearest shore points"}
+id_track
+```
+
+## Plot distance to shore histogram for each narwhal
+
+```{r distance shore histogram}
+Dshore_histo=ggplot(dataprep, aes(x = DistanceShore)) +
+  geom_histogram(fill="white",color="black",bins=50)+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  theme(legend.position="none")+xlab("Distance to shore (km)")
+
+
+ggsave(path=plots_folder,"Dshore_histo.png", plot = Dshore_histo)
+```
+
+```{r display Dshore_histo, fig.cap="Histograms of distance to shore"}
+Dshore_histo
+```
+## Plot distance to ship histogram for each narwhal
+
+
+We also plot the density of the Dist_Ship variable to understand better its distribution.
+
+
+```{r distance ship histogram}
+
+Dship_histo=ggplot(dataprep, aes(x = Dist_Ship)) +
+  geom_histogram(fill="white",col="black",bins=30)+
+  facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  theme(legend.position="none")+xlab("Distance to ship (km)")
+
+ggsave(path=plots_folder,"Dship_histo.png", plot = Dship_histo)
+
+```
+
+
+```{r display Dship_histo, fig.cap="Histograms of distance to ship"}
+Dship_histo
+```
+# Further details
+
+## Plot ship exposure without interpolated points
+
+```{r plot real exposure}
+pExpShip=ggplot(dataprep,aes(time,ExpShip,col=ID))+geom_line(color="black")+
+  facet_grid(ID~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  theme(legend.position="none")+xlab("Time (h)")+ylab("Exposure to ship")
+
+
+
+ggsave(path=plots_folder,"realExpShip_through_time.png", plot=pExpShip)
+```
+
+```{r display pExp, fig.cap="Measured exposure to ship through time"}
+pExpShip
+```
+## Plot shore exposure
+
+```{r}
+pExpShore=ggplot(dataprep[dataprep$DistanceShore>0.05,],aes(time,ExpShore,col=ID))+ geom_line(color="black")+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+  theme(legend.position="none")+xlab("Time (h)")+ylab("Exposure to shore")
+
+
+
+ggsave(path=plots_folder,"realExpShore_through_time.png", plot=pExp)
+```
+
+```{r}
+pExpShore
+```
+
+
+# Tracks before and after exposure to ship
+
+## Split between tracks before and after exposure
+
+```{r split tracks}
+
+tagtime=24
+
+
+dataBE1=data.frame()
+for (id in unique(data$ID)) {
+  narwhalData=dataprep[dataprep$ID==id,]
+  maxtime <- min(narwhalData$time[(narwhalData$LOS == 1)])
+  dataBE1 =rbind(dataBE1,subset(narwhalData, !(time > maxtime) & (time>tagtime)))
+}
+
+dataBE2=data.frame()
+for (id in unique(data$ID)) {
+  narwhalData=dataprep[dataprep$ID==id,]
+  maxtime <- min(narwhalData$time[(narwhalData$LOS == 1)])
+  dataBE2 =rbind(dataBE2,subset(narwhalData, !(time > maxtime) & (time>tagtime/2)))
+}
+
+dataAE=data.frame()
+for (id in unique(dataprep$ID)) {
+  narwhalData=dataprep[dataprep$ID==id,]
+  maxtime <- min(narwhalData$time[(narwhalData$LOS == 1)])
+  dataAE =rbind(dataAE,subset(narwhalData, (time > maxtime) & (time>tagtime)))
+}
+
+```
+
+```{r}
+#number of data points for each individual
+for (id in unique(data$ID)) {
+  narwhalDataBE=dataBE1[dataBE1$ID==id,]
+  narwhalDataAE=dataAE[dataAE$ID==id,]
+  cat(id," : ", length(narwhalDataBE$time)," GPS measurement before exposure and ", length(narwhalDataAE$time)," after exposure.\n",sep="")
+}
+```
+
+
+## Plot data before and after exposure
+
+```{r plots before and after exposure}
+pBE1=milne_land_map + geom_point(dataBE1, mapping=aes(Long, Lat,col=ID),size= 1,alpha=0.8) +
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+pBE2=milne_land_map + geom_point(dataBE2, mapping=aes(Long, Lat,col=ID),size= 1,alpha=0.8) +
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+pAE=milne_land_map + geom_point(dataAE, mapping=aes(Long, Lat,col=ID),size= 1,alpha=0.8) +
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+
+ggsave(path=plots_folder,"tracksBE1.png",pBE1,width=10,height=5)
+ggsave(path=plots_folder,"tracksBE2.png",pBE2,width=10,height=5)
+ggsave(path=plots_folder,"tracksAE.png",pAE,width=10,height=5)
+```
+
+```{r display pBE1, fig.cap="Tracks before exposure, 24h after tagging"}
+pBE1
+```
+
+```{r display pBE2, fig.cap="Tracks before exposure, 12h after tagging"}
+pBE2
+```
+
+```{r display pAE, fig.cap="Tracks after exposure"}
+pAE
+```
+
+# Save preprocessed data frames as csv files for further smoothSDE analysis
+
+```{r save preprocessed data}
+
+write.csv(dataprep,file.path(narwhal_data_path,"allData.csv"))
+write.csv(dataBE1,file.path(narwhal_data_path,"DataBE1.csv"))
+write.csv(dataBE2,file.path(narwhal_data_path,"DataBE2.csv"))
+write.csv(dataAE,file.path(narwhal_data_path,"DataAE.csv"))
+```
