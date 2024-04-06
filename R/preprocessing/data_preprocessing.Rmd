@@ -71,7 +71,7 @@ if (!(dir.exists(plots_folder))) {
 
 ## Read
 
-```{r read raw data}
+```{r read raw data,cache=TRUE}
 # Set the path to the directory containing the data
 par_dir=dirname(dirname(getwd())) #parent directory 
 narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")
@@ -518,7 +518,7 @@ milne_land_map=ggmap(milne_land)
 
 ```
 
-```{r trajectories map}
+```{r trajectories map,cache=TRUE}
 
 #static map
 map=milne_land_map + 
@@ -586,7 +586,7 @@ plot_coastline
 
 ## Compute nearest point on land and coastline for each GPS position
 
-```{r compute nearest shore points}
+```{r compute nearest shore points,cache=TRUE}
 
 nearest_points=function(positions,coastline) {
   #positions: dataframe of positions in UTM coordinates in metres
