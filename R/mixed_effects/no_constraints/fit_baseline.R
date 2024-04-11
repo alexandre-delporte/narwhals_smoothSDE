@@ -6,16 +6,6 @@ set.seed(42)
 library(smoothSDE)
 library(ggplot2)
 
-########################################    MANAGE DIRECTORIES  #################################
-
-#directory of mixed effects analysis
-path <- file.path("/home","delporta","Documents","Recherche","Codes","narwhals_movement_analysis",
-                  "smoothSDE","mixed_effects","no_constraints")
-setwd(path)
-
-#source("/home/delporta/Documents/Recherche/Codes/smoothSDE/R/utility.R")
-
-
 
 ########################### OUTPUT FILE TO KEEP RECORD OF THE SCRIPT EXECUTION #######################
 filename=paste("fit_baseline_output.txt",sep="")
@@ -29,10 +19,13 @@ file.create(filename)
 
 ####################################    GET NARWHAL DATA   ###########################################
 
-data_path<- file.path("/home","delporta","Documents","Recherche","Données","narvals")       
+
+# Set the path to the directory containing the data
+par_dir=dirname(dirname(dirname(getwd()))) #parent directory 
+narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")
 
 # DATA BEFORE EXPOSURE
-dataBE1=read.csv(file.path(data_path,"DataBE1.csv"), header = TRUE,dec = ".")
+dataBE1=read.csv(file.path(narwhal_data_path,"DataBE1.csv"), header = TRUE,dec = ".")
 
 cat("Extracting trajectories before exposure and 1 day after tagging... ",file=filename,sep="\n",append=TRUE)
 
@@ -41,7 +34,7 @@ cat(paste(length(dataBE1[,1]),"positions measured before exposure \n"),file=file
 
 #  DATA BEFORE EXPOSURE WITH 12H  TAGGING EFFECT
 
-dataBE2=read.csv(file.path(data_path,"DataBE2.csv"), header = TRUE,dec = ".")
+dataBE2=read.csv(file.path(narwhal_data_path,"DataBE2.csv"), header = TRUE,dec = ".")
 
 cat("Extracting all trajectories before exposure and 12 hours after tagging ... ",file=filename,sep="\n",append=TRUE)
 

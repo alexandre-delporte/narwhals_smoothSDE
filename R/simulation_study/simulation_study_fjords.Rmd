@@ -84,7 +84,7 @@ while (i<=n_samples) {
 ```
 
 
-## Fix time steps for observations 
+# Fix time steps for observations 
 
 ```{r fix time steps}
 #observation times
@@ -102,7 +102,7 @@ times_lf=seq(0,Tmax,by=lf)
 n_lf=length(times_lf)-1
 ```
 
-## Set observation error
+# Set observation error
 
 ```{r set observation error}
 #no measurement error (we cannot put 0 because only the log of this quantity is used)
@@ -117,7 +117,7 @@ H1_hf=array(rep(sigma_obs_1^2*diag(2),n_hf),dim=c(2,2,n_hf))
 ```
 
 
-## Fix smooth parameters
+# Fix smooth parameters
 
 ```{r define smooth parameters}
 
@@ -181,10 +181,12 @@ plot_true_omega
 
 
 
-## Estimation when omega only is smooth
+# Estimation when omega only is smooth
 
 
-### Generate samples : high frequency and no measurement error
+## Generate samples 
+
+### High frequency and no measurement error
 
 ```{r high frequency samples no error (hf ne)}
 
@@ -206,7 +208,7 @@ data_fjords_hf_ne=data_fjords_hf_ne[-1,]
 ```
 
 
-## percentage of samples that reached land
+### percentage of samples that reached land
 
 ```{r percentage of hf ne samples that reached land}
 count=0
@@ -239,7 +241,7 @@ ggplotly(plot_samples_fjords_hf_ne)
 
 
 
-### Generate samples : low frequency and no measurement error
+### Low frequency and no measurement error
 
 ```{r subsample hf ne samples to low frequency (lf ne)}
 data_fjords_lf_ne=data_fjords_hf_ne[seq(1,nrow(data_fjords_hf_ne),by=5),]
@@ -265,7 +267,7 @@ ggplotly(plot_samples_fjords_lf_ne)
 
 
 
-### Generate samples : high frequency and measurement error
+### High frequency and measurement error
 
 ```{r generate high frequency samples with error (hf e)}
 
@@ -298,6 +300,7 @@ for (id in unique(data_fjords_hf_e$ID)){
 }
 cat(count/n_samples*100,"percent of the samples reached land")
 ```
+
 ### Plot samples
 
 ```{r plot hf e samples}
@@ -317,7 +320,7 @@ ggplotly(plot_samples_fjords_hf_e)
 
 
 
-### Generate samples : low frequency and measurement error
+### Low frequency and measurement error
 
 ```{r subsamble hf e samples to low frequency (lf e)}
 
@@ -341,7 +344,7 @@ ggsave(filename="samples_fjords_lf_e_omega.png",plot=plot_samples_fjords_lf_e)
 ggplotly(plot_samples_fjords_lf_e)
 ```
 
-### Compute distance to shore and empirical deviation angles
+## Compute distance to shore and empirical deviation angles
 
 ```{r compute covariates}
 
@@ -416,7 +419,9 @@ data_fjords_lf_e=add_covs(data_fjords_lf_e)
 ```
 
 
-### Estimate from high frequency data without error : ExpShore and tensor splines ti
+## Estimations
+
+### High frequency data without error : ExpShore and tensor splines ti
 
 
 ```{r estimate from hf e samples with cov ExpShore}
@@ -548,7 +553,7 @@ ggsave(filename="crcvm_fjords_hf_ne1/crcvm_fjords_hf_ne1_omega_toward.png",plot=
 ```
 
 
-### Estimation from low frequency data without error
+### Low frequency data without error
 
 ```{r estimate from lf ne samples with cov ExpShore}
 
@@ -579,7 +584,7 @@ res$plot_omega_theta_DistanceShore
 
 
 
-### Estimate from high frequency data with error : ExpShore and tensor splines te
+### High frequency data with error : ExpShore and tensor splines te
 
 
 ```{r estimate from hf e samples with cov ExpShore}
@@ -712,7 +717,7 @@ ggsave(filename="crcvm_fjords_hf_ne1/crcvm_fjords_hf_ne1_omega_toward.png",plot=
 
 
 
-### Estimate from low frequency data with error : ExpShore and tensor splines ti
+### Low frequency data with error : ExpShore and tensor splines ti
 
 
 ```{r}

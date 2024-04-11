@@ -1313,8 +1313,9 @@ sim_theta_CRCVM=function(ftau,fomega,nu,log_sigma_obs=NULL,v0,x0,times,land,verb
     data_shore=rbind(data_shore,c(as.numeric(p),Dshore,theta))
     
     #parameters
-    tau=ftau(Dshore,theta)
-    omega=fomega(Dshore,theta)
+    cov_data=data.frame(DistanceShore=Dshore,theta=theta)
+    tau=ftau(cov_data)
+    omega=fomega(cov_data)
     sigma=2*nus[i-1]/sqrt(pi*tau)
     
     if (verbose) {
