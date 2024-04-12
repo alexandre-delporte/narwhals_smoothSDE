@@ -73,7 +73,7 @@ for (i in 1:length(list_k)) {
                    nu=~s(ExpShip,k=list_k[i],bs="cs")+s(ID,bs="re"))
 
   try_response1 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                       par0 = par0,other_data=list("H"=H))
+                       par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
   try_response1$fit()
   
   AIC_df1[i,"AIC_marginal"]=try_response1$AIC_marginal()
@@ -105,7 +105,7 @@ link=list("ExpShip"=(\(x) 1/x))
 xlabel=list("ExpShip"="Distance to ship")
 
 plot_resp1=response1$get_all_plots(baseline=baseline2,model_name="response1",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95,show_CI=TRUE)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ## MODEL WITH OFFSET AS IN BASELINE 2
@@ -113,11 +113,11 @@ plot_resp1=response1$get_all_plots(baseline=baseline2,model_name="response1",
 map=list("coeff_fe"=factor(rep(NA,4)))
 
 response1offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",
-                           response = c("x","y"),par0 = par0,map=map,other_data=list("H"=H))
+                           response = c("x","y"),par0 = par0,map=map,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response1offset$fit()
 
 plot_resp1offset=response1offset$get_all_plots(baseline=baseline2,model_name="response1offset",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ##################################  RESPONSE MODELS WITH ExpShip IN TAU  #################################################
@@ -133,7 +133,7 @@ for (i in 1:length(list_k)) {
                    nu=~s(ID,bs="re"))
   
   try_response2 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                           par0 = par0,other_data=list("H"=H))
+                           par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
   try_response2$fit()
   
   AIC_df2[i,"AIC_marginal"]=try_response2$AIC_marginal()
@@ -161,7 +161,7 @@ response2$fit()
 
 #get parameters plots
 plot_resp2=response2$get_all_plots(baseline=baseline2,model_name="response2",xmin=xmin,xmax=xmax,
-              link=link,xlabel=xlabel,npost=1000,level=0.95)
+              link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 ## FIT MODEL WITH OFFSET AS IN BASELINE 1
 response2offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
@@ -170,7 +170,7 @@ response2offset$fit()
 
 #get parameters plot
 plot_resp2offset=response2offset$get_all_plots(baseline=baseline2,model_name="response2offset",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ###################################    RESPONSE MODELS WITH ExpShip IN TAU AND NU ##############################################
@@ -188,7 +188,7 @@ for (i in 1:length(list_k)) {
                    nu=~s(ExpShip,k=list_k[i],bs="cs")+s(ID,bs="re"))
   
   try_response3 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                           par0 = par0,other_data=list("H"=H))
+                           par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
   try_response3$fit()
   
   AIC_df3[i,"AIC_marginal"]=try_response3$AIC_marginal()
@@ -212,11 +212,11 @@ formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re"),tau = ~s(ExpShip,k=10
 
 ## FIT MODEL WITHOUT OFFSET
 response3 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                     par0 = par0,other_data=list("H"=H))
+                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response3$fit()
 
 plot_resp3=response3$get_all_plots(baseline=baseline2,model_name="response3",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95,show_CI=TRUE)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 #inspect specific values of tau
 tau_data=plot_resp3$data_tau_ExpShip
@@ -237,11 +237,11 @@ far_nu=mean(nu_data[1/nu_data$ExpShip>q3,"par"])
 
 ## FIT MODEL WITH OFFSET AS IN BASELINE 2
 response3offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                           par0 = par0,map=map,other_data=list("H"=H),show_CI=TRUE)
+                           par0 = par0,map=map,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response3offset$fit()
 
 plot_resp3offset=response3offset$get_all_plots(baseline=baseline2,model_name="response3offset",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ###############################   RESPONSE MODELS WITH XT AND XI COVARIATE IN NU #############################################
@@ -252,7 +252,7 @@ formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~1,
 
 ## MODEL WITHOUT OFFSET
 response4 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                     par0 = par0,other_data=list("H"=H))
+                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response4$fit()
 
 
@@ -262,17 +262,17 @@ link=list("ExpShipT"=(\(x) 1/x),"ExpShipI"=(\(x) 1/x))
 xlabel=list("ExpShipT"="Distance to ship","ExpShipI"="Distance to ship")
 
 plot_resp4=response4$get_all_plots(baseline=baseline2,model_name="response4",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ## MODEL WITH OFFSET AS IN BASELINE 1
 
 response4offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                           par0 = par0,map=map,other_data=list("H"=H))
+                           par0 = par0,map=map,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response4offset$fit()
 
 plot_resp4offset=response4offset$get_all_plots(baseline=baseline1,model_name="response4offset",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ###################################  RESPONSE MODEL WITH ExpShipT AND ExpShipI COVARIATES IN TAU  ####################################
@@ -284,23 +284,23 @@ formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~
 
 ## MODEL WITHOUT OFFSET
 response5 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                     par0 = par0,other_data=list("H"=H))
+                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response5$fit()
 
 
 plot_resp5=response5$get_all_plots(baseline=baseline2,model_name="response5",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ## MODEL WITH OFFSET AS IN BASELINE 1
 
 response5offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                           par0 = par0,other_data=list("H"=H),map=map)
+                           par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),map=map)
 response5offset$fit()
 
 
 plot_resp5offset=response5offset$get_all_plots(baseline=baseline2,model_name="response5offset",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 
@@ -313,23 +313,23 @@ formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~s(ExpShipT,k=
 ## MODEL WITHOUT OFFSET
 
 response6 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                     par0 = par0,other_data=list("H"=H))
+                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response6$fit()
 
 
 plot_resp6=response6$get_all_plots(baseline=baseline2,model_name="response6",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ## MODEL WITH OFFSET AS IN BASELINE 1
 
 response6offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
-                           par0 = par0,map=map,other_data=list("H"=H))
+                           par0 = par0,map=map,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response6offset$fit()
 
 
 plot_resp6offset=response6offset$get_all_plots(baseline=baseline2,model_name="response6offset",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 #############################      RESPONSE AIC VALUES    #####################################################

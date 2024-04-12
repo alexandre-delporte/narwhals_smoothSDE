@@ -4,10 +4,6 @@
 set.seed(42)
 
 
-library("smoothSDE")
-library("ggplot2")
-source("/home/delporta/Documents/Recherche/Codes/smoothSDE/R/utility.R")
-
 #####################              CHECK GOODNESS OF FIT OF BASELINE MODEL            ################################
 
 #' @description compute mean of empirical velocity phase and norm for each individual track

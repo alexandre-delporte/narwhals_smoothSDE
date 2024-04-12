@@ -62,7 +62,7 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #define model
 formulas <- list(mu1 = ~1 ,mu2 =~1 ,tau = ~1,nu=~1)
-par0 <- c(0,0,1,1)
+par0 <- c(0,0,1,4)
 baseline0 <- SDE$new(formulas = formulas,data = dataBE1,type = "CTCRW",response = c("x","y"),
                      par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
@@ -75,7 +75,7 @@ std0=as.list(baseline0$tmb_rep(),what="Std")
 
 #define model
 formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~s(ID,bs="re") ,nu=~s(ID,bs="re"))
-par0 <- c(0,0,1,1)
+par0 <- c(0,0,1,4)
 baseline1 <- SDE$new(formulas = formulas,data = dataBE1,type = "CTCRW",response = c("x","y"),
                      par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
@@ -86,7 +86,7 @@ estimates1=as.list(baseline1$tmb_rep(),what="Est")
 std1=as.list(baseline1$tmb_rep(),what="Std")
 
 #plot parameters
-res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",npost=1000,level=0.95)
+res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",save=TRUE)
 
 
 
@@ -95,7 +95,7 @@ res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",npost=1000,leve
 
 #define model
 formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~1 ,nu=~s(ID,bs="re"))
-par0 <- c(0,0,1,1)
+par0 <- c(0,0,1,4)
 baseline2 <- SDE$new(formulas = formulas,data = dataBE1,type = "CTCRW",response = c("x","y"),
                      par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
@@ -106,14 +106,14 @@ estimates2=as.list(baseline2$tmb_rep(),what="Est")
 std2=as.list(baseline2$tmb_rep(),what="Std")
 
 #plot parameters
-res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",npost=1000,level=0.95)
+res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",save=TRUE)
 
 
 #############################   BASELINE MODEL WITH RANDOM EFFECTS ONLY IN NU AND FIXED MU    #############################
 
 #define model
 formulas <- list(mu1 = ~1,mu2 =~1 ,tau = ~1,nu=~s(ID,bs="re"))
-par0 <- c(0,0,5,1)
+par0 <- c(0,0,1,4)
 baseline3 <- SDE$new(formulas = formulas,data = dataBE1,type = "CTCRW",response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
                      other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
@@ -124,7 +124,7 @@ estimates3=as.list(baseline3$tmb_rep(),what="Est")
 std3=as.list(baseline3$tmb_rep(),what="Std")
 
 #plot parameters
-res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",npost=1000,level=0.95)
+res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",save=TRUE)
 
 
 
@@ -136,7 +136,7 @@ formulas <- list(mu1=~s(ID,bs="re"),mu2=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),
                  omega=~s(ID,bs="re"))
 par0 <- c(0,0,1,4,0)
-baseline4<- SDE$new(formulas = formulas,data = dataBE1,type = "RACVM1",
+baseline4<- SDE$new(formulas = formulas,data = dataBE1,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
 
@@ -146,7 +146,7 @@ baseline4$fit()
 estimates4=as.list(baseline4$tmb_rep(),what="Est")
 std4=as.list(baseline4$tmb_rep(),what="Std")
 
-res=baseline4$get_all_plots(baseline=NULL,model_name="baseline4",npost=1000,level=0.95)
+res=baseline4$get_all_plots(baseline=NULL,model_name="baseline4",save=TRUE)
 
 
 
@@ -216,7 +216,7 @@ estimates1_12h=as.list(baseline1_12h$tmb_rep(),what="Est")
 std1_12h=as.list(baseline1_12h$tmb_rep(),what="Std")
 
 #plot parameters
-res=baseline1_12h$get_all_plots(baseline=NULL,model_name="baseline1_12h",npost=1000,level=0.95)
+res=baseline1_12h$get_all_plots(baseline=NULL,model_name="baseline1_12h",save=TRUE)
 
 
 
@@ -236,7 +236,7 @@ estimates2_12h=as.list(baseline2_12h$tmb_rep(),what="Est")
 std2_12h=as.list(baseline2_12h$tmb_rep(),what="Std")
 
 #plot parameters
-res=baseline2_12h$get_all_plots(baseline=NULL,model_name="baseline2_12h",npost=1000,level=0.95)
+res=baseline2_12h$get_all_plots(baseline=NULL,model_name="baseline2_12h",save=TRUE)
 
 
 #############################   BASELINE MODEL WITH RANDOM EFFECTS ONLY IN NU AND FIXED MU    #############################
@@ -254,7 +254,7 @@ estimates3_12h=as.list(baseline3_12h$tmb_rep(),what="Est")
 std3_12h=as.list(baseline3_12h$tmb_rep(),what="Std")
 
 #plot parameters
-res=baseline3_12h$get_all_plots(baseline=NULL,model_name="baseline3_12h",npost=1000,level=0.95)
+res=baseline3_12h$get_all_plots(baseline=NULL,model_name="baseline3_12h",save=TRUE)
 
 
 
@@ -266,7 +266,7 @@ formulas <- list(mu1=~s(ID,bs="re"),mu2=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),
                  omega=~s(ID,bs="re"))
 par0 <- c(0,0,1,4,0)
-baseline4_12h<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM1",
+baseline4_12h<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
 
@@ -276,7 +276,7 @@ baseline4_12h$fit()
 estimates4_12h=as.list(baseline4_12h$tmb_rep(),what="Est")
 std4_12h=as.list(baseline4_12h$tmb_rep(),what="Std")
 
-res=baseline4_12h$get_all_plots(baseline=NULL,model_name="baseline4_12h",npost=1000,level=0.95)
+res=baseline4_12h$get_all_plots(baseline=NULL,model_name="baseline4_12h",save=TRUE)
 
 
 ###########################         AICs VALUES FOR THE BASELINE MODELS        ####################################
