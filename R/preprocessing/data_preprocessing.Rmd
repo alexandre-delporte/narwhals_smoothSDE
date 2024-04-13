@@ -329,6 +329,12 @@ for (id in unique(data$ID)) {
 ggplotly(plot_exp)
 ```
 
+## Inspect narwhals movement during each exposure peak
+
+```{r}
+
+```
+
 
 # Second preprocesssing step
 
@@ -449,10 +455,7 @@ dataprep[dataprep$horizontal_speed>20,]
 ```
 
 
-# More data exploration
-
-## Time steps distribution 
-
+# Time steps distribution 
 
 ```{r compute time steps,warnings=FALSE}
 
@@ -502,7 +505,10 @@ The median of the time steps between consecutive measurement is about $5$ minute
 Only two time steps exceed $4$h.
 ```
 
-## Plot all GPS tracks (without interpolation) on a map
+# Time steps distribution during exposure vs no exposure 
+
+
+# Plot all GPS tracks (without interpolation) on a map
 
 ```{r milne land map}
 height <- max(dataprep$Lat) - min(dataprep$Lat)
@@ -774,8 +780,6 @@ histo
 
 
 This seems to be pretty uniformly distributed, so let's choose arbitrarily a threshold of 50 metres.
-
-
 
 # Third preprocessing step
 

@@ -244,6 +244,38 @@ plot_resp3offset=response3offset$get_all_plots(baseline=baseline2,model_name="re
               xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
+
+###############################   RESPONSE MODELS WITH ONLY TRIAL EFFECT #############################################
+
+formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~s(ExpShipT,k=5,bs="cs"),
+                 nu=~s(ExpShipT,k=5,bs="cs")+s(ID,bs="re"))
+
+## MODEL WITHOUT OFFSET
+response4 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
+                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
+response4$fit()
+
+
+xmin=list("ExpShipT"=1/80,"ExpShipI"=1/80)
+xmax=list("ExpShipT"=1/3,"ExpShipI"=1/3)
+link=list("ExpShipT"=(\(x) 1/x),"ExpShipI"=(\(x) 1/x))
+xlabel=list("ExpShipT"="Distance to ship","ExpShipI"="Distance to ship")
+
+plot_resp4=response4$get_all_plots(baseline=baseline2,model_name="response4",
+                                   xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+## MODEL WITH OFFSET AS IN BASELINE 2
+
+response4offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
+                           par0 = par0,map=map,other_data=list("log_sigma_obs0"=log(sigma_obs)))
+response4offset$fit()
+
+plot_resp4offset=response4offset$get_all_plots(baseline=baseline1,model_name="response4offset",
+                                               xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+
 ###############################   RESPONSE MODELS WITH XT AND XI COVARIATE IN NU #############################################
 
 formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re") ,tau = ~1,
@@ -265,7 +297,7 @@ plot_resp4=response4$get_all_plots(baseline=baseline2,model_name="response4",
               xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
-## MODEL WITH OFFSET AS IN BASELINE 1
+## MODEL WITH OFFSET AS IN BASELINE 2
 
 response4offset <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
                            par0 = par0,map=map,other_data=list("log_sigma_obs0"=log(sigma_obs)))

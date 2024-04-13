@@ -50,15 +50,17 @@
 
 
 
-\author{Adeline Samson%
-\thanks{\texttt{adeline.leclercq-samson@univ-grenoble-alpes.fr}}}
-
 \author{Alexandre Delporte%
-\thanks{\texttt{alexandre.delporte@univ-grenoble-alpes.fr}} }
-\affil{Laboratoire Jean Kuntzmann, Université Grenoble-Alpes, France}
+	\thanks{\texttt{alexandre.delporte@univ-grenoble-alpes.fr}} }
+	\affil{Laboratoire Jean Kuntzmann, Université Grenoble-Alpes, France}
 \author{Susanne Ditlevsen%
 \thanks{\texttt{susanne@math.ku.dk}}}
 \affil{Department of Statistics, University of Copenhagen, Denmark}
+
+
+\author{Adeline Samson%
+	\thanks{\texttt{adeline.leclercq-samson@univ-grenoble-alpes.fr}}}
+	\affil{Laboratoire Jean Kuntzmann, Université Grenoble-Alpes, France}
 
 
 \date{Dated: \today}
@@ -76,10 +78,32 @@
 \section{Introduction}
 
 
+% Underwater noise in Arctic : lower than in other environments, anthropogenic nois : vessel traffic, ice breakers, drilling, sonars, seismic airguns for oil and gas exploration. (Halliday 2020)
+% vessel traffic likely to increase due to the melting of the ice cap
+% Largest impact on underwater noise due to seismic airguns (Halliday 2020)
+%Marine mammals sound exposure effects : behavioral and physical impacts (stranding events), more difficult to assess behavioral effect (southall 2007, 2021)
+%Sound threshold, regulation, research recommendations : behavioral response
+%Behavioral response study, control exposure experiments (examples: pile driving, seismic airguns, sonar)
 
+% Studies about a lot of species : narwhals, toothed whale,  mid frequency mammals
+% Greenland narwhals studies
+% effects on dive, vocalization and horizontal movement
+% data, diffusion models 
+% spatial constraints
 %context and literature review, objective of the paper, new contributions
-% ARCTIC , narwhals etc
-Assessment of human disturbance on animal behaviour has become a major concern in the ecology community. Both instantaneous and long-term changes in animal behaviour have been studied by taking advantage of the large amount of wildlife data now available. One of the commonly accepted method to analyse such behavioural changes due to human activities is to perform "controlled exposure experiments". Animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured: GPS positions, sound exposure level, temperature, pressure, heart beat, stroke rate...  
+
+Anthropogenic underwater noise in the Arctic environment causes disturbances in the endemic wildlife. More precisely, marine mammals, whose vital functions highly depend on sound perception for communication and orientation, are most likely to react to such disturbances. The Arctic Council report CITATION emphasized the need for more knowledge about the impact of underwater noise on Arctic marine mammals. The main sources of noise in the region are vessel traffic, ice breakers, drilling, sonars and seismic airguns used for oil and gas exploration. Among those sources, an increase in vessel traffic is anticipated due to the melting of the ice cap, and seismic airguns were reported to have the largest impact on underwater noise. Two types of consequences can be considered : injury and behavior disturbance. While physical harm is straightforward to assess and mitigate by determining species-specific received sound level thresholds, no canonical method is expected to be found to examine behavior disturbances, due to the multiplicity of contextual variables that can influence a behavioral reaction, and the variety of these reactions.
+Research recommendations from  CITATION include a particular focus on measurement of behavioral reactions to various type of sound exposure. Rich behavioral studies typically involve controlled exposure experiments during which animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured: GPS positions, depth, sound exposure level, temperature, pressure, heart beat, stroke rate, vocalizations... Numerous surveys have been conducted about beaked whales, which have been regularly implicated in stranding events following sonar exercises CITATION, belugas, sperm whales, harbour porpoises, narwhals and many other marine mammals
+A severity scale was defined in CITATION to help assessing which behavioral responses are more likely to alter a population's capacity to survive. Changes in movement speed and direction, avoidance reactions as well as modified dive profiles or vocalizations  were ranked between 4 and 7 on a scale out of 9 (9 being stranding events that can directly lead to the death of the animal) depending on the magnitude of the changes and their duration. 
+
+So far, the studies about narwhals behavioral responses to sound exposure proved that they exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source. The data used in this paper is the 2018 data used in \cite{heide-jorgensen_behavioral_2021} CITATIONS. Horizontal movement has for now been analyzed with discrete time methods such as Markov chains . A covariate representing the level of sound received by the narwhals was judged appropriate to model the transition probabilities of the Markov Chain, and this analysis led to the conclusions above-mentioned. Here, we decide to make use of a continuous time model to analyse the GPS positions and try to corroborate this analysis. The objective is to be able to quantify  the effect of sound exposure on different characteristics of the movement.\\
+% severity scale for behavioral response : behavior that can alter the population capacity to survive (reproduce, eat etc)
+ %%Studies about narwhals : diving, avoidance etc
+ %% Southeast Greenland narwhals population in decline
+  \\ \\
+
+Assessment of human disturbance on animal behaviour has become a major concern in the ecology community. 
+Both instantaneous and long-term changes in animal behaviour have been studied by taking advantage of the large amount of wildlife data now available. One of the commonly accepted method to analyse such behavioural changes due to human activities is to perform "controlled exposure experiments". Animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured: GPS positions, sound exposure level, temperature, pressure, heart beat, stroke rate...  
 Several studies involving beaked whales \parencite{tyack_beaked_2011}, common sole larvaes \parencite{bolle_common_2012}, narwhals \parencite{heide-jorgensen_behavioral_2021} and many other species have already been done. Marine mammals are particularly challenging to track since GPS data can only be retrieved when they emerge at the surface of the sea and a satellite is near enough. Moreover, some species can dive at great depth, so that the equipment must keep working in such extreme environment \parencite{cioffi_trade-offs_nodate}. In this paper, a data-set of east Greenland narwhals's movement under controlled exposure experiments will be analysed. \\
 
 

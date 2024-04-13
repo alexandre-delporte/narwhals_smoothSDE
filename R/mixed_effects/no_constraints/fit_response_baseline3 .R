@@ -252,11 +252,10 @@ plot_resp9offset=response9offset$get_all_plots(baseline=baseline3,model_name="re
               xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
-###############################   RESPONSE MODELS WITH XT AND XI COVARIATE IN NU #############################################
+###############################   RESPONSE MODELS WITH TRIAL EFFECT ONLY#############################################
 
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
-                 nu=~s(ExpShipT,k=7,bs="cs")+
-                   s(ExpShipI,k=7,bs="cs")+s(ID,bs="re"))
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~s(ExpShipT,k=7,bs="cs"),
+                 nu=~s(ExpShipT,k=7,bs="cs")+s(ID,bs="re"))
 
 ## MODEL WITHOUT OFFSET
 response10 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
