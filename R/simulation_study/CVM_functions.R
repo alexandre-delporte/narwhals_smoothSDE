@@ -1233,16 +1233,11 @@ sim_simplified_CRCVM=function(ftau,fomega,nu,log_sigma_obs=NULL,v0,x0,times,land
 #' - shore is a dataframe with columns "p1","p2" that are the coordinates of the nearest points to the shore (useful for the plots)
 
 
-sim_theta_CRCVM=function(ftau,fomega,nu,log_sigma_obs=NULL,v0,x0,times,land,verbose=FALSE) {
+sim_theta_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=FALSE) {
   
   #number of samples
   n=length(times)
   
-  #volatility
-  nus=nu
-  if (length(nu)==1) {
-    nus=rep(nu,n)
-  }
   
   
   #initialization
@@ -1316,7 +1311,8 @@ sim_theta_CRCVM=function(ftau,fomega,nu,log_sigma_obs=NULL,v0,x0,times,land,verb
     cov_data=data.frame(DistanceShore=Dshore,theta=theta)
     tau=ftau(cov_data)
     omega=fomega(cov_data)
-    sigma=2*nus[i-1]/sqrt(pi*tau)
+    nu=fnu(cov_data)
+    sigma=2*nu/sqrt(pi*tau)
     
     if (verbose) {
       cat("Distance to shore :", Dshore,"\n")

@@ -5,6 +5,7 @@ output:
     df_print: paged
   html_notebook: default
   pdf_document: default
+  date: "2024-03-13"
 ---
 
 # Import libraries and data
@@ -39,9 +40,6 @@ library(sf)
 #SDE fit
 library(smoothSDE)
 
-#used in function split_term to get covariates names from the formulas
-library(stringr)
-
 #to fit smooth function with tensor splines
 library(mgcv)
 
@@ -49,6 +47,16 @@ library(mgcv)
 source("CVM_functions.R")
 ```
 
+# global variables
+
+```{r}
+#number of tracks
+N_BATCH=1
+N_ID=3
+
+#degree of freedom in tensor splines
+SP_DF=5
+```
 
 # SIMULATION
 
@@ -86,28 +94,26 @@ plot_domain
 
 ```{r}
 
-#number of tracks
-n_samples=1
-
 #initial velocity and location
 v0=c(0,0)
 
 #generate random initial points
-x0=matrix(rep(NA,n_samples*2),ncol=2)
+x0=matrix(rep(NA,N_ID*2),ncol=2)
 colnames(x0)=c("x1","x2")
-
-for (i in 1:n_samples) {
+  
+for (i in 1:N_ID) {
   #choose location uniformly in the domain
   x=c(runif(1,min=1.5,max=8.5),runif(1,min=1.5,max=8.5))
   x0[i,]=x
-  }
+}
+  
 ```
 
 ## Fix time steps for observations 
 
 ```{r}
 #observation times
-Tmax=3*24 #max time in hour
+Tmax=1*24 #max time in hour
 
 hf=1/60 #1 minute time step
 
@@ -122,12 +128,13 @@ n_hf=length(times_hf)-1
 ```{r}
 #no measurement error (we cannot put 0 because only the log of this quantity is used)
 sigma_obs_0=0.005
-H0_hf=array(rep(sigma_obs_0^2*diag(2),n_hf),dim=c(2,2,n_hf))
+H0_hf=array(rep(sigma_obs_0^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 #GPS measurement error 
 sigma_obs_1=0.03
-H1_hf=array(rep(sigma_obs_1^2*diag(2),n_hf),dim=c(2,2,n_hf))
+H1_hf=array(rep(sigma_obs_1^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 
 ```
+
 
 ## Smooth parameters of the CRCVM
 
@@ -156,8 +163,9 @@ ftau_gauss=function(cov_data,D0=0.5,tau0=1,tau1=1.5) {
 }
 
 #constant tau
-ftau_constant=function(cov_data,tau=1) {
-  return (tau)
+ftau_constant=function(cov_data,tau=1,sigma_re=0.1) {
+  b=rnorm(1,mean=0,sd=sigma_re)
+  return (tau+b)
 }
 
 fomega=function(cov_data,D0=0.3,omega0=60*pi,lambda=1.5,kappa=0.5) {
@@ -171,8 +179,12 @@ fomega=function(cov_data,D0=0.3,omega0=60*pi,lambda=1.5,kappa=0.5) {
     return(omega)
 }
 
+#constant nu
+fnu_constant=function(cov_data,nu=1,sigma_re=0.3) {
+    b=rnorm(1,mean=0,sd=sigma_re)
+  return (nu+b)
+}
 
-nu=4
 ```
 
 ### Plot smooth functions.
@@ -207,7 +219,7 @@ plot_true_omega
 ### Approximate smooth functions with tensor splines of DistanceShore
 
 ```{r}
-sp_df=5
+SP_DF=5
 #number of points
 n <- 500
 
@@ -234,7 +246,7 @@ title("truth")
 
 
 #fit with bivariate splines te
-m1 <- gam(y~te(theta,DistanceShore,k=sp_df))
+m1 <- gam(y~te(theta,DistanceShore,k=SP_DF))
 
 #visualize
 vis.gam(m1);title("tensor product")
@@ -251,13 +263,14 @@ fig
 ExpShore=1/DistanceShore
 
 #fit with bivariate splines te
-m2 <- gam(y~te(theta,ExpShore,k=sp_df))
+m2 <- gam(y~te(theta,ExpShore,k=SP_DF))
 
 #visualize
 vis.gam(m2);title("tensor product")
 
 
 ```
+
 ### Get estimated spline coefficients
 
 ```{r}
@@ -266,26 +279,35 @@ sp_coeff_ExpShore=m2$coefficients
 ```
 
 
+
 ## Simulation with measurement errors and high frequency 
 
 ### Generate sample
+
 ```{r, cache=TRUE,results='hide'}
 
 #initialize data frame
-data_rect_hf_ne=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
+data_rect_hf_ne=list()
 
-for (i in 1:n_samples) {
+for (k in 1:N_BATCH) {
   
-  res=sim_theta_CRCVM(ftau_constant,fomega,nu,log_sigma_obs=log(sigma_obs_0),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
+  data=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
 
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  data_rect_hf_ne=rbind(data_rect_hf_ne,cbind(data_sim,data_shore))
+  for (i in 1:N_ID) {
+  
+    res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs_0),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
+
+    data_sim=res$sim
+    data_sim$ID=factor(rep(i,length(data_sim$y1)))
+    data_shore=res$shore[,c("p1","p2")]
+    data=rbind(data,cbind(data_sim,data_shore))
+  }
+  
+  #for the first value we cannot compute the angle theta
+  data=data[-1,]
+  data_rect_hf_ne[[paste("BATCH",k,sep="")]]=data
 }
 
-#for the first value we cannot compute the angle theta
-data_rect_hf_ne=data_rect_hf_ne[-1,]
 
 ```
 
@@ -294,25 +316,29 @@ data_rect_hf_ne=data_rect_hf_ne[-1,]
 
 ```{r}
 count=0
-for (id in unique(data_rect_hf_ne$ID)){
-  sub_data=data_rect_hf_ne[data_rect_hf_ne$ID==id,]
-  if (nrow(sub_data) < n_hf) {
-    print(id)
-    count=count+1
+for (k in 1:length(names(data_rect_hf_ne))) {
+
+  data=data_rect_hf_ne[[paste("BATCH",k,sep="")]]
+  for (id in unique(data$ID)) {
+    sub_data=data[data$ID==id,]
+    if (nrow(sub_data) < n_hf) {
+      count=count+1
+      cat("BATCH",k,id,"\n",sep="")
+    }
   }
 }
-cat(count/n_samples*100,"percent of the samples reached land")
+cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```
 
 
-### plot one sample
+### plot one batch
 
 ```{r}
 
 plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_rect_hf_ne[data_rect_hf_ne$ID==1,],mapping=aes(y1,y2),size=0.1)+
-  geom_path(data=data_rect_hf_ne[data_rect_hf_ne$ID==1,],mapping=aes(y1,y2),size=0.1)+
-  geom_point(data = data_rect_hf_ne[data_rect_hf_ne$ID==1,]%>% filter(!duplicated(ID)),
+  geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_path(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_point(data = data_rect_hf_ne$BATCH1%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
@@ -330,47 +356,57 @@ ggplotly(plot_samples_rect_hf_ne)
 ```{r, cache=TRUE,results='hide'}
 
 #initialize data frame
-data_rect_hf_e=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
+data_rect_hf_e=list()
 
-for (i in 1:n_samples) {
+for (k in 1:N_BATCH) {
   
-  res=sim_theta_CRCVM(ftau_constant,fomega,nu,log_sigma_obs=log(sigma_obs_1),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
+  data=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
 
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  data_rect_hf_e=rbind(data_rect_hf_e,cbind(data_sim,data_shore))
+  for (i in 1:N_ID) {
+  
+    res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs_1),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
+
+    data_sim=res$sim
+    data_sim$ID=factor(rep(i,length(data_sim$y1)))
+    data_shore=res$shore[,c("p1","p2")]
+    data=rbind(data,cbind(data_sim,data_shore))
+  }
+  
+  #for the first value we cannot compute the angle theta
+  data=data[-1,]
+  data_rect_hf_e[[paste("BATCH",k,sep="")]]=data
 }
-
-#for the first value we cannot compute the angle theta
-data_rect_hf_e=data_rect_hf_e[-1,]
-
 ```
 
 ### percentage of samples that reached land
 
 ```{r}
 count=0
-for (id in unique(data_rect_hf_ne$ID)){
-  sub_data=data_rect_hf_e[data_rect_hf_e$ID==id,]
-  if (nrow(sub_data) < n_hf) {
-    print(id)
-    count=count+1
+for (k in 1:length(names(data_rect_hf_e))) {
+
+  data=data_rect_hf_e[[paste("BATCH",k,sep="")]]
+  for (id in unique(data$ID)) {
+    sub_data=data[data$ID==id,]
+    if (nrow(sub_data) < n_hf) {
+      count=count+1
+      cat("BATCH",k,id,"\n",sep="")
+    }
   }
 }
-cat(count/n_samples*100,"percent of the samples reached land")
+cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```
 
 ### plot one sample
 
 ```{r}
 
+
 plot_samples_rect_hf_e=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_rect_hf_e[data_rect_hf_e$ID==1,],mapping=aes(y1,y2),size=0.1)+
-  geom_path(data=data_rect_hf_e[data_rect_hf_e$ID==1,],mapping=aes(y1,y2),size=0.1)+
-  geom_point(data = data_rect_hf_e[data_rect_hf_e$ID==1,]%>% filter(!duplicated(ID)),
+  geom_point(data=data_rect_hf_e$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_path(data=data_rect_hf_e$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_point(data = data_rect_hf_e$BATCH1%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-    xlab("x") + ylab("y")
+  xlab("x") + ylab("y")
 
 
 ggsave(filename="samples_rect_hf_e_omega.png",plot=plot_samples_rect_hf_e)
@@ -401,7 +437,7 @@ signed_angle <- function(u, v) {
 
 add_covs=function(data) {
   #data has at least columns "time","y1" "y2", "p1","p2"
-  #this function modifies data to add columns "theta", "DistanceShore" and "ExpShore"
+  #this function new data frame with three more columns "theta", "DistanceShore" and "ExpShore"
   
   new_data=data
   #observed deviation angles
@@ -447,13 +483,25 @@ add_covs=function(data) {
 }
 
 
-data_rect_hf_ne=add_covs(data_rect_hf_ne)
+for (k in 1:N_BATCH) {
+  
+  #dataframes for this batch
+  df_ne=data_rect_hf_ne[[paste("BATCH",k,sep="")]]
+  df_e=data_rect_hf_e[[paste("BATCH",k,sep="")]]
+  
+  #add covariates columns
+  df_ne=add_covs(df_ne)
+  df_e=add_covs(df_e)
+  
+  #change in the list of batch
+  data_rect_hf_ne[[paste("BATCH",k,sep="")]]=df_ne
+  data_rect_hf_e[[paste("BATCH",k,sep="")]]=df_e
+}
 
-data_rect_hf_e=add_covs(data_rect_hf_e)
 ```
 
 
-## Estimate from high frequency data without low error 
+## Estimate from high frequency data with low error 
 
 ### Use ExpShore covariate and tensor splines te
 
@@ -462,13 +510,13 @@ data_rect_hf_e=add_covs(data_rect_hf_e)
 ```{r,cache=TRUE}
 
 #estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,ExpShore,k=sp_df,bs="cs"))
+formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
 par0 <- c(0,0,1,4,0)
 
 
-crcvm_rect_hf_ne1 <- SDE$new(formulas = formulas,data = data_rect_hf_ne[data_rect_hf_ne$ID==1,],type = "RACVM",
-                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+crcvm_rect_hf_ne1 <- SDE$new(formulas = formulas,data = data_rect_hf_ne$BATCH1,type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
 crcvm_rect_hf_ne1$fit(method="BFGS")
 ```
@@ -564,7 +612,7 @@ ggplotly(plot_sim)
 ```{r,cache=TRUE}
 #estimation with tensor splines
 formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,DistanceShore,k=sp_df,bs="cs"))
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 par0 <- c(0,0,1,4,0)
 
 
@@ -650,7 +698,7 @@ ggplotly(p)
 ```{r,cache=TRUE}
 #estimation with tensor splines
 formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,DistanceShore,k=sp_df,bs="cs"))
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 par0 <- c(0,0,1,4,0)
 
 
