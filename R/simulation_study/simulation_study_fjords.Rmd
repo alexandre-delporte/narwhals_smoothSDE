@@ -48,6 +48,18 @@ library(mgcv)
 source("CVM_functions.R")
 ```
 
+
+# Global variables
+
+```{r}
+#number of tracks
+N_BATCH=100
+N_ID=6
+
+#degree of freedom in tensor splines
+SP_DF=7
+```
+
 # Get land polygons
 
 ```{r get land polygons}

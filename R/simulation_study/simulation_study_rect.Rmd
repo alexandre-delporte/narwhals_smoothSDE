@@ -8,11 +8,17 @@ output:
   date: "2024-03-13"
 ---
 
-# Import libraries and data
+# SET UP
 
-```{r}
+## Import libraries
+
+```{r libraries}
 #seed for reproducibility 
 set.seed(1)
+
+#parallel computing
+library(foreach)
+library(doParallel)
 
 #for tex code
 library(tinytex)
@@ -43,16 +49,22 @@ library(smoothSDE)
 #to fit smooth function with tensor splines
 library(mgcv)
 
+
 #some auxiliary functions
 source("CVM_functions.R")
 ```
 
-# global variables
+## global variables
 
-```{r}
-#number of tracks
-N_BATCH=1
+```{r global variables}
+#number of batch
+N_BATCH=10
+
+#number of individual tracks per batch
 N_ID=3
+
+#duration of each track in hour
+TMAX=1*24 
 
 #degree of freedom in tensor splines
 SP_DF=5
@@ -63,7 +75,8 @@ SP_DF=5
 ## Create the rectangle
 
 We create a square with sides of length 8km.
-```{r}
+
+```{r create rectangle}
 
 #rectangular domain 
 large_rectangle_coords <- matrix(c(0, 0, 0, 10, 10, 10, 10, 0, 0, 0), ncol = 2, byrow = TRUE)
@@ -79,12 +92,9 @@ small_rectangle<-st_sf(geometry = small_rectangle)
 #change its crs
 domain<- st_sym_difference(large_rectangle, small_rectangle)
 
-
-
-
 ```
 
-```{r}
+```{r plot rectangle}
 
 plot_domain=ggplot()+geom_sf(data=domain$geometry,fill="blue")
 plot_domain
@@ -92,7 +102,7 @@ plot_domain
 
 ## Sample initial positions uniformly in the domain
 
-```{r}
+```{r initial positions}
 
 #initial velocity and location
 v0=c(0,0)
@@ -111,21 +121,19 @@ for (i in 1:N_ID) {
 
 ## Fix time steps for observations 
 
-```{r}
-#observation times
-Tmax=1*24 #max time in hour
+```{r time steps}
+#time step
+hf=1/60 
 
-hf=1/60 #1 minute time step
-
-#high frequency time steps
-times_hf=seq(0,Tmax,by=hf)
+#high frequency time points
+times_hf=seq(0,TMAX,by=hf)
 n_hf=length(times_hf)-1
 
 ```
 
 ## Set observation error
 
-```{r}
+```{r measurement error}
 #no measurement error (we cannot put 0 because only the log of this quantity is used)
 sigma_obs_0=0.005
 H0_hf=array(rep(sigma_obs_0^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
@@ -140,8 +148,7 @@ H1_hf=array(rep(sigma_obs_1^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 
 ### Define smooth functions for tau and omega.
 
-```{r}
-
+```{r smooth parameters}
 
 #smooth parameters
 
@@ -180,7 +187,7 @@ fomega=function(cov_data,D0=0.3,omega0=60*pi,lambda=1.5,kappa=0.5) {
 }
 
 #constant nu
-fnu_constant=function(cov_data,nu=1,sigma_re=0.3) {
+fnu_constant=function(cov_data,nu=4,sigma_re=0.3) {
     b=rnorm(1,mean=0,sd=sigma_re)
   return (nu+b)
 }
@@ -189,7 +196,7 @@ fnu_constant=function(cov_data,nu=1,sigma_re=0.3) {
 
 ### Plot smooth functions.
 
-```{r}
+```{r plot smooth parameters}
 
 Dshore=seq(from=0.3,to=2,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
@@ -218,10 +225,10 @@ plot_true_omega
 
 ### Approximate smooth functions with tensor splines of DistanceShore
 
-```{r}
-SP_DF=5
+```{r approximate smooth omega with DistanceShore splines}
+
 #number of points
-n <- 500
+n <- 1000
 
 #sample theta and DistanceShore points in the domain
 theta <- runif(n,-pi,pi);
@@ -259,7 +266,7 @@ fig
 
 ### Approximate smooth functions with tensor splines of ExpShore
 
-```{r}
+```{r approximate smooth omega with ExpShore splines}
 ExpShore=1/DistanceShore
 
 #fit with bivariate splines te
@@ -273,48 +280,89 @@ vis.gam(m2);title("tensor product")
 
 ### Get estimated spline coefficients
 
-```{r}
+```{r estimated spline coeffs}
 sp_coeff_Dshore=m1$coefficients
 sp_coeff_ExpShore=m2$coefficients
 ```
 
+### Define spline smooth functions for omega based on the approximations
+
+```{r spline smooth omega definition}
 
 
-## Simulation with measurement errors and high frequency 
+fomega_splines=function(cov_data) {
+  
+  if (is.null(cov_data$ExpShore)){
+    omega=predict(m1,newdata=cov_data)
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    omega=predict(m2,newdata=cov_data)
+  }
+  
+  return(as.numeric(omega))
+}
+
+```
+
+### Plot
+
+```{r plot spline smooth omega}
+
+Dshore=seq(from=0.3,to=2,length.out=30)
+theta=seq(from=-pi,to=pi,length.out=30)
+grid<- as.data.frame(expand.grid(DistanceShore,theta))
+colnames(grid)=c("DistanceShore","theta")
+true_par=grid
+true_par$omega=fomega_splines(grid)
+
+
+plot_true_omega <- plot_ly(true_par,type = "mesh3d",
+                         x = ~theta,y = ~DistanceShore,z=~omega,intensity=~omega,
+                         colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("True omega"),scene=list(xaxis = list(title = "Theta",showgrid = F),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+plot_true_omega
+```
+
+
+
+## Simulation with low measurement errors and high frequency 
 
 ### Generate sample
 
-```{r, cache=TRUE,results='hide'}
 
-#initialize data frame
-data_rect_hf_ne=list()
+```{r parallel generate hf low errors samples}
 
-for (k in 1:N_BATCH) {
-  
-  data=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
 
-  for (i in 1:N_ID) {
+data_rect_hf_ne <- foreach(i=1:N_BATCH,.packages=c("progress","MASS","sf","foreach")) %dopar% {
+  data=foreach (i=1:N_ID,.combine='rbind') %do% {
   
     res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs_0),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
 
     data_sim=res$sim
     data_sim$ID=factor(rep(i,length(data_sim$y1)))
     data_shore=res$shore[,c("p1","p2")]
-    data=rbind(data,cbind(data_sim,data_shore))
+    cbind(data_sim,data_shore)
   }
-  
-  #for the first value we cannot compute the angle theta
-  data=data[-1,]
-  data_rect_hf_ne[[paste("BATCH",k,sep="")]]=data
+  data 
 }
 
 
-```
+#stop cluster
+stopCluster(cl)
 
+names(data_rect_hf_ne)=paste("BATCH",1:N_BATCH,sep="")
+```
 
 ### percentage of samples that reached land
 
-```{r}
+```{r percentage of low error samples that reached land}
 count=0
 for (k in 1:length(names(data_rect_hf_ne))) {
 
@@ -323,7 +371,7 @@ for (k in 1:length(names(data_rect_hf_ne))) {
     sub_data=data[data$ID==id,]
     if (nrow(sub_data) < n_hf) {
       count=count+1
-      cat("BATCH",k,id,"\n",sep="")
+      cat(paste("BATCH",k,sep=""),":",id,"\n",sep=" ")
     }
   }
 }
@@ -333,7 +381,7 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 
 ### plot one batch
 
-```{r}
+```{r plot one batch low error samples}
 
 plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
   geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
@@ -353,34 +401,37 @@ ggplotly(plot_samples_rect_hf_ne)
 
 ### Generate samples
 
-```{r, cache=TRUE,results='hide'}
+```{r high error samples, cache=TRUE,results='hide'}
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
 
-#initialize data frame
-data_rect_hf_e=list()
-
-for (k in 1:N_BATCH) {
-  
-  data=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
-
-  for (i in 1:N_ID) {
+data_rect_hf_e <- foreach(i=1:N_BATCH,.packages=c("progress","MASS","sf","foreach")) %dopar% {
+  data=foreach (i=1:N_ID,.combine='rbind') %do% {
   
     res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs_1),v0,x0[i,],times_hf,land=domain,verbose=FALSE)
 
     data_sim=res$sim
     data_sim$ID=factor(rep(i,length(data_sim$y1)))
     data_shore=res$shore[,c("p1","p2")]
-    data=rbind(data,cbind(data_sim,data_shore))
+    cbind(data_sim,data_shore)
   }
-  
-  #for the first value we cannot compute the angle theta
-  data=data[-1,]
-  data_rect_hf_e[[paste("BATCH",k,sep="")]]=data
+  data 
 }
+
+
+#stop cluster
+stopCluster(cl)
+
+#change names of the list elements
+names(data_rect_hf_e)=paste("BATCH",1:N_BATCH,sep="")
 ```
+
 
 ### percentage of samples that reached land
 
-```{r}
+```{r percentage of high error samples that reached land}
 count=0
 for (k in 1:length(names(data_rect_hf_e))) {
 
@@ -398,7 +449,7 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 
 ### plot one sample
 
-```{r}
+```{r plot one batch of high error samples}
 
 
 plot_samples_rect_hf_e=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
@@ -417,7 +468,7 @@ ggplotly(plot_samples_rect_hf_e)
 
 ## Compute distance to shore and empirical deviation angles
 
-```{r}
+```{r compute covs}
 
 signed_angle <- function(u, v) {
     #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
@@ -507,49 +558,101 @@ for (k in 1:N_BATCH) {
 
 #### Fit sde
 
-```{r,cache=TRUE}
+```{r estimate te ExpShore for low error samples,cache=TRUE}
 
-#estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+
+
+crcvm_rect_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
-par0 <- c(0,0,1,4,0)
-
-
-crcvm_rect_hf_ne1 <- SDE$new(formulas = formulas,data = data_rect_hf_ne$BATCH1,type = "RACVM",
+  par0 <- c(0,0,1,1,0)
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH",k,sep="")]],type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
-crcvm_rect_hf_ne1$fit(method="BFGS")
+  m$fit(method="BFGS")
+  m 
+}
+
+
+#stop cluster
+stopCluster(cl)
+
+
+names(crcvm_rect_hf_ne1)=paste("BATCH",1:N_BATCH,sep="")
+
+
 ```
 
-#### Plot estimated smooth parameter omega in 3D
+#### Plot estimated smooth parameter omega in 3D for one batch
 
-```{r}
+```{r plot estimates te ExpShore for one batch of low error samples}
 xmin=list("theta"=-pi,"ExpShore"=1/2)
 xmax=list("theta"=pi,"ExpShore"=1/0.3)
 xlabel=list("ExpShore"="Distance to shore")
 link=list("ExpShore"=(\(x) 1/x))
-true_smooths=list("omega"=fomega)
-res=crcvm_rect_hf_ne1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne1",xmin=xmin,xmax=xmax,
+true_smooths=list("omega"=fomega_splines)
+res=crcvm_rect_hf_ne1$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne1",xmin=xmin,xmax=xmax,
                                     xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
 res$fe_omega_theta_ExpShore
 ```
 
 
-#### Violin plot of the estimated spline coefficients
+#### Violin plot of the estimated spline coefficients for one batch
 
-```{r}
+```{r violin plots spline coeff te ExpShore for one batch of low error samples}
 
-true_coeff=data.frame(value=sp_coeff_ExpShore,name=paste("omega.",names(sp_coeff_ExpShore),sep=""))
+true_coeff=data.frame(value=sp_coeff_ExpShore,name=c(paste("omega.",names(sp_coeff_ExpShore),sep="")))
 rownames(true_coeff)=NULL
 
-p=crcvm_rect_hf_ne1$plot_violin_coeff(model_name="crcvm_rect_hf_ne1",substring="omega",true_coeff=true_coeff,save=TRUE)
+p=crcvm_rect_hf_ne1$BATCH1$plot_violin_coeff(model_name="crcvm_rect_hf_ne1",substring="omega",true_coeff=true_coeff,save=TRUE)
 
 ggplotly(p)
 ```
 
+
+#### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te ExpShore all batches with low measurement error}
+
+n_coeffs=length(sp_coeff_ExpShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  m<-crcvm_rect_hf_ne1[[paste("BATCH",k,sep="")]]
+  coeffs=m$coeff_re()
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  sub_index=grepl("omega",coeff_names)
+  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+
+ggsave("all_batches_coeffs_crcvm_rect_hf_ne1.png",plot=p,path="crcvm_rect_hf_ne1")
+
+ggplotly(p)
+```
+
+
+
 #### Simulate from fitted model
 
-```{r,cache=TRUE}
+```{r simulate fitted te ExpShore low error samples,cache=TRUE}
 
 
 fExpShore=function(z,v,p) {
@@ -560,10 +663,7 @@ fExpShore=function(z,v,p) {
   
   #distance to shore
   Dshore=sqrt(normal[1]^2+normal[2]^2)
-  if (Dshore>0.5){
-    return (0)
-  }
-  else if (Dshore<0.01) {
+  if (Dshore<0.01) {
     return (100)
   }
   else {
@@ -582,14 +682,14 @@ fangle=function(z,v,p) {
 
 
 atw=list("ExpShore"=fExpShore,"AngleNormal"=fangle)
-sim_data=crcvm_rect_hf_ne1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne1$data(),atw=atw,land=domain)
+sim_data=crcvm_rect_hf_ne1$BATCH1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne1$BATCH1$data(),atw=atw,land=domain)
 
 ```
 
 
 #### Plot simulation from fitted model
 
-```{r}
+```{r plot sim te ExpSHore low error samples}
 
 plot_sim=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
   geom_point(data=sim_data,mapping=aes(y1,y2),size=0.1)+
@@ -605,29 +705,31 @@ ggplotly(plot_sim)
 
 
 
-###  UseDistanceShore covariate and tensor splines ti
+###  Use DistanceShore covariate and tensor splines te
 
 #### Fit sde
 
-```{r,cache=TRUE}
+```{r estimate te DistanceShore for low error samples,cache=TRUE}
 #estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
-par0 <- c(0,0,1,4,0)
+formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 
-
-crcvm_rect_hf_ne2 <- SDE$new(formulas = formulas,data = data_rect_hf_ne[data_rect_hf_ne$ID==1,],type = "RACVM",
-                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+crcvm_rect_hf_ne2=list()
+for (k in 1:N_BATCH) {
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH"),k,sep=""]],type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
-crcvm_rect_hf_ne2$fit(method="BFGS")
+  m$fit(method="BFGS")
+  crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]<-m
+}
 ```
 
 #### Plots estimated smooth in 3D
 
-```{r}
+```{r plot estimates te DistanceShore for one batch of low error samples}
 xmin=list("theta"=-pi,"DistanceShore"=0.3)
 xmax=list("theta"=pi,"DistanceShore"=2)
-res=crcvm_rect_hf_ne2$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne2",xmin=xmin,xmax=xmax,
+res=crcvm_rect_hf_ne2$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne2",xmin=xmin,xmax=xmax,
                                     xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
 res$fe_omega_theta_DistanceShore
 ```
@@ -635,59 +737,127 @@ res$fe_omega_theta_DistanceShore
 
 #### Violin plot of the estimated spline coefficients
 
-```{r}
+```{r violin plots spline coeffs te DistanceShore for one batch of low error sample}
 
-true_coeff=data.frame(value=sp_coeff_Dshore,name=paste("omega.",names(sp_coeff_Dshore),sep=""))
+true_coeff=data.frame(value=sp_coeff_Dshore,name=c(paste("omega.",names(sp_coeff_Dshore),sep="")))
 rownames(true_coeff)=NULL
 
-p=crcvm_rect_hf_ne2$plot_violin_coeff(model_name="crcvm_rect_hf_ne2",substring="omega",true_coeff=true_coeff,save=TRUE)
+p=crcvm_rect_hf_ne2$BATCH1$plot_violin_coeff(model_name="crcvm_rect_hf_ne2",substring="omega",
+                                             true_coeff=true_coeff,save=TRUE)
 
 ggplotly(p)
 ```
 
 
-## Estimate from high frequency data with error :
+
+#### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
+
+n_coeffs=length(sp_coeff_DShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  m<-crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]
+  coeffs=m$coeff_re()
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  sub_index=grepl("omega",coeff_names)
+  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+
+ggsave("all_batches_coeffs_crcvm_rect_hf_ne2.png",plot=p,width=10,height=5,path="crcvm_rect_hf_ne2")
+
+
+```
+
+## Estimate from high frequency data with error 
 
 ### Use ExpShore and tensor splines te
 
 #### Fit sde
 
-```{r, cache=TRUE}
+```{r estimate te ExpShore for high error samples, cache=TRUE}
 #estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,ExpShore,k=5,bs="cs"))
-par0 <- c(0,0,1,4,0)
+formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
 
-
-crcvm_rect_hf_e1 <- SDE$new(formulas = formulas,data = data_rect_hf_e[data_rect_hf_e$ID==1,],type = "RACVM",
-                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
-                      other_data=list("H"=H1_hf))
-crcvm_rect_hf_e1$fit(method="BFGS")
+crcvm_rect_hf_e1=list()
+for (k in 1:N_BATCH) {
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_e[[paste("BATCH",k,sep="")]],type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
+                      other_data=list("H"=H0_hf))
+  m$fit(method="BFGS")
+  crcvm_rect_hf_e1[[paste("BATCH",k,sep="")]]<-m
+}
 ```
 
-#### Plot estimated smooth in 3D
+#### Plot estimated smooth in 3D for one batch
 
-```{r}
+```{r plots estimates te ExpShore for one batch of high error samples}
 xmin=list("theta"=-pi,"ExpShore"=1/2)
 xmax=list("theta"=pi,"ExpShore"=1/0.3)
 xlabel=list("ExpShore"="Distance to shore")
 link=list("ExpShore"=(\(x) 1/x))
 true_smooths=list("omega"=fomega)
-res=crcvm_rect_hf_e1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_e1",xmin=xmin,xmax=xmax,
+res=crcvm_rect_hf_e1$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_e1",xmin=xmin,xmax=xmax,
                                     xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
 res$fe_omega_theta_ExpShore
 ```
 
-#### Violin plot of the estimated spline coefficients
+#### Violin plot of the estimated spline coefficients for one batch
 
-```{r}
+```{r violin plots spline coeffs te ExpShore for one batch of high error sample}
 
 true_coeff=data.frame(value=sp_coeff_ExpShore,name=paste("omega.",names(sp_coeff_ExpShore),sep=""))
 rownames(true_coeff)=NULL
 
-p=crcvm_rect_hf_e1$plot_violin_coeff(model_name="crcvm_rect_hf_e1",substring="omega",true_coeff=true_coeff,save=TRUE)
+p=crcvm_rect_hf_e1$BATCH1$plot_violin_coeff(model_name="crcvm_rect_hf_e1",substring="omega",true_coeff=true_coeff,save=TRUE)
 
 ggplotly(p)
+```
+
+
+#### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te ExpShore all batches with high measurement error}
+
+n_coeffs=length(sp_coeff_ExpShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  m<-crcvm_rect_hf_e1[[paste("BATCH",k,sep="")]]
+  coeffs=m$coeff_re()
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  sub_index=grepl("omega",coeff_names)
+  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+
+ggsave("all_batches_coeffs_crcvm_rect_hf_e1.png",plot=p,width=10,height=5,path="crcvm_rect_hf_e1")
+
+ggplotly(p)
+
 ```
 
 
@@ -695,39 +865,73 @@ ggplotly(p)
 
 #### Fit sde
 
-```{r,cache=TRUE}
+```{r estimate te DistanceShore for high error samples,cache=TRUE}
 #estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
-par0 <- c(0,0,1,4,0)
+formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 
+crcvm_rect_hf_e2=list()
 
-crcvm_rect_hf_e2 <- SDE$new(formulas = formulas,data = data_rect_hf_e[data_rect_hf_e$ID==1,],type = "RACVM",
-                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
-                      other_data=list("H"=H1_hf))
-crcvm_rect_hf_e2$fit(method="BFGS")
+for (k in 1:N_BATCH) {
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_e[[paste("BATCH",k,sep="")]],type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
+                      other_data=list("H"=H0_hf))
+  m$fit(method="BFGS")
+  crcvm_rect_hf_e2[[paste("BATCH",k,sep="")]]<-m
+}
 ```
 
-#### Plot estimated smooth in 3D
+#### Plot estimated smooth in 3D for one batch
 
-```{r}
+```{r plots estimates te DistanceShore for one batch of high error samples}
 xmin=list("theta"=-pi,"DistanceShore"=0.3)
 xmax=list("theta"=pi,"DistanceShore"=2)
-res=crcvm_rect_hf_e2$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_e2",xmin=xmin,xmax=xmax,
+res=crcvm_rect_hf_e2$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_e2",xmin=xmin,xmax=xmax,
                                     xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
 res$fe_omega_theta_DistanceShore
 ```
 
 
-#### Violin plot of the estimated spline coefficients
+#### Violin plot of the estimated spline coefficients for one batch
 
-```{r}
+```{r violin plots spline coeffs te DistanceShore for one batch of high error sample}
 
 true_coeff=data.frame(value=sp_coeff_Dshore,name=paste("omega.",names(sp_coeff_Dshore),sep=""))
 rownames(true_coeff)=NULL
 
-p=crcvm_rect_hf_e2$plot_violin_coeff(model_name="crcvm_rect_hf_e2",substring="omega",true_coeff=true_coeff,save=TRUE)
+p=crcvm_rect_hf_e2$BATCH1$plot_violin_coeff(model_name="crcvm_rect_hf_e2",substring="omega",true_coeff=true_coeff,save=TRUE)
 
 ggplotly(p)
 ```
 
+
+
+
+#### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te DistanceShore all batches with high measurement error}
+
+n_coeffs=length(sp_coeff_DShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  m<-crcvm_rect_hf_e2[[paste("BATCH",k,sep="")]]
+  coeffs=m$coeff_re()
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  sub_index=grepl("omega",coeff_names)
+  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+
+ggsave("all_batches_coeffs_crcvm_rect_hf_e2.png",plot=p,width=10,height=5,path="crcvm_rect_hf_e2")
+```
