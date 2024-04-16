@@ -58,13 +58,13 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=10
+N_BATCH=2
 
 #number of individual tracks per batch
 N_ID=3
 
 #duration of each track in hour
-TMAX=1*24 
+TMAX=0.5*24 
 
 #degree of freedom in tensor splines
 SP_DF=5
@@ -401,7 +401,7 @@ ggplotly(plot_samples_rect_hf_ne)
 
 ### Generate samples
 
-```{r high error samples, cache=TRUE,results='hide'}
+```{r parallel generate hf high error samples, cache=TRUE,results='hide'}
 #setup parallel backend to use many processors
 cores=detectCores()
 cl <- makeCluster(cores[1]-1) #not to overload your computer
@@ -710,18 +710,32 @@ ggplotly(plot_sim)
 #### Fit sde
 
 ```{r estimate te DistanceShore for low error samples,cache=TRUE}
-#estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 
-crcvm_rect_hf_ne2=list()
-for (k in 1:N_BATCH) {
-  m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH"),k,sep=""]],type = "RACVM",
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+
+
+crcvm_rect_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+  par0 <- c(0,0,1,1,0)
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH",k,sep="")]],type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
   m$fit(method="BFGS")
-  crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]<-m
+  m 
 }
+
+
+#stop cluster
+stopCluster(cl)
+
+
+names(crcvm_rect_hf_ne2)=paste("BATCH",1:N_BATCH,sep="")
 ```
 
 #### Plots estimated smooth in 3D
@@ -788,18 +802,32 @@ ggsave("all_batches_coeffs_crcvm_rect_hf_ne2.png",plot=p,width=10,height=5,path=
 #### Fit sde
 
 ```{r estimate te ExpShore for high error samples, cache=TRUE}
-#estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
 
-crcvm_rect_hf_e1=list()
-for (k in 1:N_BATCH) {
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+
+
+crcvm_rect_hf_e1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
+  par0 <- c(0,0,1,1,0)
   m <- SDE$new(formulas = formulas,data = data_rect_hf_e[[paste("BATCH",k,sep="")]],type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
   m$fit(method="BFGS")
-  crcvm_rect_hf_e1[[paste("BATCH",k,sep="")]]<-m
+  m 
 }
+
+
+#stop cluster
+stopCluster(cl)
+
+
+names(crcvm_rect_hf_e1)=paste("BATCH",1:N_BATCH,sep="")
 ```
 
 #### Plot estimated smooth in 3D for one batch
@@ -866,19 +894,32 @@ ggplotly(p)
 #### Fit sde
 
 ```{r estimate te DistanceShore for high error samples,cache=TRUE}
-#estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+
+
+crcvm_rect_hf_e2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
-
-crcvm_rect_hf_e2=list()
-
-for (k in 1:N_BATCH) {
+  par0 <- c(0,0,1,1,0)
   m <- SDE$new(formulas = formulas,data = data_rect_hf_e[[paste("BATCH",k,sep="")]],type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
   m$fit(method="BFGS")
-  crcvm_rect_hf_e2[[paste("BATCH",k,sep="")]]<-m
+  m 
 }
+
+
+#stop cluster
+stopCluster(cl)
+
+
+names(crcvm_rect_hf_e2)=paste("BATCH",1:N_BATCH,sep="")
 ```
 
 #### Plot estimated smooth in 3D for one batch
