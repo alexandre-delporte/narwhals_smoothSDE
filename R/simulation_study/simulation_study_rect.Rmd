@@ -768,7 +768,7 @@ ggplotly(p)
 
 ```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
 
-n_coeffs=length(sp_coeff_DShore)
+n_coeffs=length(sp_coeff_Dshore)
 coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
 
 for (k in 1:N_BATCH) {

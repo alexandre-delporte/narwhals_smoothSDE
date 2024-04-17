@@ -98,8 +98,8 @@ response1 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response =
 response1$fit()
 
 
-xmin=list("ExpShip"=1/80)
-xmax=list("ExpShip"=1/3)
+xmin=list("ExpShip"=0)
+xmax=list("ExpShip"=1/2)
 link=list("ExpShip"=(\(x) 1/x))
 xlabel=list("ExpShip"="Distance to ship")
 
@@ -204,8 +204,8 @@ ggsave(path="response3","plotAIC3.png",plot=plotAIC3,width=10,height=5)
 
 
 #Set k to best degree of freedom
-formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re"),tau = ~s(ExpShip,k=8,bs="cs"),
-                 nu=~s(ExpShip,k=5,bs="cs"))
+formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re"),tau = ~s(ExpShip,k=10,bs="cs"),
+                 nu=~s(ExpShip,k=10,bs="cs"))
 
 
 
@@ -214,8 +214,8 @@ response3 <- SDE$new(formulas = formulas,data = rbind(dataBE1,dataAE),type = "CT
                      par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response3$fit()
 
-plot_resp3=response3$get_all_plots(baseline=baseline2,model_name="response3",
-              xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plot_resp3=response3$get_all_plots(baseline=NULL,model_name="response3",
+              xmin=xmin,xmax=xmax,show_CI="pointwise",ignore_intercept=TRUE,save=TRUE)
 
 #inspect specific values of tau
 tau_data=plot_resp3$data_tau_ExpShip
