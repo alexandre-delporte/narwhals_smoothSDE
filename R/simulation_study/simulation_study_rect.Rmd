@@ -58,10 +58,10 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=2
+N_BATCH=30
 
 #number of individual tracks per batch
-N_ID=3
+N_ID=6
 
 #duration of each track in hour
 TMAX=0.5*24 

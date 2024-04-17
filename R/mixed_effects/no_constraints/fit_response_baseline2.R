@@ -49,7 +49,6 @@ cat(paste(length(dataAE[,1]),"positions measured after exposure \n"),file=filena
 
 
 
-
 ############################################# SET MEASUREMENT ERROR ###############################################
 
 sigma_obs=0.03
@@ -205,13 +204,13 @@ ggsave(path="response3","plotAIC3.png",plot=plotAIC3,width=10,height=5)
 
 
 #Set k to best degree of freedom
-formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re"),tau = ~s(ExpShip,k=10,bs="cs"),
-                 nu=~s(ExpShip,k=10,bs="cs"))
+formulas <- list(mu1 = ~s(ID,bs="re") ,mu2 =~s(ID,bs="re"),tau = ~s(ExpShip,k=8,bs="cs"),
+                 nu=~s(ExpShip,k=5,bs="cs"))
 
 
 
 ## FIT MODEL WITHOUT OFFSET
-response3 <- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",response = c("x","y"),
+response3 <- SDE$new(formulas = formulas,data = rbind(dataBE1,dataAE),type = "CTCRW",response = c("x","y"),
                      par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)))
 response3$fit()
 
