@@ -384,7 +384,7 @@ Intuitively, the next velocity is a weighted mean of the long term mean velocity
 The stationary distribution of the velocity process is $\mathcal{N}\left(\mu,\frac{2\nu^2}{\pi} I_2\right)$. This result can be used to get the long term distribution of the velocity norm and the velocity phase angle. After the velocity process has reached stationarity, that is typically for $t \geq 3\tau$, $\vert \vert v(t) \vert \vert$ follows a Rice distribution with mean parameter $\vert \vert \mu \vert \vert$ and variance parameter $\frac{2\nu^2}{\pi}$. In the special case $\mu=(0,0)$, this means that $\E(\vert \vert v(t) \vert \vert)=\nu$. Hence, the order of magnitude of the parameter $\nu$ is similar to the overall mean empirical velocity norm. The distribution of the phase angle $\Phi$ of the velocity has been derived in \cite{pawula_distribution_1982}.
 When $\mu=0$, this distribution is uniform over $[-\pi,\pi]$. Hence, taking a look at the histograms of the phase angle of the data can help to assess whether a non zero mean velocity is necessary in the model or not.
 
-By integrating the velocity equation over time one gets the transition density of the location process.
+By integrating the velocity equation over time one gets the following distribution for the location process :
 \begin{equation}
 	X(t+\Delta) \vert X(t)=x, V(t)=v \sim \mathcal{N}\left(x+\mu \Delta+A^{-1} \left( I_2-\exp(-A\Delta)\right)(v-\mu),Q(\Delta)\right)  
 \end{equation}
@@ -393,7 +393,7 @@ Here, the covariance matrix $Q(\Delta)$ has an explicit form.
 \[
 	Q(\Delta)=\left( \Delta-2 \frac{\omega \sin(\omega \Delta)-\frac{1}{\tau} \cos(\omega \Delta)}{\frac{1}{\tau^2}+\omega^2 } \exp\left( -\frac{\Delta}{\tau} \right) +\frac{\tau}{2} \left( \frac{\omega^2-\frac{3}{\tau^2}}{\frac{1}{\tau^2}+\omega^2}-\exp\left( -\frac{2\Delta}{\tau}\right)\right) \right) I_2
 \]
-The position process is not markovian, but the whole process $(x(t), v(t))^\top$ is.
+The location process is not markovian, but the whole process $(x(t), v(t))^\top$ is.
 Both components of the location and velocity processes are independent.
 and one can check that for $\omega=0$, the formulas match the ones of the  CTCRW model \cite{johnson_continuoustime_2008}. Figure~\ref{fig: sample RACVM} shows two samples of a RCVM along with the histograms of the empirical velocity norm and phase. Derivation of the formulas given in this paragraph is detailed in appendix~\ref{section: detailed RACVM computations}.\\
 
@@ -475,9 +475,9 @@ with $D_{shore}(t)=d(X(t),\mathcal{D})$,
  Based on this weight, a relationship between $\omega$ and the angle $\Theta$ and the distance to the shore $D_{shore}$ can be formulated as follows :
  
  \[
- \omega(\theta,D_{shore})=\frac{\omega_0}{2}\left(\tanh(\lambda(\theta+\frac{\pi}{2}))+\tanh(\lambda(\theta-\frac{\pi}{2})))\right)\times c(D_{shore})
+ \omega(\theta,D_{shore})=\frac{\omega_0}{2}\left(\tanh(\lambda(\theta+\theta^{*}))+\tanh(\lambda(\theta-\theta^{*})))\right)\times c(D_{shore})
  \]
- for some $\omega_0 \in \R$, $\lambda>0$
+ for some $\omega_0 \in \R$, $\lambda>0$, $\theta^* \in [0,2\pi]$.
  
  This parametrization of $\omega$ is only motivated by the observations above, and do not pretend to be optimal. Any smooth function that meets the minimum requirements could be used instead. The general model is very flexible, and different species-specific behaviours could be described. For the narwhals, a tendency to move along the shore could be considered by specifying a function $\omega$ that is non zero even when $\Theta \in \left[\frac{\pi}{2}-\varepsilon,\frac{\pi}{2}\right] \cup \left[-\frac{\pi}{2},-\frac{\pi}{2}+\varepsilon\right]$, so that when the animal would be on the verge of leaving the shore, its velocity would be tweaked to align with the shoreline. It is also possible  to specify $\tau$ similarly as a function of $D_{shore}$ and $\Theta$ to model specific behaviour near the shore (e.g higher persistence along the shoreline).\\
  Figure~\ref{fig: trueomega} shows the smooth function obtained for the parameter $\omega$ and different values of $D_0$, $\lambda$ and $\kappa$.
@@ -501,6 +501,41 @@ with $D_{shore}(t)=d(X(t),\mathcal{D})$,
  	\label{fig: trueomega}
  \end{figure}
  
+ 
+ 
+ 
+ \begin{figure}[H]
+ 	\centering
+ 	\begin{subfigure}{0.48\textwidth}
+ 		\centering
+ 		\includegraphics[scale=0.4]{images/simulation study/samples_rect_hf_ne_omega.png}
+ 		\caption{}
+ 	\end{subfigure}
+ 	\begin{subfigure}{0.48\textwidth}
+ 		\centering
+ 		\includegraphics[scale=0.4]{images/simulation study/samples_rect_hf_e_omega.png}
+ 		\caption{}
+ 	\end{subfigure}
+ 	\caption{Samples of the CRCVM in a rectangular domain. x and y axis are in metres and initial positions are indicated by a red cross (a)-(b) Two samples of time step $h=1$ min (high frequency) with respective measurement errors standard deviation $\sigma_{obs}=3$ m and $\sigma_{obs}=30$ m.}
+ 	\label{fig: samples_rect_CRCVM}
+ \end{figure}
+ 
+ 
+ \begin{figure}[H]
+ 	\centering
+ 	\begin{subfigure}{0.48\textwidth}
+ 		\centering
+ 		\includegraphics[scale=0.5]{images/simulation study/samples_fjords_hf_ne_omega.png}
+ 		\caption{}
+ 	\end{subfigure}
+ 	\begin{subfigure}{0.48\textwidth}
+ 		\centering
+ 		\includegraphics[scale=0.5]{images/simulation study/samples_fjords_hf_e_omega.png}
+ 		\caption{}
+ 	\end{subfigure}
+ 	\caption{Samples of the CRCVM in Scoresby Sound coastline geometry. x and y axis are in metres and initial positions are indicated by a red cross. (a)-(b) Two samples of time step $h=1$ min (high frequency) with respective measurement errors standard deviation $\sigma_{obs}=3$ m and $\sigma_{obs}=30$ m.}
+ 	\label{fig: samples_fjords_CRCVM}
+ \end{figure}
  
  
 %conditions on the shore (regularity) and time steps
@@ -736,62 +771,8 @@ $3$ days long trajectories were sampled in a rectangular domain with sides of le
 10 trajectories were also simulated in Scoresby Sound fjords system in which the narwhals move under constraints. The parameter $\omega$ was defined as the smooth function displayed in~\ref{fig: trueomega}(b). Again, for each trajectory, initial velocity was set to $0$ and initial position was uniformly sampled within the sea, with the requirement that it should be at least $500$ metres away from the shore. Time steps were also kept constant, equal to $1$ min for high frequency and subsampled to $5$ min for low frequency. None of the 10 trajectories reached land. Note that if time steps are too large, the assumption of constant covariates between observations is very likely to be violated due to the steepness of the shoreline, resulting in samples that reach land very often. For the fjords system, this already happens if we try to sample directly with $5$ min time steps. Constrained samples within the geometry of Scoresby sound fjords are shown in~\ref{fig: samples_fjords_CRCVM}. Moreover, sampling within the fjords takes much more time than within the rectangular domain, since it is necessary to loop over each polygon of the geometry to compute the nearest shore point for each new position. 
 
 
-\begin{figure}[H]
-	\centering
-	\begin{subfigure}{0.48\textwidth}
-		\centering
-		\includegraphics[scale=0.4]{images/simulation study/samples_rect_hf_ne_omega.png}
-		\caption{}
-	\end{subfigure}
-	\begin{subfigure}{0.48\textwidth}
-		\centering
-		\includegraphics[scale=0.4]{images/simulation study/samples_rect_hf_e_omega.png}
-		\caption{}
-	\end{subfigure}
-	\caption{Samples of the CRCVM. x and y axis are in metres and initial positions are indicated by a red cross (a)-(b) Two samples of time step $h=1$ min (high frequency) with respective measurement errors standard deviation $\sigma_{obs}=3$ m and $\sigma_{obs}=30$ m.}
-	\label{fig: samples_rect_CRCVM}
-\end{figure}
-
-
-\begin{figure}[H]
-	\centering
-	\begin{subfigure}{0.48\textwidth}
-		\centering
-		\includegraphics[scale=0.5]{images/simulation study/samples_fjords_hf_ne_omega.png}
-		\caption{}
-	\end{subfigure}
-	\begin{subfigure}{0.48\textwidth}
-		\centering
-		\includegraphics[scale=0.5]{images/simulation study/samples_fjords_hf_e_omega.png}
-		\caption{}
-	\end{subfigure}
-	\caption{Samples of the CRCVM. x and y axis are in metres and initial positions are indicated by a red cross. (a)-(b) Two samples of time step $h=1$ min (high frequency) with respective measurement errors standard deviation $\sigma_{obs}=3$ m and $\sigma_{obs}=30$ m.}
-	\label{fig: samples_fjords_CRCVM}
-\end{figure}
-
-
-\begin{comment}
-
-To assess whether the CRCVM can describe a tendecy to move along the boundary, $\tau$ was then also expressed as a smooth function of $D_{shore}$ and $\Theta$.
-\begin{align*}	
-	\tau(\theta,D_{shore})&=(1-c(D_{shore}))\times \tau_0 +c(D_{shore}) \times   \\
-	&+\left(\Delta_0+(\tau_0-\Delta_0)\exp\left(\frac{-\theta^2}{\pi^2}\right)+
-	(\tau_1-\Delta_0)\exp\left(-\lambda_{\tau}\left(\theta-\frac{\pi}{2}\right)^2\right)+(\tau_2-\Delta_0)\exp\left(-\lambda_{\tau}\left(\theta+\frac{\pi}{2}\right)^2\right)\right)
-\end{align*}
-for some $0<\Delta_0<\tau_0<\tau_1,\tau_2$ and $\lambda_{\tau}>0$.
-
-
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=0.7\linewidth]{"images/simulation study/true_tau"}
-	\caption{$\tau$ (unit: $h$) as a smoth function of $\Theta$ and $D_{shore}$. Values of $D_{shore}$ are in $km$ and values of $\Theta$ are in $rad$}
-	\label{fig:truetau}
-\end{figure}
-
-\end{comment}
 
 \subsection{Estimation with tensor splines}
-
 
 
 The samples from previous section were used to estimate the function $\omega$, both in the rectangular domain and in Scoresby Sound fjords system. Covariates $E_{shore}$ and $\Theta$ were computed from the observed positions and the smooth parameter $\omega$ was estimated using bivariate tensor splines of these covariates, given by the function \texttt{te} in \texttt{R}. The marginal spline degree of freedom was set to $5$ for each covariate, which corresponds to $3$ knots in the splines. Hence, $25$ coefficients (including the intercept) were to be estimated. The other parameters of the diffusion were supposed to be known, as well as the measurement error. Underestimation of the smooth parameter $\omega$ is observed close to the shore as $\Theta$ approaches $\pm \pi$ (movement toward the shore). This is easily seen in figures \ref{fig: marginal_estimates_rect_CRCVM}(a)-(b) and and \ref{fig: marginal_estimates_fjords_CRCVM}(a)-(b).

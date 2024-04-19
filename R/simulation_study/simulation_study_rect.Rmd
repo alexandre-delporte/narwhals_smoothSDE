@@ -642,10 +642,11 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
                 theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
                 geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
 
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_ne1/all_batches_coeffs_crcvm_rect_hf_ne1.png")
 
-ggsave("all_batches_coeffs_crcvm_rect_hf_ne1.png",plot=p,path="crcvm_rect_hf_ne1")
 
-ggplotly(p)
+
 ```
 
 
@@ -790,8 +791,9 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
                 geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
 
 
-ggsave("all_batches_coeffs_crcvm_rect_hf_ne2.png",plot=p,width=10,height=5,path="crcvm_rect_hf_ne2")
 
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne2.png")
 
 ```
 
@@ -882,9 +884,9 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
                 geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
 
 
-ggsave("all_batches_coeffs_crcvm_rect_hf_e1.png",plot=p,width=10,height=5,path="crcvm_rect_hf_e1")
 
-ggplotly(p)
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_e1/all_batches_coeffs_crcvm_rect_hf_e1.png")
 
 ```
 
@@ -974,6 +976,7 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
                 geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
 
 
-ggsave("all_batches_coeffs_crcvm_rect_hf_e2.png",plot=p,width=10,height=5,path="crcvm_rect_hf_e2")
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_e2/all_batches_coeffs_crcvm_rect_hf_e2.png")
 ```
 
