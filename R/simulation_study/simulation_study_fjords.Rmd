@@ -8,8 +8,8 @@ output:
 date: "2024-03-13"
 ---
 
-
-# Import libraries and data
+# SET UP
+## Import libraries and data
 
 ```{r import libraries}
 #seed for reproducibility 
@@ -49,18 +49,25 @@ source("CVM_functions.R")
 ```
 
 
-# Global variables
+## Global variables
 
 ```{r}
-#number of tracks
-N_BATCH=100
-N_ID=6
+#number of batch
+N_BATCH=2
+
+#number of individual tracks per batch
+N_ID=3
+
+#duration of each track in hour
+TMAX=0.5*24 
 
 #degree of freedom in tensor splines
-SP_DF=7
+SP_DF=5
 ```
 
-# Get land polygons
+# SIMULATION
+
+## Get land polygons
 
 ```{r get land polygons}
 #land polygons
@@ -72,8 +79,6 @@ greenland_data_path <- file.path(par_dir,"Data", "Greenland")
 #get the coastline geometry from the geojson file
 land<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 ```
-
-# SIMULATION
 
 ## Sample initial positions uniformly
 
@@ -107,8 +112,6 @@ while (i<=n_samples) {
 ## Fix time steps for observations 
 
 ```{r fix time steps}
-#observation times
-Tmax=3*24 #max time in hour
 
 hf=1/60 #1 minute time step
 
@@ -154,8 +157,9 @@ ftau_gauss=function(cov_data,D0=0.3,tau0=1,tau1=3) {
 }
 
 #constant tau
-ftau_constant=function(Dshore,theta,tau=1) {
-  return (tau)
+ftau_constant=function(cov_data,tau=1,sigma_re=0.1) {
+  b=rnorm(1,mean=0,sd=sigma_re)
+  return (tau+b)
 }
 
 fomega=function(cov_data,D0=0.3,omega0=60*pi/2,lambda=2,kappa=0.2) {
@@ -169,7 +173,11 @@ fomega=function(cov_data,D0=0.3,omega0=60*pi/2,lambda=2,kappa=0.2) {
     return(omega)
 }
 
-nu=4
+#constant nu
+fnu_constant=function(cov_data,nu=4,sigma_re=0.3) {
+    b=rnorm(1,mean=0,sd=sigma_re)
+  return (nu+b)
+}
 
 ```
 
@@ -209,7 +217,7 @@ plot_true_omega
 ```{r}
 sp_df=5
 #number of points
-n <- 500
+n <- 1000
 
 #sample theta and DistanceShore points in the domain
 theta <- runif(n,-pi,pi);
@@ -268,54 +276,87 @@ sp_coeff_ExpShore=m2$coefficients
 ```
 
 
-## Simulation with measurement errors and high frequency 
+### Define spline smooth functions for omega based on the approximation
 
-### Generate samples
+```{r spline smooth omega definition}
 
-```{r high frequency samples no error (hf ne)}
 
-#initialize data frame
-data_fjords_hf_ne=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
-
-for (i in 1:n_samples) {
+fomega_splines=function(cov_data) {
   
-  res=sim_theta_CRCVM(ftau_constant,fomega,nu,log_sigma_obs=log(sigma_obs_0),v0,x0[i,],times_hf,land=land,verbose=FALSE)
-
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  data_fjords_hf_ne=rbind(data_fjords_hf_ne,cbind(data_sim,data_shore))
+  if (is.null(cov_data$ExpShore)){
+    omega=predict(m1,newdata=cov_data)
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    omega=predict(m2,newdata=cov_data)
+  }
+  
+  return(as.numeric(omega))
 }
-
-data_fjords_hf_ne=data_fjords_hf_ne[-1,]
 
 ```
 
+
+
+## Simulation with low measurement errors and high frequency 
+
+### Generate sample
+
+
+```{r parallel generate hf low errors samples}
+
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+data_fjords_hf_ne <- foreach(i=1:N_BATCH,.packages=c("progress","MASS","sf","foreach")) %dopar% {
+  data=foreach (i=1:N_ID,.combine='rbind') %do% {
+  
+    res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs_0),v0,x0[i,],times_hf,land=land,verbose=FALSE)
+
+    data_sim=res$sim
+    data_sim$ID=factor(rep(i,length(data_sim$y1)))
+    data_shore=res$shore[,c("p1","p2")]
+    cbind(data_sim,data_shore)
+  }
+  data 
+}
+
+
+#stop cluster
+stopCluster(cl)
+
+names(data_fjords_hf_ne)=paste("BATCH",1:N_BATCH,sep="")
+```
 
 ### percentage of samples that reached land
 
-```{r percentage of hf ne samples that reached land}
+```{r percentage of low error samples that reached land}
 count=0
-for (id in unique(data_fjords_hf_ne$ID)){
-  sub_data=data_fjords_hf_ne[data_fjords_hf_ne$ID==id,]
-  if (nrow(sub_data) < n_hf) {
-    print(id)
-    count=count+1
+for (k in 1:length(names(data_rect_hf_ne))) {
+
+  data=data_fjords_hf_ne[[paste("BATCH",k,sep="")]]
+  for (id in unique(data$ID)) {
+    sub_data=data[data$ID==id,]
+    if (nrow(sub_data) < n_hf) {
+      count=count+1
+      cat(paste("BATCH",k,sep=""),":",id,"\n",sep=" ")
+    }
   }
 }
-cat(count/n_samples*100,"percent of the samples reached land")
+cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```
 
-### Plot samples
 
-```{r plot hf ne samples}
+### plot one batch
 
-plot_samples_fjords_hf_ne=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_fjords_hf_ne[data_fjords_hf_ne$ID==2,],mapping=aes(y1,y2),size=0.1)+
-  geom_point(data=data_fjords_hf_ne[data_fjords_hf_ne$ID==2,],mapping=aes(p1,p2),size=0.01,col="red",shape=5)+
-  geom_path(data=data_fjords_hf_ne[data_fjords_hf_ne$ID==2,],mapping=aes(y1,y2),linewidth=0.1)+
-  geom_point(data = data_fjords_hf_ne[data_fjords_hf_ne$ID==2,] %>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4,col = "blue")+
+```{r plot one batch low error samples}
+
+plot_samples_fjords_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_fjords_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_path(data=data_fjords_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_point(data = data_fjords_hf_ne$BATCH1%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
 
@@ -324,64 +365,80 @@ ggplotly(plot_samples_fjords_hf_ne)
 ```
 
 
-## sImulate with high frequency and measurement error
+## Simulation with high measurement error and high frequency 
+
 
 ### Generate samples
 
-```{r generate high frequency samples with error (hf e)}
+```{r parallel generate hf high error samples, cache=TRUE,results='hide'}
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
 
-#initialize data frame
-data_fjords_hf_e=data.frame("y1"=NA,"y2"=NA,"time"=NA,"p1"=NA,"p2"=NA,"ID"=NA)
-
-for (i in 1:n_samples) {
+data_fjords_hf_e <- foreach(i=1:N_BATCH,.packages=c("progress","MASS","sf","foreach")) %dopar% {
+  data=foreach (i=1:N_ID,.combine='rbind') %do% {
   
-  res=sim_theta_CRCVM(ftau_constant,fomega,nu,log_sigma_obs=log(sigma_obs_1),v0,x0[i,],times_hf,land=land,verbose=FALSE)
+    res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs_1),v0,x0[i,],times_hf,land=land,verbose=FALSE)
 
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  data_fjords_hf_e=rbind(data_fjords_hf_e,cbind(data_sim,data_shore))
+    data_sim=res$sim
+    data_sim$ID=factor(rep(i,length(data_sim$y1)))
+    data_shore=res$shore[,c("p1","p2")]
+    cbind(data_sim,data_shore)
+  }
+  data 
 }
 
-data_fjords_hf_e=data_fjords_hf_e[-1,]
 
+#stop cluster
+stopCluster(cl)
+
+#change names of the list elements
+names(data_fjords_hf_e)=paste("BATCH",1:N_BATCH,sep="")
 ```
 
-### Percentage of samples that reached land
-```{r percentage of hf e samples that reached land}
+
+### percentage of samples that reached land
+
+```{r percentage of high error samples that reached land}
 count=0
-for (id in unique(data_fjords_hf_e$ID)){
-  sub_data=data_fjords_hf_e[data_fjords_hf_e$ID==id,]
-  if (nrow(sub_data) < n_hf) {
-    print(id)
-    count=count+1
+for (k in 1:length(names(data_fjords_hf_e))) {
+
+  data=data_fjords_hf_e[[paste("BATCH",k,sep="")]]
+  for (id in unique(data$ID)) {
+    sub_data=data[data$ID==id,]
+    if (nrow(sub_data) < n_hf) {
+      count=count+1
+      cat("BATCH",k,id,"\n",sep="")
+    }
   }
 }
-cat(count/n_samples*100,"percent of the samples reached land")
+cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```
 
-### Plot one sample
+### plot one sample
 
-```{r plot hf e samples}
+```{r plot one batch of high error samples}
 
-plot_samples_fjords_hf_e=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_fjords_hf_e[data_fjords_hf_e$ID==2,],mapping=aes(y1,y2),size=0.1)+
-   geom_path(data=data_fjords_hf_e[data_fjords_hf_e$ID==2,],mapping=aes(y1,y2),linewidth=0.1)+
-  geom_point(data = data_fjords_hf_e[data_fjords_hf_e$ID==2,] %>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2 ), shape = 3, size = 4,col = "red")+
-    xlab("x") + ylab("y")
+
+plot_samples_fjords_hf_e=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_fjords_hf_e$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_path(data=data_fjords_hf_e$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+  geom_point(data = data_fjords_hf_e$BATCH1%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
 
 
 ggsave(filename="samples_fjords_hf_e_omega.png",plot=plot_samples_fjords_hf_e)
 ggplotly(plot_samples_fjords_hf_e)
 ```
 
-
 # ESTIMATION
 
 ## Compute distance to shore and empirical deviation angles
 
-```{r compute covariates}
+
+```{r compute covs}
 
 signed_angle <- function(u, v) {
     #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
@@ -401,7 +458,7 @@ signed_angle <- function(u, v) {
 
 add_covs=function(data) {
   #data has at least columns "time","y1" "y2", "p1","p2"
-  #this function returns a dataframe with three mùore columns : "theta", "DistanceShore" and "ExpShore"
+  #this function new data frame with three more columns "theta", "DistanceShore" and "ExpShore"
   
   new_data=data
   #observed deviation angles
@@ -434,7 +491,7 @@ add_covs=function(data) {
   
     #adjust lengths 
     theta_coast=c(theta_coast,1) 
-
+  
     new_data[sub_ind,"theta"]=theta_coast
   }
 
@@ -446,12 +503,26 @@ add_covs=function(data) {
   return(new_data)
 }
 
-data_fjords_hf_ne=add_covs(data_fjords_hf_ne)
 
-data_fjords_hf_e=add_covs(data_fjords_hf_e)
+for (k in 1:N_BATCH) {
+  
+  #dataframes for this batch
+  df_ne=data_fjords_hf_ne[[paste("BATCH",k,sep="")]]
+  df_e=data_fjords_hf_e[[paste("BATCH",k,sep="")]]
+  
+  #add covariates columns
+  df_ne=add_covs(df_ne)
+  df_e=add_covs(df_e)
+  
+  #change in the list of batch
+  data_fjords_hf_ne[[paste("BATCH",k,sep="")]]=df_ne
+  data_fjords_hf_e[[paste("BATCH",k,sep="")]]=df_e
+}
+
 ```
 
 
+# ESTIMATION
 
 ## Estimate from high frequency data without error : ExpShore and tensor splines ti
 
@@ -459,21 +530,40 @@ data_fjords_hf_e=add_covs(data_fjords_hf_e)
 
 #### Fit sde
 
-```{r estimate from hf e samples with cov ExpShore}
 
-#estimation with tensor splines
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,ExpShore,k=5,bs="cs"))
-par0 <- c(0,0,1,4,0)
+```{r estimate te ExpShore for low error samples,cache=TRUE}
 
 
-crcvm_fjords_hf_ne1 <- SDE$new(formulas = formulas,data = data_fjords_hf_ne[data_fjords_hf_ne$ID==2,],type = "RACVM",
-                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2","nu","tau"),
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+
+
+crcvm_fjords_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
+  par0 <- c(0,0,1,1,0)
+  m <- SDE$new(formulas = formulas,data = data_fjords_hf_ne[[paste("BATCH",k,sep="")]],type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H0_hf))
-crcvm_fjords_hf_ne1$fit(method="BFGS")
+  m$fit(method="BFGS")
+  m 
+}
+
+
+#stop cluster
+stopCluster(cl)
+
+
+names(crcvm_fjords_hf_ne1)=paste("BATCH",1:N_BATCH,sep="")
+
+
 ```
 
-#### Plot estimated smooth parameter omega in 3D
+#### Plot estimated smooth parameter omega in 3D for one batch
 
 ```{r get plots from hf e estimates with Expshore}
 xmin=list("theta"=-pi,"ExpShore"=1/2)
@@ -486,7 +576,7 @@ res=crcvm_fjords_hf_ne1$get_all_plots(baseline=NULL,model_name="crcvm_fjords_hf_
 res$fe_omega_theta_ExpShore
 ```
 
-#### Violin plot of the estimated spline coefficients
+#### Violin plot of the estimated spline coefficients for one batch
 
 ```{r}
 
@@ -498,9 +588,42 @@ p=crcvm_fjords_hf_ne1$plot_violin_coeff(model_name="crcvm_fjords_hf_ne1",substri
 ggplotly(p)
 ```
 
+
+#### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te ExpShore all batches with low measurement error}
+
+n_coeffs=length(sp_coeff_ExpShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  m<-crcvm_fjords_hf_ne1[[paste("BATCH",k,sep="")]]
+  coeffs=m$coeff_re()
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  sub_index=grepl("omega",coeff_names)
+  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_fjords_hf_ne1/all_batches_coeffs_crcvm_fjords_hf_ne1.png")
+
+
+
+```
+
 #### Simulate from fitted model
 
-```{r,cache=TRUE}
+```{r simulate fitted te ExpShore low error samples,cache=TRUE}
 
 
 fExpShore=function(z,v,p) {
@@ -511,10 +634,7 @@ fExpShore=function(z,v,p) {
   
   #distance to shore
   Dshore=sqrt(normal[1]^2+normal[2]^2)
-  if (Dshore>0.5){
-    return (0)
-  }
-  else if (Dshore<0.01) {
+  if (Dshore<0.01) {
     return (100)
   }
   else {
@@ -533,9 +653,10 @@ fangle=function(z,v,p) {
 
 
 atw=list("ExpShore"=fExpShore,"AngleNormal"=fangle)
-sim_data=crcvm_fjords_hf_ne1$simulate(z0=x0[1,],data=crcvm_fjords_hf_ne1$data(),atw=atw,land=land)
+sim_data=crcvm_rect_hf_ne1$BATCH1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne1$BATCH1$data(),atw=atw,land=domain)
 
 ```
+
 
 
 #### Plot simulation from fitted model
