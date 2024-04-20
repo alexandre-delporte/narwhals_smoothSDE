@@ -58,7 +58,7 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=10
+N_BATCH=50
 
 #number of individual tracks per batch
 N_ID=6
@@ -573,7 +573,7 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
 p=ggplotly(p)
 saveWidget(p, file ="crcvm_rect_hf_ne1/all_batches_coeffs_crcvm_rect_hf_ne1.html")
 
-
+p
 
 ```
 
@@ -776,6 +776,7 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
 p=ggplotly(p)
 saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne2.html")
 
+p
 ```
 
 
