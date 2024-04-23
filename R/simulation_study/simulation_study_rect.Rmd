@@ -58,7 +58,7 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=50
+N_BATCH=10
 
 #number of individual tracks per batch
 N_ID=6
@@ -654,7 +654,7 @@ crcvm_rect_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
   par0 <- c(0,0,1,1,0)
   m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH",k,sep="")]],type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
-                      other_data=list("H"=H0_hf))
+                      other_data=list("H"=H_hf))
   m$fit(method="BFGS")
   m 
 }
