@@ -2,7 +2,7 @@
 # -- Un nom pour le job --
 #OAR -n simulation_study_rect
 # -- Description des ressources souhaitées -
-#OAR -l /core=96,walltime=05:00:00
+#OAR -l /core=352,walltime=05:00:00
 # -- Et bien sur, le projet Perseus --
 #OAR --project pr-formation-ced-calcul
 
