@@ -12,15 +12,6 @@ library(plotly)
 library(htmlwidgets)
 
 
-########################################    MANAGE DIRECTORIES  #################################
-
-#directory of mixed effects analysis
-path <- file.path("/home", "delporta","Documents","Recherche","Codes","narwhals_movement_analysis",
-                  "smoothSDE","mixed_effects","constraints")
-setwd(path)
-
-
-####################################  COMPILE AUXILIARY FUNCTIONS ###################################
 
 
 ################################### OUTPUT FILE TO KEEP RECORD OF THE SCRIPT EXECUTION ####################
@@ -35,25 +26,23 @@ file.create(filename)
 
 ########################################    GET NARWHAL DATA   #############################################
 
-data_path<- file.path("/home","delporta","Documents","Recherche","Données","narvals")       
+
+# Set the path to the directory containing the data
+par_dir=dirname(dirname(dirname(getwd()))) #parent directory 
+narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")  
+
 
 # DATA BEFORE EXPOSURE
 
-dataBE1=read.csv(file.path(data_path,"DataBE1.csv"), header = TRUE,dec = ".")
-
-
-#keep points in sea only
-dataBE1=dataBE1[dataBE1$DistanceShore>0,]
+dataBE1=read.csv(file.path(narwhal_data_path,"DataBE1.csv"), header = TRUE,dec = ".")
 
 cat("Extracting trajectories before exposure and 1 day after tagging... ",file=filename,sep="\n",append=TRUE)
 
 cat(paste(length(dataBE1[,1]),"positions measured before exposure \n"),file=filename,sep="\n",append=TRUE)
 
-dataBE2=read.csv(file.path(data_path,"DataBE2.csv"), header = TRUE,dec = ".")
+dataBE2=read.csv(file.path(narwhal_data_path,"DataBE2.csv"), header = TRUE,dec = ".")
 
 
-#keep points in sea only
-dataBE2=dataBE2[dataBE2$DistanceShore>0,]
 
 cat("Extracting trajectories before exposure and 12h after tagging... ",file=filename,sep="\n",append=TRUE)
 
@@ -62,7 +51,7 @@ cat(paste(length(dataBE2[,1]),"positions measured before exposure \n"),file=file
 
 # DATA AFTER EXPOSURE
 
-dataAE=read.csv(file.path(data_path,"DataAE.csv"), header = TRUE,dec = ".")
+dataAE=read.csv(file.path(narwhal_data_path,"DataAE.csv"), header = TRUE,dec = ".")
 
 
 cat("Extracting trajectories after exposure.. ",file=filename,sep="\n",append=TRUE)
@@ -74,7 +63,7 @@ cat(paste(length(dataAE[,1]),"positions measured after exposure \n"),file=filena
 ############################## SOME PREPROCESSING FOR EXPSHORE ####################################
 
 #keep points far enough from land
-dataAE=dataAE[dataAE$DistanceShore>0.03,]
+dataAE=dataAE[dataAE$DistanceShore>0.05,]
 
 #put threshold on exposure
 dataAE[dataAE$DistanceShore>1,"ExpShore"]=0
@@ -85,6 +74,28 @@ dataAE[dataAE$DistanceShore>1,"ExpShore"]=0
 sigma_obs=0.045
 n_obs=length(dataAE$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
+
+################### TEST CIR DISTANCE TO SHORE   ##########################
+
+
+
+#define model
+formulas <- list(mu=~1,beta=~1,sigma=~s(ExpShip,k=5))
+par0 <- c(1,2,1)
+
+test<- SDE$new(formulas = formulas,data = dataAE,type = "CIR",
+                    response = c("DistanceShore"),par0 = par0)
+
+
+
+#fit_model
+test$fit(method="BFGS")
+estimates=as.list(test$tmb_rep(),what="Est")
+std=as.list(test$tmb_rep(),what="Std")
+
+sim=test$simulate(data=test$data())
+plot(sim$DistanceShore)
 
 #######################  RACVM  MODEL WITH tensor splines te of AngleNormal and Distance Shore in omega #######################
 
