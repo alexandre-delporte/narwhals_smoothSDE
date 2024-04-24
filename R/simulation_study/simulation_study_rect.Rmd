@@ -58,7 +58,7 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=10
+N_BATCH=20
 
 #number of individual tracks per batch
 N_ID=6
@@ -692,6 +692,38 @@ ggplotly(p)
 ```
 
 
+#### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
+
+n_coeffs=length(sp_coeff_Dshore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  m<-crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]
+  coeffs=m$coeff_re()
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  sub_index=grepl("omega",coeff_names)
+  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+
+
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne2.html")
+
+p
+```
 
 #### Simulate from fitted model
 
@@ -746,38 +778,7 @@ ggsave("sim_crcvm_rect_hf_ne2.png",plot=plot_sim,width=10,height=5,path="crcvm_r
 ggplotly(plot_sim)
 ```
 
-#### Violin plot of the estimated spline coefficients for all batches
 
-```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
-
-n_coeffs=length(sp_coeff_Dshore)
-coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
-
-for (k in 1:N_BATCH) {
-  m<-crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]
-  coeffs=m$coeff_re()
-  coeff_names=rownames(coeffs)
-  coeff_values=as.numeric(coeffs)
-  sub_index=grepl("omega",coeff_names)
-  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
-  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
-}
-
-#remove initialization row
-coeffs_df=coeffs_df[-1,]
-
-p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
-                xlab(" ")+labs(fill = "Estimated coefficients")+
-                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
-
-
-
-p=ggplotly(p)
-saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne2.html")
-
-p
-```
 
 
 
