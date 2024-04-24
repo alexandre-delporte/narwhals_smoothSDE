@@ -329,12 +329,6 @@ for (id in unique(data$ID)) {
 ggplotly(plot_exp)
 ```
 
-## Inspect narwhals movement during each exposure peak
-
-```{r}
-
-```
-
 
 # Second preprocesssing step
 
@@ -363,7 +357,7 @@ nrows=length(dataprep[,1])
 
 llcoord=SpatialPoints(dataprep[,c("Long","Lat")],
                       proj4string=CRS("+proj=longlat +datum=WGS84"))
-utmcoord=spTransform(llcoord,CRS("+proj=utm +zone=26 +north,ellps=WGS84"))
+utmcoord=spTransform(llcoord,CRS("+proj=utm +zone=26 +north,ellps=WGS84 +units=km"))
 
 #add UTM locations in km to data frame
 dataprep$x=attr(utmcoord,"coords")[,1]
@@ -386,8 +380,8 @@ for (id in unique(dataprep$ID)){
   dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
   
   #step lengths
-  dx=(sub_data[2:n_sub,"x"]-sub_data[1:(n_sub-1),"x"])/1000
-  dy=(sub_data[2:n_sub,"y"]-sub_data[1:(n_sub-1),"y"])/1000
+  dx=(sub_data[2:n_sub,"x"]-sub_data[1:(n_sub-1),"x"])
+  dy=(sub_data[2:n_sub,"y"]-sub_data[1:(n_sub-1),"y"])
   
   speed=c(NA,sqrt((dx/dtimes)^2+(dy/dtimes)^2))
   
@@ -491,7 +485,7 @@ ggsave(path=plots_folder,"time_steps_histo.png", plot = times_histo)
 
 ```{r time steps >2h, cache=FALSE, echo=TRUE}
 
-cat("Percentage of time steps > 2h :",length(delta[delta>2])/length(delta)*100)
+cat("Percentage of time steps > 2h :",length(dtimes$delta[dtimes$delta>2])/length(dtimes$delta)*100)
 ```
 
 ```{r display hist , fig.cap="Histogram of time steps",warnings=FALSE}
@@ -677,16 +671,16 @@ Anyway, we shall keep distance computed from the land in the sequel, since the l
 for constrained movement of the narwhals.
 
 ```{r histograms distances to shore}
-histo1=ggplot(dataprep, aes(x = DistanceShore*1000)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Original distance to shore (m)")
+histo1=ggplot(dataprep[dataprep$DistanceShore>0,], aes(x = DistanceShore)) +
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Original distance to shore (km)")
 
-df=data.frame(DistanceShore=res_coastline$min_distances)
+df=data.frame(DistanceShore=res_coastline$min_distances[res_coastline$min_distances>0])
 histo2=ggplot(df, aes(x =DistanceShore)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance from coastline (m)")
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance from coastline (km)")
 
-df=data.frame(DistanceShore=res_land$min_distances)
+df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances>0])
 histo3=ggplot(df, aes(x =DistanceShore)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance fom land (m)")
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance fom land (km)")
 ```
 
 ```{r display histograms}
@@ -713,11 +707,11 @@ cat("Percentage of points on land with the original distance to shore : \n",
     length(dataprep[dataprep$DistanceShore==0,"time"])/length(dataprep$time)*100,"\n")
 
 cat("Percentage of points on land with distance from land : \n",
-    length(which(res_land$min_distances/1000==0))/length(dataprep$time)*100,"\n")
+    length(which(res_land$min_distances==0))/length(dataprep$time)*100,"\n")
 
 
 cat("Percentage of points on land with distance from coastline : \n",
-    length(which(res_coastline$min_distances/1000==0))/length(dataprep$time)*100)
+    length(which(res_coastline$min_distances==0))/length(dataprep$time)*100)
 ```
 
 
@@ -749,7 +743,7 @@ df$DistanceShore=res_land$min_distances
 
 check_plot2=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
     coord_sf(datum=st_crs(32626))+
-  geom_point(data=df,aes(x,y,col=(DistanceShore==0)),size=0.2)+
+  geom_point(data=df,aes(x,y,col=(DistanceShore<0.1)),size=0.2)+
     scale_color_viridis_d()
 
 ggplotly(check_plot2)
@@ -771,15 +765,17 @@ Let's check the distribution of points near land to choose a minimum value for t
 
 ```{r distribution of points close to the shore}
 
-df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<100 & res_land$min_distances>0  ])
+df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<2 & res_land$min_distances>0  ])
 histo=ggplot(df, aes(x =DistanceShore)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (m)")
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (km)")
 
 histo
 ```
 
 
-This seems to be pretty uniformly distributed, so let's choose arbitrarily a threshold of 50 metres.
+This seems to be pretty uniformly distributed. It is difficult to assess at which distance the narwhals stay from 
+the shore in reality.
+Let's choose arbitrarily a threshold of 50 metres.
 
 # Third preprocessing step
 
@@ -800,7 +796,7 @@ dataprep$nx=dataprep$x-dataprep$px
 dataprep$ny=dataprep$y-dataprep$py
 
 #replace distance to shore with distances calculated from land polygons (in km)
-dataprep$DistanceShore=min_distances/1000
+dataprep$DistanceShore=min_distances
 
 ```
 
@@ -812,21 +808,6 @@ dataprep$DistanceShore=min_distances/1000
 ```{r}
 #add ExpShore covariate based on 1/distance in km
 dataprep$ExpShore <- ExposureFunction(X = dataprep$DistanceShore) 
-
-```
-
-# Convert all UTM coordinates in km
-
-```{r convert to km}
-
-dataprep$px=dataprep$px/1000
-dataprep$py=dataprep$py/1000
-dataprep$nx=dataprep$nx/1000
-dataprep$ny=dataprep$ny/1000
-
-
-dataprep$x=dataprep$x/1000
-dataprep$y=dataprep$y/1000
 
 ```
 
@@ -1223,11 +1204,11 @@ for (id in unique(dataprep$ID)) {
   sub_data=dataprep[dataprep$ID==id,]
   id_track=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
     coord_sf(datum=st_crs(32626))+
-  geom_point(data=sub_data,aes(1000*px,1000*py),shape=5,size=0.1,col="red")+
-  geom_point(data=sub_data,aes(1000*x,1000*y,col=time),size=0.1)+
-    geom_path(data=sub_data,mapping=aes(1000*x,1000*y),linewidth=0.1)+
+  geom_point(data=sub_data,aes(px,py),shape=5,size=0.1,col="red")+
+  geom_point(data=sub_data,aes(x,y,col=time),size=0.1)+
+    geom_path(data=sub_data,mapping=aes(x,y),linewidth=0.1)+
     geom_point(data = sub_data %>% filter(!duplicated(ID)),
-             aes(1000*x,1000*y,col=ID), shape = 3, size = 4,col = "red")+
+             aes(x,y,col=ID), shape = 3, size = 4,col = "red")+
     scale_color_viridis_c()
   
   ggsave(path=plots_folder,paste(id,"track.png",sep="_"), 
@@ -1302,7 +1283,7 @@ pExpShore=ggplot(dataprep[dataprep$DistanceShore>0.05,],aes(time,ExpShore,col=ID
 
 
 
-ggsave(path=plots_folder,"realExpShore_through_time.png", plot=pExp)
+ggsave(path=plots_folder,"realExpShore_through_time.png", plot=pExpShore)
 ```
 
 ```{r}
@@ -1355,13 +1336,28 @@ for (id in unique(data$ID)) {
 ## Plot data before and after exposure
 
 ```{r plots before and after exposure}
-pBE1=milne_land_map + geom_point(dataBE1, mapping=aes(Long, Lat,col=ID),size= 1,alpha=0.8) +
+pBE1=milne_land_map + 
+  geom_point(dataBE1[,c("ID","Long","Lat","time")],
+             mapping=aes(Long, Lat, col = ID),size= 0.5,alpha=1) +
+   geom_path(dataBE1[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
+  geom_point(data = dataBE1[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
+             aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
-pBE2=milne_land_map + geom_point(dataBE2, mapping=aes(Long, Lat,col=ID),size= 1,alpha=0.8) +
+pBE2=milne_land_map + 
+  geom_point(dataBE2[,c("ID","Long","Lat","time")],
+             mapping=aes(Long, Lat, col = ID),size= 0.5,alpha=1) +
+   geom_path(dataBE2[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
+  geom_point(data = dataBE2[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
+             aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
-pAE=milne_land_map + geom_point(dataAE, mapping=aes(Long, Lat,col=ID),size= 1,alpha=0.8) +
+pAE=milne_land_map + 
+  geom_point(dataAE[,c("ID","Long","Lat","time")],
+             mapping=aes(Long, Lat, col = ID),size= 0.5,alpha=1) +
+   geom_path(dataAE[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
+  geom_point(data = dataAE[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
+             aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
 ggsave(path=plots_folder,"tracksBE1.png",pBE1,width=10,height=5)
