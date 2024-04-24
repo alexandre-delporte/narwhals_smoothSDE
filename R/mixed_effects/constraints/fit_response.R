@@ -76,27 +76,6 @@ n_obs=length(dataAE$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 
-################### TEST CIR DISTANCE TO SHORE   ##########################
-
-
-
-#define model
-formulas <- list(mu=~1,beta=~1,sigma=~s(ExpShip,k=5))
-par0 <- c(1,2,1)
-
-test<- SDE$new(formulas = formulas,data = dataAE,type = "CIR",
-                    response = c("DistanceShore"),par0 = par0)
-
-
-
-#fit_model
-test$fit(method="BFGS")
-estimates=as.list(test$tmb_rep(),what="Est")
-std=as.list(test$tmb_rep(),what="Std")
-
-sim=test$simulate(data=test$data())
-plot(sim$DistanceShore)
-
 #######################  RACVM  MODEL WITH tensor splines te of AngleNormal and Distance Shore in omega #######################
 
 #define model
