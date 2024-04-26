@@ -336,7 +336,7 @@ ggplotly(plot_exp)
 \begin{itemize}
 \item  Drop missing latitude and longitude
 \item Keep GPS positions indicated by value 1 in \texttt{pos\_org} column
-\item  Project to UTM zone 26. The narwhal positions are in latitude and longitude.To analyze the track and visualize it better we project it on a plane in UTM coordinates.
+\item  Project to UTM zone 26. The narwhal positions are in latitude and longitude.To analyze the track and visualize it better we project it on a plane in UTM coordinastes.
 The positions of the narwhals are in the UTM zone 26 north (in Greenland).
 \item Add a column "speed" with empirical horizontal speed obtained from the GPS positions (not interpolated)
 \end{itemize}
@@ -346,11 +346,14 @@ The positions of the narwhals are in the UTM zone 26 north (in Greenland).
 
 ```{r preprocess data 2}
 
-
+#remove rows with unknown positions
 dataprep=data[!(is.na(data$Lat)) & !(is.na(data$Long)),]
-dataprep=dataprep[dataprep$pos_org==1,]
-nrows=length(dataprep[,1])
 
+#keep rows indicated as GPS measurements
+dataprep=dataprep[dataprep$pos_org==1,]
+
+#number of rows
+nrows=length(dataprep[,1])
 
 
 #project to UTM (Universal Transverse Mercator coordinate system)
@@ -565,6 +568,7 @@ st_crs(coastline_utm)="+init=EPSG:32626"
 land_utm<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 
 
+
 ```
 
 ## Plot coastline and land
@@ -577,7 +581,7 @@ plot_coastline=ggplot()+geom_sf(data=coastline_utm$geometry,fill=NA,col="blue")+
 ```
 
 ```{r display land , fig.cap="Land polygons"}
-plot_land
+ggplotly(plot_land)
 ```
 
 ```{r display coastline , fig.cap="Coastline polygons and linestrings"}
@@ -657,14 +661,14 @@ cat("Elapsed time:", result[3]/60, "minutes\n")
 ## Compare computed distances to shore
 
 ```{r compare distances to shore}
-plot(res_land$min_distances/1000-dataprep$DistanceShore)
-plot(res_coastline$min_distances/1000-dataprep$DistanceShore)
+plot(res_land$min_distances-dataprep$DistanceShore)
+plot(res_coastline$min_distances-dataprep$DistanceShore)
 ```
 
 ```{r summary distances to shore}
 summary(res_land$min_distances)
 summary(res_coastline$min_distances)
-summary(dataprep$DistanceShore*1000)
+summary(dataprep$DistanceShore)
 ```
 Coastline distances are a bit closer to original distances in the dataset.
 Anyway, we shall keep distance computed from the land in the sequel, since the land polygons will be the reference domain
@@ -743,7 +747,7 @@ df$DistanceShore=res_land$min_distances
 
 check_plot2=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
     coord_sf(datum=st_crs(32626))+
-  geom_point(data=df,aes(x,y,col=(DistanceShore<0.1)),size=0.2)+
+  geom_point(data=df,aes(x,y,col=(DistanceShore==0)),size=0.2)+
     scale_color_viridis_d()
 
 ggplotly(check_plot2)

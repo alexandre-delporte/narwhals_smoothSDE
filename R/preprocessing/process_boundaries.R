@@ -24,10 +24,14 @@ coastline<-st_read(file.path(data_path,"coastline.geojson"))
 land<-st_read(file.path(data_path,"land.shp"))
 
 
+#other data from https://ramadda.data.bas.ac.uk/repository/entry/show?entryid=8cecde06-8474-4b58-a9cb-b820fa4c9429
+land_gerrish=st_read(file.path(data_path,"Greenland_coast","Greenland_coast.shp"))
+
 
 #convert long lat coordinates to UTM zone 26
 coastline_utm <- st_transform(coastline, crs = "+init=EPSG:32626 +units=km")
 land_utm <- st_transform(land, crs = "+init=EPSG:32626 +units=km")
+land_gerrish_utm=st_transform(land_gerrish)
 
 
 #crop again to actually get a rectangle in UTM coordinates
