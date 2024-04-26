@@ -96,14 +96,14 @@
 \section{Introduction}
 
 
-Anthropogenic underwater noise in the Arctic environment causes disturbances in the endemic wildlife. More precisely, marine mammals, whose vital functions highly depend on sound perception for communication and orientation, are likely to react to such disturbances. The Arctic Council report \cite{halliday_underwater_2020} emphasized the need for more knowledge about the impact of underwater noise on Arctic marine mammals. The main sources of noise in the region are vessel traffic, ice breakers, drilling, sonars and seismic airguns used for oil and gas exploration. Among those sources, an increase in vessel traffic is anticipated due to the melting of the ice cap, and seismic airguns are reported to have the largest impact on underwater noise. Two types of consequences can be considered: injury and behavior disturbance. While physical harm is straightforward to assess and mitigate by determining species-specific received sound level thresholds, no canonical method is expected to be found to examine behavior disturbances, due to the multiplicity of contextual variables that can influence a behavioral reaction, and the variety of these reactions.\\
+Anthropogenic underwater noise in the Arctic environment causes disturbances in the endemic wildlife. More precisely, marine mammals, whose vital functions highly depend on sound perception for communication and orientation, are likely to react to such disturbances. The Arctic Council report \cite{halliday_underwater_2020} emphasizes the need for more knowledge about the impact of underwater noise on Arctic marine mammals. The main sources of noise in the region are vessel traffic, ice breakers, drilling, sonars and seismic airguns used for oil and gas exploration. Among those sources, an increase in vessel traffic is anticipated due to the melting of the ice cap, and seismic airguns are reported to have the largest impact on underwater noise. Two types of consequences can be considered: injury and behavior disturbance. While physical harm is straightforward to assess and mitigate by determining species-specific received sound level thresholds, no canonical method is expected to be found to examine behavior disturbances, due to the multiplicity of contextual variables that can influence a behavioral reaction, and the variety of these reactions.\\
 Research recommendations include a particular focus on measurement of behavioral reactions to various type of sound exposure \cite{southall_marine_2008,southall_marine_2019}. Rich behavioral studies typically involve controlled exposure experiments during which animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured such as GPS positions, depth, sound exposure level, temperature, pressure, heart beat, stroke rate, vocalizations... Numerous surveys have been conducted about beaked whales, which have been regularly implicated in stranding events following sonar exercises \cite{tyack_beaked_2011,cioffi_trade-offs_2022}, belugas \cite{martin_exposure_2023}, sperm whales \cite{madsen_quantitative_2006}, blue whales \cite{friedlaender_preymediated_2016}, and narwhals \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. \\
-A severity scale was defined in \cite{southall_marine_2008} to help assessing which behavioral responses are more likely to alter a population's capacity to survive, reproduce or forage. Changes in movement speed and direction, avoidance reactions as well as modified dive profiles or vocalizations  were ranked between 4 and 7 on a scale out of 9 (9 being stranding events that can directly lead to the death of the animal) depending on the magnitude of the changes and their duration.\\
+A severity scale is defined in \cite{southall_marine_2008} to help assessing which behavioral responses are more likely to alter a population's capacity to survive, reproduce or forage. Changes in movement speed and direction, avoidance reactions as well as modified dive profiles or vocalizations  are ranked between 4 and 7 on a scale out of 9 (9 being stranding events that can directly lead to the death of the animal) depending on the magnitude of the changes and their duration.\\
 
-So far, the studies about narwhals behavioral responses to sound exposure proved that they exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}. Resulting GPS positions of the narwhals have been analyzed with discrete time methods. Since GPS positions are retrieved irregularly in time, each narwhal track was linearly interpolated to obtain a position every second, and the positions were then classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second. The dynamic of the states was modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source was used to model the transition probabilities of the Markov Chain, and it was found that the probabilities of being in states "Close to the shore" and "Moving toward the shore" increased with exposure to the sound, while probability of being in state "Far from the shore" decreased. 
-In this paper, we adopt a different approach to describe horizontal movement and make use of a continuous time model to analyse the GPS positions. The objective is to be able to quantify  the effect of sound exposure on different characteristics of the movement.\\
+So far, the studies about narwhals behavioral responses to sound exposure prove that they can exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}.  Though GPS positions are retrieved only when the narwhals emerge to the surface, that is irregularly in time, they have so far been analyzed with discrete time methods relying on linear interpolation to obtain data every second. In \cite{heide-jorgensen_behavioral_2021}, the positions are classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second, and the dynamic of the states is modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source is then used to model the transition probabilities of the Markov Chain, and the probabilities of being in states "Close to the shore" and "Moving toward the shore" are shown to increase with exposure to the sound, while probability of being in state "Far from the shore" decreases. Additionally, an overall speed increase due to sound exposure is revealed by an analysis of the consecutive GPS positions through a mixed effect model. 
+Here, we  make use of a continuous time model to analyse the GPS positions in order to be able to quantify the effect of sound exposure on the speed and the heading of the narwhals in one single model. \\
 
-We focus on continuous time models defined as a solution of a stochastic differential equation with time-varying coefficients \cite{michelot_varying-coefficient_2021}. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It has been used extensively to analyze animal movement in two or even three dimensions \cite{gurarie_correlated_2017,alt_correlation_1990,gurarie_estimating_2011,albertsen_generalizing_2018}. This model can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. The following formulation of the equations represents an extension of the CVM \cite{johnson_continuoustime_2008}, which involves a rotational component and  is based on biologically interpretable parameters \cite{gurarie_correlated_2017}.
+We focus on continuous-time models defined as a solution of a stochastic differential equation with time-varying coefficients. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. The following formulation of the equations represents an extension of the CVM \cite{johnson_continuoustime_2008}, which involves a rotational component and  is based on biologically interpretable parameters \cite{gurarie_correlated_2017}.
 \begin{equation} \left\{
 	\begin{array}{l}
 		dX(t)=V(t)dt \\
@@ -115,20 +115,22 @@ We focus on continuous time models defined as a solution of a stochastic differe
 	\right.
 	\label{eq: RACVM equation}
 \end{equation}
-where $V(t)$ is the horizontal two-dimensional velocity at time $t$ and $X(t)$ is the position, typically in longitude and latitude or in UTM coordinates. $W(t)$ is a two-dimensional brownian motion. 
-The parameter $\tau$ is an autocorrelation time scale, $\nu$ controls the norm of the velocity and drives the random variability, $\mu$ is the long term velocity, while $\omega$ is an angular velocity that controls how fast the velocity vector rotates. Whether or not to include a non-zero mean velocity parameter $\mu$ depends on the specific context of the study. Typically, it would make sense to have $\mu\neq (0,0)$ when examining migratory patterns or avoidance reactions. We follow \cite{gurarie_correlated_2017} and refer to this model as "Rotational Correlated Velocity Model" (RCVM) in the case $\mu=(0,0)$, and "Rotational Advective Correlated Velocity Model" in the case $\mu \neq (0,0)$.\\
+where $V(t)$ is the horizontal two-dimensional velocity at time $t$ and $X(t)$ is the position, typically in longitude and latitude or in UTM coordinates. Here, $W(t)$ is a two-dimensional brownian motion. 
+The parameter $\tau$ is an autocorrelation time scale, $\nu$ controls the norm of the velocity and drives the random variability, $\mu$ is the long term velocity, while $\omega$ is an angular velocity that controls how fast the velocity vector rotates. The case $\omega=0$ corresponds to a standard CVM. In most applications, this model is satisfactory, but in case of birds movement, or merely tortuous movement, a non-zero value of $\omega$ is sometimes needed \cite{gurarie_correlated_2017,alt_correlation_1990,albertsen_generalizing_2018}. 
+
+Whether or not to include a non-zero mean velocity parameter $\mu$ depends on the specific context of the study. Typically, it would make sense to have $\mu\neq (0,0)$ when examining migratory patterns or avoidance reactions. We follow \cite{gurarie_correlated_2017} and refer to~\ref{eq: RACVM equation} as "Rotational Correlated Velocity Model" (RCVM) in the case $\mu=(0,0)$, and "Rotational Advective Correlated Velocity Model" (RACVM) in the case $\mu \neq (0,0)$.\\
 
 
-In general, the motion of marine mammals is subject to spatial constraints induced by the coastline. This is particularly the case for the narwhal data we want to analyse: the animals move in a complex system of fjords in Scoresby Sound (South-East Greenland), imposing strong constraints on the location process. Thus, constraints for the shore are needed. However, this is not the case in model~\ref{eq: RACVM equation}, nor in most of the SDE used for animal movement \cite{johnson_continuoustime_2008,michelot_varying-coefficient_2021,gurarie_correlated_2017}. 
+In general, the motion of marine mammals is subject to spatial constraints induced by the coastline. This is particularly the case for the narwhal data we want to analyse: the animals move in a restricted domain that consists in a complex system of fjords in Scoresby Sound (South-East Greenland). Thus, constraints for the shore are needed in the location process $X$. However, this is not the case in model~\ref{eq: RACVM equation}, nor in most of the SDE used for animal movement \cite{johnson_continuoustime_2008,michelot_varying-coefficient_2021,gurarie_correlated_2017}. 
 Recently, a reflected version of the CVM has been considered to study sea lion telemetry data \cite{hanks_reflected_2017}.
-Simulation of constrained paths was achieved by projecting on the coastline the  points that eventually reached land. Estimation of the SDE parameters relied on computationally intensive MCMC algorithm (Metroplis-Hastings), and required high frequency data. Another idea is to add a repulsive potential function in the drift, which has been done to constrain ants movement within a box \cite{russell_spatially_2018}. In our case study, in which the narwhals move in a complex fjords system, this technique might not be easily replicated because it relies on using very basic boundaries to derive an explicit expression for the potential function. Thus, there is a need to develop new models adapted to such spatial constraints.\\
-Moreover, the way to model the motion of an animal near the boundary of the domain should be species-specific, accounting for the particular behaviors and spatial use of the studied animal \cite{brillinger_simulating_2003}. For narwhals, it was observed from the data that they have a proclivity to move along the shoreline. Here we propose a new model based on the following idea: as the narwhals approach the shore, at some point they need to rotate to avoid or align with the shoreline. The novelty of this paper consists in modeling the parameter $\omega$ as a smooth function of the distance to the boundary and the angle between the animal's direction and the boundary normal vector. This makes the drift in the velocity equation dependent on the location process $X$ and the boundary of the domain. Note that in this framework, the special case $\omega=0$ would be the unconstrained correlated velocity model of \cite{johnson_continuoustime_2008}.  \\ %More biblio about estimation methods
-We show that the angular velocity  can be estimated as a function of the two covariates in the framework of the \texttt{R} package \texttt{smoothSDE} \cite{michelot_varying-coefficient_2021}. To make this possible, we formulated a state-space model by binding the velocity and location in one single hidden state vector, following \cite{johnson_continuoustime_2008}. Maximum likelihood estimation based on Kalman filter is then performed as for any other model in \texttt{smoothSDE}.\\
+In this study, simulation of constrained paths is achieved by projecting on the coastline the  points that eventually reach land. Estimation of the SDE parameters then relies on computationally intensive MCMC algorithm (Metroplis-Hastings), and requires high frequency data. Another idea is to add a repulsive potential function in the drift, which is done to constrain ants movement within a box in \cite{russell_spatially_2018}. In our case study, the narwhals move in a complex fjords system, which means that this technique might not be easily replicated because it relies on using very basic boundaries to derive an explicit expression for the potential function. As a consequence, there is a need to develop new models adapted to such spatial constraints.\\
+Additionally, the way to model the motion of an animal near the boundary of the domain should be species-specific, accounting for the particular behaviors and spatial use of the studied animal \cite{brillinger_simulating_2003}. For narwhals, it was observed from the data that they have a proclivity to move along the shoreline. Here we propose a new model based on the following idea: as the narwhals approach the shore, at some point they need to rotate to avoid or align with the shoreline. The novelty of this paper consists in modeling the parameter $\omega$ as a smooth function of the distance to the boundary and the angle between the animal's direction and the boundary normal vector. This makes the drift in the velocity equation dependent on the location process $X$ and the boundary of the domain.  \\ %More biblio about estimation methods
+We show that the angular velocity  can be estimated as a function of the two covariates in the framework of the \texttt{R} package \texttt{smoothSDE} \cite{michelot_varying-coefficient_2021}. To make this possible, we formulate a state-space model by binding the velocity and location in one single hidden state vector, following \cite{johnson_continuoustime_2008}. Maximum likelihood estimation based on Kalman filter is then performed as for any other model in \texttt{smoothSDE}.\\
 
 
 
-Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in equation \ref{eq: RACVM equation}. This effect is estimated as a smooth function of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model will be compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
-The effect of sound exposure is assessed both in the constrained and unconstrained ($\omega=0$) frameworks.
+Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in equation \ref{eq: RACVM equation}. This effect is estimated as a smooth function of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model is compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
+The effect of sound exposure is assessed as a deviation in the response model parameters when compared to the baseline model.
 
 
 
@@ -151,78 +153,40 @@ The dataset analysed in this paper has been the subject of several studies, focu
 Six male narwhals were equipped with FastLoc GPS receivers in August 2018 in Scoresby Sound fjord system in South-East Greenland by biologists from the Greenland Institute of natural ressources, with the help of local Inuit hunters. The Scoresby Sound fjord system
 is known to be the summer residence for an isolated population of narwhals.
 Here we recall briefly how the data has been retrieved. For more details about the study area and the tagging of the animals, the reader may refer to \cite{heide-jorgensen_behavioral_2021}. 
-An offshore patrol vessel military ship was sailed to shoot airguns underwater between August 25 and September 1. It was equipped with two Sercel G-guns at 6m depth and moved at a speed of 4.5 knots. The guns were fired synchronously every 80 s, and the GPS navigation system recorded thelocation of every shot. 
+An offshore patrol vessel military ship was sailed to shoot airguns underwater between August 25 and September 1. It was equipped with two Sercel G-guns at 6m depth and moved at a speed of 4.5 knots. The guns were fired synchronously every 80 s, and the GPS navigation system recorded the location of every shot. 
 Data includes narwhals's latitude and longitude, distance relative to the ship in metres, GPS time, distance to the shore in metres. GPS positions are known only at specific times when the narwhals get close to the sea surface. The median time step between two GPS measurements in the data is about $5$ minutes and only $0.3 \%$ of the time steps reach more than two hours, with a maximum at more than $4$ hours. Figure \ref{fig:alltimestepshisto} shows the distribution of time steps in the data. While statistical analysis in \cite{heide-jorgensen_behavioral_2021} relied on positions linearly interpolated at each second, here we only consider the actual GPS measurements with irregular time steps.
 
 
-\begin{figure}[H]
-	\centering
-	\includegraphics[scale=0.5]{images/data_exploration/all_time_steps_histo}
-	\caption{Histogram of time step between consecutive GPS positions}
-	\label{fig:alltimestepshisto}
-\end{figure}
 
-
-Experiments were divided into unexposed periods - for which the narwhals are not in line of sight with the ship - trial periods - when the narwhals are exposed to the ship and airguns are shot - and intertrial periods - when the narwhals are exposed to the ship but airguns are not shot. These periods are indicated by a categorical variable $T_{ship}$ in the dataset. Figure~\ref{fig: trials and intertrials distributions} shows how these periods are distributed among the $6$ narwhals that were tracked.
+Experiments were divided into unexposed periods - for which the narwhals are not in line of sight with the ship - trial periods - when the narwhals are exposed to the ship and airguns are shot - and intertrial periods - when the narwhals are exposed to the ship but airguns are not shot. These periods are indicated by a categorical variable $T_{ship}$ in the dataset. Figure~\ref{fig: trials and intertrials distributions} shows how these periods are distributed among the $6$ narwhals that were tracked. In this analysis, we do not distinguish between Trial and Intertrial periods, and treat them both as exposure periods, where the degree of exposure depends on the narwhals positions relative to the ship.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[scale=0.4]{images/data_exploration/trials.png}
+    \begin{subfigure}{0.49\textwidth}
+    	\centering
+    \includegraphics[width=0.9\textwidth]{images/data_exploration/trials.png}
     \caption{Trial and Intertrial periods for each narwhal}
     \label{fig: trials and intertrials distributions}
+    \end{subfigure}
+	\begin{subfigure}{0.49\textwidth}
+	\centering
+	\includegraphics[width=0.9\textwidth]{images/data_exploration/all_time_steps_histo}
+	\caption{Histogram of time steps}
+	\label{fig:alltimestepshisto}
+	\end{subfigure}
 \end{figure}
 
-For each narwhal, the entire track was separated into a period before exposure defined as the period before the narwhal gets in line of sight with the ship for the first time, and a period during exposure, after the narwhal has been in line of sight with the ship for the first time. We kept only GPS measures 24 
+
+For each narwhal, the entire track was split into a period before exposure defined as the period before the narwhal gets in line of sight with the ship for the first time, and a period "after" exposure, starting after the narwhal has been in line of sight with the ship for the first time. We kept only GPS measures 24 
 hours after tagging, to avoid any tagging effects on the narwhals's movement, as recommended in \cite{heide-jorgensen_behavioral_2021}.
 Measures that resulted in a velocity higher than $20$ km/h were also discarded (only 2 data points for the same narwhal track).
-Overall, $4192$ GPS positions were kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure resulted in $935$ measures before exposure and $3257$ measures after exposure. Table~\ref{table: data distribution} shows how the data is distributed among the different narwhals. Figure~\ref{fig: tracks before and after exposure} shows all the tracks before and during exposure.
-
-\begin{table}[H]
-	\centering
-	\begin{tabular}{|c|c|c|}
-		\hline
-		Narwhal ID & Number of measurement before exposure & Number of measurements during exposure \\
-		\hline
-		A1 & 258 & 576\\
-		\hline
-		A2  & 40 & 515 \\
-		\hline
-		A3 & 222 & 680 \\
-		\hline
-		A4 & 291 & 642  \\
-		\hline
-		A5 & 48 & 419\\
-		\hline
-		A6 & 76 & 425 \\
-		\hline
-		\textbf{Total} & \textbf{935} & \textbf{3257} \\
-		\hline
-	\end{tabular}
-	\caption{Distribution of the data among the 6 individuals}
-	\label{table: data distribution}
-\end{table}
-
-\begin{figure}[H]
-    \centering
-\begin{subfigure}{0.49\textwidth}
-    \centering
-    \includegraphics[scale=0.38]{images/data_exploration/all_tracksBE.png}
-    \caption{Tracks before exposure experiments}
-\end{subfigure}
-\begin{subfigure}{0.49\textwidth}
-    \centering
-    \includegraphics[scale=0.38]{images/data_exploration/all_tracksAE.png}
-    \caption{Tracks during exposure experiments}
-\end{subfigure}
-\caption{Movement data of East Greenland narwhals}
-\label{fig: tracks before and after exposure}
-\end{figure}
+Overall, $4192$ GPS positions were kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure resulted in $935$ measures before exposure and $3257$ measures after exposure. Table~\ref{table: data distribution} in Appendix shows how the data is distributed among the different narwhals. Figure~\ref{fig: tracks before and after exposure} shows all the tracks before and after exposure.
 
 
 \subsection{Definition of the covariates}
 
 
-For each narwhal $i \in \{1,\cdots,N\}$, we denote $n_i$ the total number of observations, which can be decomposed in $n_i=n_{i,pre}+n_{i,post}$ where $n_{i,pre}$ is the number of observations before exposure, and $n_{i,post}$ is the number of observations after exposure. We suppose that the position is observed at times $t_{i1}, t_{i2}, \cdots,t_{in_i}$ and denote $y_{ij}$ the observed GPS position at time $t_{ij}$, converted in Easting and Northing, for $j \in \{1,\cdots,n_i\}$.
+For each narwhal $i \in \{1,\cdots,N\}$ with $N=6$, we denote $n_i$ the total number of observations, which can be decomposed in $n_i=n_{i,pre}+n_{i,post}$ where $n_{i,pre}$ is the number of observations before exposure, and $n_{i,post}$ is the number of observations after exposure. We suppose that the position is observed at times $t_{i1}, t_{i2}, \cdots,t_{in_i}$ and  for $j \in \{1,\cdots,n_i\}$, we denote $y_{ij}=\begin{pmatrix} y_{ij1} & y_{ij2} \end{pmatrix}^\top$ the observed GPS position at time $t_{ij}$, converted in Easting and Northing..
 
 The land geometry for the specific region in South-East Greenland is gathered from \href{https://www.openstreetmap.org/#map=11/70.4029/-27.2928}{OpenStreetMap} database. The land polygons define the boundaries of the domain in which the narwhals can move. The closest point on the shoreline to the observed position $y_{ij}$  is denoted $p_{ij}$, and the distance to this point, denoted $\hat{D}^{shore}_{ij}$ in the sequel, is considered a close approximation of the actual distance to the boundary $D^{shore}_{ij}$. The resulting values range from $0$ to $7.5$ km. About $9\%$ of the GPS measurements in the dataset turned out to be on land. This is primarily attributed to inaccuracies in the shoreline maps rather than errors in GPS measurements. For constrained movement models, these points are ignored. Then, exposure to the shore is defined with the following formula
 \begin{equation}
@@ -288,7 +252,7 @@ Histograms of the distance to the ship and the distance to the shore are shown i
 
 
 Exposure to ship covariate at time $t_{ij}$ for narwhal $i$, denoted $E^{ship}_{ij}$, is defined as the inverse of the distance to the ship (in km) \cite{heide-jorgensen_behavioral_2021}.
-$D^{ship}$ is only known when the narwhal is in line of sight with the boat, so that exposures are set to $0$ when this is not this case. This implies that the effect of the ship noise on the narwhals's movement is only considered in this specific case in the whole study, though it is very likely that narwhals can perceive the disturbance even when they are not clearly in line of sight with the sound source. This covariate is meant to be a proxy for sound exposure levels received by the narwhals. Reasonably, the closer the narwhal is to the ship, the more it can hear its sound, and the greater the exposure. Exposure levels for each narwhals are displayed in figure~\ref{fig: realexpthroughtime}. All the relevant covariates that will be used for the analysis of narwhals movement are summarized in table \ref{tab: covariates}.
+$D^{ship}$ is only known when the narwhal is in line of sight with the boat, so that exposures are set to $0$ when this is not this case. This implies that the effect of the ship noise on the narwhals's movement is only considered in this specific case in the whole study, though it is very likely that narwhals can perceive the disturbance even when they are not clearly in line of sight with the sound source. This provides a conservative estimate of the effect of the noise exposure. The covariate $E^{ship}$ is meant to be a proxy for sound exposure levels received by the narwhals. Reasonably, the closer the narwhal is to the ship, the more it can hear its sound, and the greater the exposure. Exposure levels for each narwhals are displayed in figure~\ref{fig: realexpthroughtime}. All the relevant covariates that will be used for the analysis of narwhals movement are summarized in table \ref{tab: covariates}.
 
 
 \begin{figure}[H]
@@ -308,7 +272,7 @@ Covariate & Unit & Description & Domain \\
 \hline
 $D_{ship}(t)$ & km & distance in kilometers between the narwhal and the ship at time $t$ & $\R^+$ \\
 \hline
-$T_{ship}(t)$  & categorical & $0$ when there is no trial, $1$ if it is an intertrial period, and $2$ when it is a trial period & $\{0,1\}$\\
+$T_{ship}(t)$  & categorical & $0$ when there is no trial, $1$ if it is an intertrial period, and $2$ when it is a trial period & $\{0,1,2\}$\\
 \hline
 $E_{ship}(t)=\frac{1}{D_{ship}(t)}$ & $km^{-1}$ & global exposure level of the narwhal to the ship disturbance at time $t$ & $\R^+$ \\
 \hline
@@ -316,7 +280,7 @@ $E_{ship,I}(t)=\frac{1}{D_{ship}(t)}\mathbb{1}_{T_{ship}(t)=1}$& $km^{-1}$ & int
 \hline
  $E_{ship,T}(t)=\frac{1}{D_{ship}(t)}\mathbb{1}_{T_{ship}(t)=2}$ & $km^{-1}$ & trial exposure level of the narwhal to the ship disturbance at time $t$. & $\R^+$\\
  \hline
- $D_{shore}(t)$ & km & distance between the narwhal and the nearest point in the shore at time $t$ & $\R^+$ \\
+ $D_{shore}(t)$ & km & distance between the narwhal and the nearest point on the shore at time $t$ & $\R^+$ \\
  \hline
  $E_{shore}(t)=\frac{1}{D_{shore}(t)} \1_{D_{shore}(t)<D_0}$ & $km^{-1}$ & global exposure level of the narwhal to the shore at time $t$ & $\R^+$ \\
  \hline
@@ -335,8 +299,12 @@ $E_{ship,I}(t)=\frac{1}{D_{ship}(t)}\mathbb{1}_{T_{ship}(t)=1}$& $km^{-1}$ & int
 
 \section{Diffusion models}
 
+The dynamic of the true positions of the narwhals is controlled by a stochastic differential equation.
+
 \subsection{Standard Rotational correlated velocity model (RCVM)}
 \label{section: RCVM}
+
+%Discussion, different options
 
 A general formulation for a rotational correlated velocity model is \cite{albertsen_generalizing_2018}:
 
@@ -1022,6 +990,51 @@ The mean velocity $\mu$ was fixed to $(0,0)$ and $\omega$ was estimated as smoot
 \newpage 
 
 \appendix
+
+\section{More details about the data}
+
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		Narwhal ID & Number of measurement before exposure & Number of measurements during exposure \\
+		\hline
+		A1 & 258 & 576\\
+		\hline
+		A2  & 40 & 515 \\
+		\hline
+		A3 & 222 & 680 \\
+		\hline
+		A4 & 291 & 642  \\
+		\hline
+		A5 & 48 & 419\\
+		\hline
+		A6 & 76 & 425 \\
+		\hline
+		\textbf{Total} & \textbf{935} & \textbf{3257} \\
+		\hline
+	\end{tabular}
+	\caption{Distribution of the data among the 6 individuals}
+	\label{table: data distribution}
+\end{table}
+
+\begin{figure}[H]
+	\centering
+	\begin{subfigure}{0.49\textwidth}
+		\centering
+		\includegraphics[scale=0.38]{images/data_exploration/all_tracksBE.png}
+		\caption{Tracks before exposure experiments}
+	\end{subfigure}
+	\begin{subfigure}{0.49\textwidth}
+		\centering
+		\includegraphics[scale=0.38]{images/data_exploration/all_tracksAE.png}
+		\caption{Tracks during exposure experiments}
+	\end{subfigure}
+	\caption{Movement data of East Greenland narwhals}
+	\label{fig: tracks before and after exposure}
+\end{figure}
+
 
 \section{Detailed computations of the integrated rotational Ornstein-Uhlenbeck model}
 \label{section: detailed RACVM computations}
