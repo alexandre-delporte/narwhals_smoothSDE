@@ -177,16 +177,16 @@ Experiments were divided into unexposed periods - for which the narwhals are not
 \end{figure}
 
 
-For each narwhal, the entire track was split into a period before exposure defined as the period before the narwhal gets in line of sight with the ship for the first time, and a period "after" exposure, starting after the narwhal has been in line of sight with the ship for the first time. We kept only GPS measures 24 
+For each narwhal, the entire track is split into a period before exposure defined as the period before the narwhal gets in line of sight with the ship for the first time, and a period "after" exposure, starting after the narwhal has been in line of sight with the ship for the first time. We keep only GPS measures 24 
 hours after tagging, to avoid any tagging effects on the narwhals's movement, as recommended in \cite{heide-jorgensen_behavioral_2021}.
-Measures that resulted in a velocity higher than $20$ km/h were also discarded (only 2 data points for the same narwhal track).
-Overall, $4192$ GPS positions were kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure resulted in $935$ measures before exposure and $3257$ measures after exposure. Table~\ref{table: data distribution} in Appendix shows how the data is distributed among the different narwhals. Figure~\ref{fig: tracks before and after exposure} shows all the tracks before and after exposure.
+Measures that result in a velocity higher than $20$ km/h were also discarded (only 2 data points for the same narwhal track).
+Overall, $4192$ GPS positions are kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure results in $935$ measures before exposure and $3257$ measures after exposure. Table~\ref{table: data distribution} in Appendix shows how the data is distributed among the different narwhals. Figure~\ref{fig: tracks before and after exposure} shows all the tracks before and after exposure.
 
 
 \subsection{Definition of the covariates}
 
 
-For each narwhal $i \in \{1,\cdots,N\}$ with $N=6$, we denote $n_i$ the total number of observations, which can be decomposed in $n_i=n_{i,pre}+n_{i,post}$ where $n_{i,pre}$ is the number of observations before exposure, and $n_{i,post}$ is the number of observations after exposure. We suppose that the position is observed at times $t_{i1}, t_{i2}, \cdots,t_{in_i}$ and  for $j \in \{1,\cdots,n_i\}$, we denote $y_{ij}=\begin{pmatrix} y_{ij1} & y_{ij2} \end{pmatrix}^\top$ the observed GPS position at time $t_{ij}$, converted in Easting and Northing..
+For each narwhal $i \in \{1,\cdots,N\}$ with $N=6$, we denote $n_i$ the total number of observations, which can be decomposed in $n_i=n_{i,pre}+n_{i,post}$ where $n_{i,pre}$ is the number of observations before exposure, and $n_{i,post}$ is the number of observations after exposure. We suppose that the position is observed at times $t_{i1}, t_{i2}, \cdots,t_{in_i}$ and  for $j \in \{1,\cdots,n_i\}$, we denote $y_{ij}=\begin{pmatrix} y_{ij1} & y_{ij2} \end{pmatrix}^\top$ the observed GPS position at time $t_{ij}$, converted in Easting and Northing.
 
 The land geometry for the specific region in South-East Greenland is gathered from \href{https://www.openstreetmap.org/#map=11/70.4029/-27.2928}{OpenStreetMap} database. The land polygons define the boundaries of the domain in which the narwhals can move. The closest point on the shoreline to the observed position $y_{ij}$  is denoted $p_{ij}$, and the distance to this point, denoted $\hat{D}^{shore}_{ij}$ in the sequel, is considered a close approximation of the actual distance to the boundary $D^{shore}_{ij}$. The resulting values range from $0$ to $7.5$ km. About $9\%$ of the GPS measurements in the dataset turned out to be on land. This is primarily attributed to inaccuracies in the shoreline maps rather than errors in GPS measurements. For constrained movement models, these points are ignored. Then, exposure to the shore is defined with the following formula
 \begin{equation}
@@ -231,7 +231,7 @@ Histograms of the distance to the ship and the distance to the shore are shown i
 	
 		\node[above,orange] at (2.3,2.3) {$\hat{\Theta}_{ij}$};
 	\end{tikzpicture}
-	\caption{Example of nearest shore point and angle $\Theta$. $\partial D$ represents the boundary of the domain.}
+	\caption{Example of nearest shore point and angle $\Theta$. $\partial D$ represents the boundary of the domain, $y_{ij}$ is the observed GPS position of narwhal $i$ at time $t_{ij}$.}
 	\label{fig: illustration nearest shore points}
 \end{figure}
 \begin{figure}[H]
@@ -251,7 +251,7 @@ Histograms of the distance to the ship and the distance to the shore are shown i
 \end{figure}
 
 
-Exposure to ship covariate at time $t_{ij}$ for narwhal $i$, denoted $E^{ship}_{ij}$, is defined as the inverse of the distance to the ship (in km) \cite{heide-jorgensen_behavioral_2021}.
+Exposure to ship covariate for narwhal $i$ at time $t_{ij}$ , denoted $E^{ship}_{ij}$, is defined as the inverse of the distance to the ship (in km) \cite{heide-jorgensen_behavioral_2021}.
 $D^{ship}$ is only known when the narwhal is in line of sight with the boat, so that exposures are set to $0$ when this is not this case. This implies that the effect of the ship noise on the narwhals's movement is only considered in this specific case in the whole study, though it is very likely that narwhals can perceive the disturbance even when they are not clearly in line of sight with the sound source. This provides a conservative estimate of the effect of the noise exposure. The covariate $E^{ship}$ is meant to be a proxy for sound exposure levels received by the narwhals. Reasonably, the closer the narwhal is to the ship, the more it can hear its sound, and the greater the exposure. Exposure levels for each narwhals are displayed in figure~\ref{fig: realexpthroughtime}. All the relevant covariates that will be used for the analysis of narwhals movement are summarized in table \ref{tab: covariates}.
 
 
@@ -320,7 +320,7 @@ A general formulation for a rotational correlated velocity model is \cite{albert
 where $A=\begin{pmatrix} 
 	\frac{1}{\tau_1} & -\omega \\
 	\omega & \frac{1}{\tau_2}
-\end{pmatrix}$ and $\Sigma$ is a lower triangular matrix with positive diagonal elements whereas $\tau_1$ and $\tau_2$ are two autocorrelations time scale for each component of the velocity. This model is indeed a special case of hypoelliptic diffusion \cite{ditlevsen_hypoelliptic_2019}.
+\end{pmatrix}$ and $\Sigma$ is a lower triangular matrix with positive diagonal elements whereas $\tau_1$ and $\tau_2$ are two autocorrelations time scale for each component of the velocity.
 There is an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}.
 
 It is commonly assumed that the movement is isotropic, forcing $\tau_1=\tau_2=\tau$, and that the random changes in both components of the velocity are independent with the same variance, in which case $\Sigma=\sigma^2 I_2$ \cite{johnson_continuoustime_2008}.
@@ -340,7 +340,7 @@ Intuitively, the next velocity is a weighted mean of the long term mean velocity
 The stationary distribution of the velocity process is $\mathcal{N}\left(\mu,\frac{2\nu^2}{\pi} I_2\right)$. This result can be used to get the long term distribution of the velocity norm and the velocity phase angle. After the velocity process has reached stationarity, that is typically for $t \geq 3\tau$, $\vert \vert v(t) \vert \vert$ follows a Rice distribution with mean parameter $\vert \vert \mu \vert \vert$ and variance parameter $\frac{2\nu^2}{\pi}$. In the special case $\mu=(0,0)$, this means that $\E(\vert \vert v(t) \vert \vert)=\nu$. Hence, the order of magnitude of the parameter $\nu$ is similar to the overall mean empirical velocity norm. The distribution of the phase angle $\Phi$ of the velocity has been derived in \cite{pawula_distribution_1982}.
 When $\mu=0$, this distribution is uniform over $[-\pi,\pi]$. Hence, taking a look at the histograms of the phase angle of the data can help to assess whether a non zero mean velocity is necessary in the model or not.
 
-By integrating the velocity equation over time one gets the following distribution for the location process :
+By integrating the velocity equation over time one gets the following conditional distribution for the location process :
 \begin{equation}
 	X(t+\Delta) \vert X(t)=x, V(t)=v \sim \mathcal{N}\left(x+\mu \Delta+A^{-1} \left( I_2-\exp(-A\Delta)\right)(v-\mu),Q(\Delta)\right)  
 \end{equation}
