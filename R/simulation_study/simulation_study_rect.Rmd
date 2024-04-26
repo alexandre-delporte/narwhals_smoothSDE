@@ -58,10 +58,10 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=1
+N_BATCH=10
 
 #number of individual tracks per batch
-N_ID=3
+N_ID=6
 
 #duration of each track in hour
 TMAX=0.5*24 
@@ -574,11 +574,11 @@ names(crcvm_rect_hf_ne1)=paste("BATCH",1:N_BATCH,sep="")
 ```{r plot estimates te ExpShore for one batch of low error samples}
 xmin=list("theta"=-pi,"ExpShore"=1/2)
 xmax=list("theta"=pi,"ExpShore"=1/0.3)
-xlabel=list("ExpShore"="Distance to shore")
-link=list("ExpShore"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore","theta"="Theta")
+link=list("ExpShore"=(\(x) 1/x),"theta"=identity)
 true_smooths=list("omega"=fomega_splines)
 res=crcvm_rect_hf_ne1$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne1",xmin=xmin,xmax=xmax,
-                                    xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
+                                    xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=FALSE)
 res$fe_omega_theta_ExpShore
 ```
 
