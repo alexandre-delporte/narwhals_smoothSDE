@@ -53,13 +53,13 @@ source("CVM_functions.R")
 
 ```{r}
 #number of batch
-N_BATCH=1
+N_BATCH=10
 
 #number of individual tracks per batch
 N_ID=6
 
 #duration of each track in hour
-TMAX=0.5*24 
+TMAX=1*24 
 
 #degree of freedom in tensor splines
 SP_DF=5
@@ -76,8 +76,9 @@ SP_DF=5
 par_dir=dirname(dirname(getwd())) #parent directory 
 greenland_data_path <- file.path(par_dir,"Data", "Greenland")
 
-#get the coastline geometry from the geojson file
+#get the land and coastline geometries from the geojson file
 land<-st_read(file.path(greenland_data_path,"land_utm.shp"))
+coastline<-st_read(file.path(greenland_data_path,"coastline_utm.geojson"))
 ```
 
 ## Sample initial positions uniformly
@@ -111,7 +112,7 @@ while (i<=N_ID) {
 
 ```{r fix time steps}
 
-hf=1/60 #1 minute time step
+hf=1/120 #1 minute time step
 
 #high frequency time steps
 times_hf=seq(0,TMAX,by=hf)
@@ -144,10 +145,10 @@ ftau=function(cov_data,D0=0.3,delta0=0.2,tau0=1,tau1=2,tau2=2,lambda=4,kappa=0.1
 }
 
 #mixture of independent gaussian
-ftau_gauss=function(cov_data,D0=0.5,tau0=1,tau1=3) {
+ftau_gauss=function(cov_data,D0=1,tau0=1,tau1=3,alpha=pi/10) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
-  tau=tau0+(tau1-tau0)*exp(-((theta-pi/2)/(pi/5))^2-(Dshore/D0)^2)+(tau1-tau0)*exp(-((theta+pi/2)/(pi/5))^2-(Dshore/D0)^2)
+  tau=tau0+(tau1-tau0)*exp(-((theta-pi/2)/alpha)^2-(Dshore/D0)^2)+(tau1-tau0)*exp(-((theta+pi/2)/alpha)^2-(Dshore/D0)^2)
   return (tau)
 }
 
@@ -157,15 +158,15 @@ ftau_constant=function(cov_data,tau=1,sigma_re=0.1) {
   return (tau+b)
 }
 
-ftau_step=function(cov_data,epsilon=pi/10,alpha=pi/5) {
+ftau_bump=function(cov_data,epsilon=pi/10,alpha=pi/5,D0=1) {
     Dshore=cov_data$DistanceShore
     theta=cov_data$theta
-    tau=1.5+0.5*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
-      0.5*(tanh((theta+(-pi/2+epsilon))/alpha)-tanh((theta+(-pi/2-epsilon))/alpha))
+    tau=(1.5+0.5*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
+      0.5*(tanh((theta+(-pi/2+epsilon))/alpha)-tanh((theta+(-pi/2-epsilon))/alpha)))
     return (tau)
 }
 
-fomega=function(cov_data,D0=0.3,omega0=60*pi/2,lambda=2,kappa=0.2) {
+fomega=function(cov_data,D0=0.1,omega0=60*pi,lambda=2,kappa=0.2) {
     Dshore=cov_data$DistanceShore
     theta=cov_data$theta
     if (is.null(Dshore)){
@@ -193,25 +194,28 @@ Dshore=seq(from=0.1,to=2,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
 grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")
-true_par=grid
-true_par$tau=ftau_step(grid)
-true_par$omega=fomega(grid)
+true_tau=matrix(ftau_constant(grid),30,30)
+true_omega=matrix(fomega(grid),30,30)
 
 
-plot_true_tau <- plot_ly(true_par,type = "mesh3d",
-                         x = ~theta,y = ~DistanceShore,z=~tau,intensity=~tau,
+plot_true_tau <- plot_ly(type = "surface",
+                         x = ~theta,y = ~Dshore,z=~true_tau,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-                layout(title=paste("True tau"),scene=list(xaxis = list(title = "Theta",showgrid = F),
-                                                                 yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "tau"))) 
+                layout(title=paste("True tau"),
+                       scene=list(xaxis = list(title = "theta",showgrid = F),
+                      yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "tau"))) 
 
-plot_true_omega <- plot_ly(true_par,type = "mesh3d",
-                         x = ~theta,y = ~DistanceShore,z=~omega,intensity=~omega,
+plot_true_omega <- plot_ly(type = "surface",
+                           contours = list(z = list(show = TRUE, start = min(true_omega), end = max(true_omega), size = 5,color="black")),
+                         x = ~theta,y = ~Dshore,z=~true_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-                layout(title=paste("True omega"),scene=list(xaxis = list(title = "Theta",showgrid = F),
-                                                                 yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
+                layout(title=paste("True omega"),
+                       scene=list(xaxis = list(title = "Theta",showgrid = F),
+                      yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
 
 plot_true_tau
 plot_true_omega
+
 ```
 
 
@@ -219,7 +223,7 @@ plot_true_omega
 
 ```{r}
 #number of points
-n <- 500
+n <- 1000
 
 #sample theta and DistanceShore points in the domain
 theta <- runif(n,-pi,pi);
@@ -295,6 +299,22 @@ fomega_splines=function(cov_data) {
   return(as.numeric(omega))
 }
 
+
+#k-th basis spline function
+fomega_spline_basis=function(cov_data,k=1) {
+  
+  if (is.null(cov_data$ExpShore)){
+    Xp=predict(m1, newdata = cov_data, type = "lpmatrix")
+    
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    Xp=predict(m2, newdata = cov_data, type = "lpmatrix")
+  }
+  coeffs=rep(0,ncol(Xp))
+  coeffs[k]=1
+  return(as.numeric(Xp%*%coeffs))
+}
+
 ```
 
 
@@ -302,23 +322,69 @@ fomega_splines=function(cov_data) {
 
 ```{r plot spline smooth omega}
 
+
 Dshore=seq(from=0.3,to=2,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
-grid<- as.data.frame(expand.grid(DistanceShore,theta))
+grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")
-true_par=grid
-true_par$omega=fomega_splines(grid)
+spline_omega=matrix(fomega_splines(grid),30,30)
+
+# Extract the basis function values for the k-th basis function on the grid
+z2=matrix(fomega_spline_basis(grid,k=2),30,30)
+z3=matrix(fomega_spline_basis(grid,k=3),30,30)
+z4=matrix(fomega_spline_basis(grid,k=4),30,30)
 
 
-plot_true_omega <- plot_ly(true_par,type = "mesh3d",
-                         x = ~theta,y = ~DistanceShore,z=~omega,intensity=~omega,
+plot_spline_omega <- plot_ly(type = "surface",
+                             contours = list(z = list(show = TRUE, start = min(spline_omega), end = max(spline_omega), size = 5,color="black")),
+                         x = ~Dshore,y = ~theta,z=~spline_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-                layout(title=paste("True omega"),scene=list(xaxis = list(title = "Theta",showgrid = F),
+                layout(title=paste("Spline smooth omega"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
 
-plot_true_omega
+
+
+plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z2), end = max(z2), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 2"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis3 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z3), end = max(z3), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 3"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis4 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z4), end = max(z4), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z4, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 4"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
 ```
+
+```{r}
+plot_spline_omega
+```
+
+```{r}
+plot_basis2
+```
+
+```{r}
+plot_basis3
+```
+
+```{r}
+plot_basis4
+```
+
+
 ## Simulation with low measurement errors and high frequency 
 
 ### Generate sample
@@ -377,7 +443,7 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 plot_samples_fjords_hf_ne=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
   geom_point(data=data_fjords_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
   geom_path(data=data_fjords_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
-  geom_point(data = data_fjords_hf_ne$BATCH1%>% filter(!duplicated(ID)),
+  geom_point(data = data_fjords_hf_ne$BATCH2%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 

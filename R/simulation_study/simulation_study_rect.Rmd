@@ -58,16 +58,17 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=20
+N_BATCH=1
 
 #number of individual tracks per batch
-N_ID=6
+N_ID=3
 
 #duration of each track in hour
 TMAX=0.5*24 
 
 #degree of freedom in tensor splines
 SP_DF=5
+  
 ```
 
 # SIMULATION
@@ -200,22 +201,24 @@ Dshore=seq(from=0.3,to=2,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
 grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")
-true_par=grid
-true_par$tau=ftau_constant(grid)
-true_par$omega=fomega(grid)
+true_tau=matrix(ftau_constant(grid),30,30)
+true_omega=matrix(fomega(grid),30,30)
 
 
-plot_true_tau <- plot_ly(true_par,type = "mesh3d",
-                         x = ~theta,y = ~DistanceShore,z=~tau,intensity=~tau,
+plot_true_tau <- plot_ly(type = "surface",
+                         x = ~Dshore,y = ~theta,z=~true_tau,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-                layout(title=paste("True tau"),scene=list(xaxis = list(title = "Theta",showgrid = F),
-                                                                 yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "tau"))) 
+                layout(title=paste("True tau"),
+                       scene=list(xaxis = list(title = "Theta",showgrid = F),
+                      yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "tau"))) 
 
-plot_true_omega <- plot_ly(true_par,type = "mesh3d",
-                         x = ~theta,y = ~DistanceShore,z=~omega,intensity=~omega,
+plot_true_omega <- plot_ly(type = "surface",
+                           contours = list(z = list(show = TRUE, start = min(true_omega), end = max(true_omega), size = 5,color="black")),
+                         x = ~Dshore,y = ~theta,z=~true_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-                layout(title=paste("True omega"),scene=list(xaxis = list(title = "Theta",showgrid = F),
-                                                                 yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
+                layout(title=paste("True omega"),
+                       scene=list(xaxis = list(title = "Theta",showgrid = F),
+                      yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
 
 plot_true_tau
 plot_true_omega
@@ -300,31 +303,87 @@ fomega_splines=function(cov_data) {
   return(as.numeric(omega))
 }
 
+#k-th basis spline function
+fomega_spline_basis=function(cov_data,k=1) {
+  
+  if (is.null(cov_data$ExpShore)){
+    Xp=predict(m1, newdata = cov_data, type = "lpmatrix")
+    
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    Xp=predict(m2, newdata = cov_data, type = "lpmatrix")
+  }
+  coeffs=rep(0,ncol(Xp))
+  coeffs[k]=1
+  return(as.numeric(Xp%*%coeffs))
+}
+
 ```
 
-### Plot
+### Plot spline omega and spline basis functions
 
 ```{r plot spline smooth omega}
 
 Dshore=seq(from=0.3,to=2,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
-grid<- as.data.frame(expand.grid(DistanceShore,theta))
+grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")
-true_par=grid
-true_par$omega=fomega_splines(grid)
+spline_omega=matrix(fomega_splines(grid),30,30)
+
+# Extract the basis function values for the k-th basis function on the grid
+z2=matrix(fomega_spline_basis(grid,k=2),30,30)
+z3=matrix(fomega_spline_basis(grid,k=3),30,30)
+z4=matrix(fomega_spline_basis(grid,k=4),30,30)
 
 
-plot_true_omega <- plot_ly(true_par,type = "mesh3d",
-                         x = ~theta,y = ~DistanceShore,z=~omega,intensity=~omega,
+plot_spline_omega <- plot_ly(type = "surface",
+                             contours = list(z = list(show = TRUE, start = min(spline_omega), end = max(spline_omega), size = 5,color="black")),
+                         x = ~Dshore,y = ~theta,z=~spline_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-                layout(title=paste("True omega"),scene=list(xaxis = list(title = "Theta",showgrid = F),
+                layout(title=paste("Spline smooth omega"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
 
-plot_true_omega
+
+
+plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z2), end = max(z2), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 2"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis3 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z3), end = max(z3), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 3"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis4 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z4), end = max(z4), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z4, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 4"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
 ```
 
+```{r}
+plot_spline_omega
+```
 
+```{r}
+plot_basis2
+```
+
+```{r}
+plot_basis3
+```
+
+```{r}
+plot_basis4
+```
 
 ## Simulation with low measurement errors and high frequency 
 
@@ -351,9 +410,10 @@ data_rect_hf_ne <- foreach(i=1:N_BATCH,.packages=c("progress","MASS","sf","forea
   data 
 }
 
-
 #stop cluster
 stopCluster(cl)
+
+
 
 names(data_rect_hf_ne)=paste("BATCH",1:N_BATCH,sep="")
 ```
@@ -489,14 +549,7 @@ for (k in 1:N_BATCH) {
 ```{r estimate te ExpShore for low error samples,cache=TRUE}
 
 
-#setup parallel backend to use many processors
-cores=detectCores()
-cl <- makeCluster(cores[1]-1) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-crcvm_rect_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+crcvm_rect_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %do% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
@@ -509,14 +562,12 @@ crcvm_rect_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
 }
 
 
-#stop cluster
-stopCluster(cl)
-
-
 names(crcvm_rect_hf_ne1)=paste("BATCH",1:N_BATCH,sep="")
 
 
 ```
+
+
 
 #### Plot estimated smooth parameter omega in 3D for one batch
 
@@ -640,14 +691,9 @@ ggplotly(plot_sim)
 
 ```{r estimate te DistanceShore for low error samples,cache=TRUE}
 
-#setup parallel backend to use many processors
-cores=detectCores()
-cl <- makeCluster(cores[1]-1) #not to overload your computer
-registerDoParallel(cl)
 
 
-
-crcvm_rect_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+crcvm_rect_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %do% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
@@ -658,10 +704,6 @@ crcvm_rect_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
   m$fit(method="BFGS")
   m 
 }
-
-
-#stop cluster
-stopCluster(cl)
 
 
 names(crcvm_rect_hf_ne2)=paste("BATCH",1:N_BATCH,sep="")
