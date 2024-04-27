@@ -13,7 +13,7 @@ date: "2024-03-13"
 
 ```{r import libraries}
 #seed for reproducibility 
-set.seed(1)
+set.seed(42)
 
 #for tex code
 library(tinytex)
@@ -124,7 +124,7 @@ n_hf=length(times_hf)-1
 
 ```{r set observation error}
 #no measurement error (we cannot put 0 because only the log of this quantity is used)
-sigma_obs=0.005
+sigma_obs=0.01
 H_hf=array(rep(sigma_obs^2*diag(2),n_hf),dim=c(2,2,n_hf))
 
 ```
@@ -158,15 +158,15 @@ ftau_constant=function(cov_data,tau=1,sigma_re=0.1) {
   return (tau+b)
 }
 
-ftau_bump=function(cov_data,epsilon=pi/10,alpha=pi/5,D0=1) {
+ftau_bump=function(cov_data,epsilon=pi/10,alpha=pi/5,D0=1,tau0=0.8,tau1=2) {
     Dshore=cov_data$DistanceShore
     theta=cov_data$theta
-    tau=(1.5+0.5*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
-      0.5*(tanh((theta+(-pi/2+epsilon))/alpha)-tanh((theta+(-pi/2-epsilon))/alpha)))
+    tau=(tau0+(tau1-tau0)*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
+      (tau1-tau0)*(tanh((theta+(-pi/2+epsilon))/alpha)-tanh((theta+(-pi/2-epsilon))/alpha)))
     return (tau)
 }
 
-fomega=function(cov_data,D0=0.1,omega0=60*pi,lambda=2,kappa=0.2) {
+fomega=function(cov_data,D0=0.3,omega0=60*pi/2,lambda=2,kappa=0.2) {
     Dshore=cov_data$DistanceShore
     theta=cov_data$theta
     if (is.null(Dshore)){
@@ -194,7 +194,7 @@ Dshore=seq(from=0.1,to=2,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
 grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")
-true_tau=matrix(ftau_constant(grid),30,30)
+true_tau=matrix(ftau_bump(grid),30,30)
 true_omega=matrix(fomega(grid),30,30)
 
 
@@ -213,6 +213,8 @@ plot_true_omega <- plot_ly(type = "surface",
                        scene=list(xaxis = list(title = "Theta",showgrid = F),
                       yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
 
+saveWidget(plot_true_omega, file ="true_smooth_omega_fjords.html")
+
 plot_true_tau
 plot_true_omega
 
@@ -227,12 +229,12 @@ n <- 1000
 
 #sample theta and DistanceShore points in the domain
 theta <- runif(n,-pi,pi);
-DistanceShore <- runif(n,0.2,2);
+DistanceShore <- runif(n,0.2,3);
 samples=data.frame(theta=theta,DistanceShore=DistanceShore)
 
 #define grid of values
 theta_v <- seq(-pi,pi,length=30)
-Dshore_v<- seq(0.2,2,length=30)
+Dshore_v<- seq(0.2,3,length=30)
 pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 # true values of the function over this grid
@@ -337,7 +339,7 @@ z4=matrix(fomega_spline_basis(grid,k=4),30,30)
 
 plot_spline_omega <- plot_ly(type = "surface",
                              contours = list(z = list(show = TRUE, start = min(spline_omega), end = max(spline_omega), size = 5,color="black")),
-                         x = ~Dshore,y = ~theta,z=~spline_omega,
+                         x = ~theta,y = ~Dshore,z=~spline_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline smooth omega"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
@@ -346,7 +348,7 @@ plot_spline_omega <- plot_ly(type = "surface",
 
 
 plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z2), end = max(z2), size = 0.05,color="black")),
-                         x = ~Dshore,y = ~theta,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                         x = ~theta,y = ~Dshore,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline basis 2"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
@@ -354,7 +356,7 @@ plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, st
 
 
 plot_basis3 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z3), end = max(z3), size = 0.05,color="black")),
-                         x = ~Dshore,y = ~theta,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                         x = ~theta,y = ~Dshore,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline basis 3"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
@@ -362,10 +364,12 @@ plot_basis3 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, st
 
 
 plot_basis4 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z4), end = max(z4), size = 0.05,color="black")),
-                         x = ~Dshore,y = ~theta,z=~z4, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                         x = ~theta,y = ~Dshore,z=~z4, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline basis 4"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
+
+saveWidget(plot_spline_omega, file ="spline_smooth_omega_fjords.html")
 ```
 
 ```{r}
@@ -389,6 +393,29 @@ plot_basis4
 
 ### Generate sample
 
+
+```{r}
+res=sim_theta_CRCVM(ftau=ftau_bump,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[2,],times=seq(0,5*24,by=1/60),land=land,verbose=FALSE)
+
+data_sim=res$sim
+data_sim$ID=factor(rep(1,length(data_sim$y1)))
+data_shore=res$shore[,c("p1","p2")]
+data_sim=cbind(data_sim,data_shore)
+
+data_sim=data_sim[seq(1,length(data_sim$time),by=5),]
+
+plot_illust_fjords=ggplot()+geom_sf(data=land$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+   geom_point(data=data_sim,aes(p1,p2),shape=5,size=0.1,col="red")+
+  geom_point(data=data_sim,mapping=aes(y1,y2),size=0.1)+
+  geom_path(data=data_sim,mapping=aes(y1,y2),size=0.1)+
+  geom_point(data = data_sim%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
+
+ggplotly(plot_illust_fjords)
+
+ggsave(filename="illustrative_sample_fjords.png",plot=plot_illust_fjords,width=10,height=5)
+```
 
 ```{r parallel generate hf low errors samples}
 
@@ -448,7 +475,7 @@ plot_samples_fjords_hf_ne=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(
   xlab("x") + ylab("y")
 
 
-ggsave(filename="samples_fjords_hf_ne_omega.png",plot=plot_samples_fjords_hf_ne)
+ggsave(filename="samples_fjords_hf_ne_omega.png",plot=plot_samples_fjords_hf_ne,width=10,height=5)
 ggplotly(plot_samples_fjords_hf_ne)
 ```
 

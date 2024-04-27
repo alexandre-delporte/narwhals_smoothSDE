@@ -136,7 +136,7 @@ n_hf=length(times_hf)-1
 
 ```{r measurement error}
 #no measurement error (we cannot put 0 because only the log of this quantity is used)
-sigma_obs=0.005
+sigma_obs=0.01
 H_hf=array(rep(sigma_obs^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 
 
@@ -206,7 +206,7 @@ true_omega=matrix(fomega(grid),30,30)
 
 
 plot_true_tau <- plot_ly(type = "surface",
-                         x = ~Dshore,y = ~theta,z=~true_tau,
+                         x = ~theta,y = ~Dshore,z=~true_tau,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("True tau"),
                        scene=list(xaxis = list(title = "Theta",showgrid = F),
@@ -214,7 +214,7 @@ plot_true_tau <- plot_ly(type = "surface",
 
 plot_true_omega <- plot_ly(type = "surface",
                            contours = list(z = list(show = TRUE, start = min(true_omega), end = max(true_omega), size = 5,color="black")),
-                         x = ~Dshore,y = ~theta,z=~true_omega,
+                         x = ~theta,y = ~Dshore,z=~true_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("True omega"),
                        scene=list(xaxis = list(title = "Theta",showgrid = F),
@@ -222,6 +222,9 @@ plot_true_omega <- plot_ly(type = "surface",
 
 plot_true_tau
 plot_true_omega
+
+saveWidget(plot_true_omega, file ="true_smooth_omega_rect.html")
+
 ```
 
 ### Approximate smooth functions with tensor splines of DistanceShore
@@ -338,7 +341,7 @@ z4=matrix(fomega_spline_basis(grid,k=4),30,30)
 
 plot_spline_omega <- plot_ly(type = "surface",
                              contours = list(z = list(show = TRUE, start = min(spline_omega), end = max(spline_omega), size = 5,color="black")),
-                         x = ~Dshore,y = ~theta,z=~spline_omega,
+                         x = ~theta,y = ~Dshore,z=~spline_omega,
                          colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline smooth omega"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
@@ -347,7 +350,7 @@ plot_spline_omega <- plot_ly(type = "surface",
 
 
 plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z2), end = max(z2), size = 0.05,color="black")),
-                         x = ~Dshore,y = ~theta,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                         x = ~theta,y = ~Dshore,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline basis 2"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
@@ -355,7 +358,7 @@ plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, st
 
 
 plot_basis3 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z3), end = max(z3), size = 0.05,color="black")),
-                         x = ~Dshore,y = ~theta,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                         x = ~theta,y = ~Dshore,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline basis 3"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
                                                             zaxis = list(title = "omega"))) 
@@ -366,7 +369,9 @@ plot_basis4 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, st
                          x = ~Dshore,y = ~theta,z=~z4, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
                 layout(title=paste("Spline basis 4"),scene=list(xaxis = list(title = "Theta",showgrid = T),
                                                                  yaxis = list(title = "Distance to shore",showgrid = F),
-                                                            zaxis = list(title = "omega"))) 
+                                                            zaxis = list(title = "omega")))
+
+saveWidget(plot_spline_omega, file ="spline_smooth_omega_rect.html")
 ```
 
 ```{r}
@@ -375,22 +380,51 @@ plot_spline_omega
 
 ```{r}
 plot_basis2
+
+saveWidget(plot_basis2, file ="spline_basis2_omega_rect.html")
 ```
 
 ```{r}
 plot_basis3
+saveWidget(plot_basis3, file ="spline_basis3_omega_rect.html")
 ```
 
 ```{r}
 plot_basis4
+saveWidget(plot_basis4, file ="spline_basis4_omega_rect.html")
 ```
 
 ## Simulation with low measurement errors and high frequency 
 
-### Generate sample
+### Generate samples
+
+```{r illustrative sample for the paper}
+
+res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],times=seq(0,2*24,by=1/60),land=domain,verbose=FALSE)
+
+data_sim=res$sim
+data_sim$ID=factor(rep(1,length(data_sim$y1)))
+data_shore=res$shore[,c("p1","p2")]
+data_sim=cbind(data_sim,data_shore)
+
+data_sim=data_sim[seq(1,length(data_sim$time),by=5),]
+
+plot_illust_rect=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_sim,aes(p1,p2),shape=5,size=0.1,col="red")+
+  geom_point(data=data_sim,mapping=aes(y1,y2),size=0.1)+
+  geom_path(data=data_sim,mapping=aes(y1,y2),size=0.1)+
+  geom_point(data = data_sim%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
+
+plot_illust_rect
+
+ggsave(filename="illustrative_sample_rect.png",plot=plot_illust_rect,width=10,height=5)
+```
 
 
-```{r parallel generate hf low errors samples,cache=TRUE}
+
+```{r parallel generate batches of hf low errors samples,cache=TRUE}
 
 #setup parallel backend to use many processors
 cores=detectCores()
@@ -437,19 +471,21 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```
 
 
-### plot one batch
+### plot one sample and one batch
 
 ```{r plot one batch low error samples}
 
-plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
-  geom_path(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
+plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
+  geom_path(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
   geom_point(data = data_rect_hf_ne$BATCH1%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
 
-ggsave(filename="samples_rect_hf_ne_omega.png",plot=plot_samples_rect_hf_ne)
+
+
+ggsave(filename="samples_rect_hf_ne_omega.png",plot=plot_samples_rect_hf_ne,width=10,height=5)
 ggplotly(plot_samples_rect_hf_ne)
 ```
 
