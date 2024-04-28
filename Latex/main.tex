@@ -367,12 +367,12 @@ Figure~\ref{fig: trueomega} shows a smooth function obtained from~\ref{eq: smoot
 	\centering
 	\begin{subfigure}{0.48\textwidth}
 		\centering
-		\includegraphics[scale=0.4]{images/simulation study/illustrative_sample_rect.png}
+		\includegraphics[scale=0.3]{images/simulation study/illustrative_sample_rect.png}
 		\caption{}
 	\end{subfigure}
 	\begin{subfigure}{0.48\textwidth}
 		\centering
-		\includegraphics[scale=0.4]{images/simulation study/illustrative_sample_fjords.png}
+		\includegraphics[scale=0.3]{images/simulation study/illustrative_sample_fjords.png}
 		\caption{}
 	\end{subfigure}
 	\caption{Samples of the CRCVM in different domains. x and y axis are in metres and initial positions are indicated by a red cross and red point represent the nearest points on the boundary of the domain (a) One sample three day sample with time step $h=1$ min in a rectangular domain (b) One sample three day sample with time step $h=1$ min in Scoresby Sound fjords system in South-East Greenland}
@@ -402,7 +402,7 @@ $3$ days long trajectories were sampled in a rectangular domain with sides of le
 
 
 
-\subsection{Estimation with tensor splines}
+\subsection{Estimation of angular velocity $\omega$ with tensor splines}
 
 
 The samples from previous section were used to estimate the function $\omega$, both in the rectangular domain and in Scoresby Sound fjords system. Covariates $E_{shore}$ and $\Theta$ were computed from the observed positions and the smooth parameter $\omega$ was estimated using bivariate tensor splines of these covariates, given by the function \texttt{te} in \texttt{R}. The marginal spline degree of freedom was set to $5$ for each covariate, which corresponds to $3$ knots in the splines. Hence, $25$ coefficients (including the intercept) were to be estimated. The other parameters of the diffusion were supposed to be known, as well as the measurement error. Underestimation of the smooth parameter $\omega$ is observed close to the shore as $\Theta$ approaches $\pm \pi$ (movement toward the shore). This is easily seen in figures \ref{fig: marginal_estimates_rect_CRCVM}(a)-(b) and and \ref{fig: marginal_estimates_fjords_CRCVM}(a)-(b).
@@ -459,12 +459,12 @@ As measurement error grows, the covariates that are estimated from the observed 
 	\centering
 	\begin{subfigure}{0.48\textwidth}
 		\centering
-		\includegraphics[scale=0.3]{images/simulation study/omega_crcvm_fjords_hf_ne1.png}
+		\includegraphics[scale=0.3]{}
 		\caption{}
 	\end{subfigure}
 	\begin{subfigure}{0.48\textwidth}
 		\centering
-		\includegraphics[scale=0.3]{images/simulation study/omega_crcvm_fjords_hf_ne1.png}
+		\includegraphics[scale=0.3]{}
 		\caption{}
 	\end{subfigure}
 	\caption{Estimates of the smooth parameter $\omega$ as a function of $D_{shore}$ and $\Theta$ in Scoresby Sound fjords system. (a)-(b): Estimation from data with time step $h=1$ min (high frequency) with respective measurement errors standard deviation $\sigma_{obs}=3$ m and $\sigma_{obs}=30$ m.}
@@ -667,6 +667,22 @@ For each narwhal $i \in \{1, \cdots, N\}$, write $t_{exp}^{(i)}$ the first time 
 
 Denoting $n_{i,pre}$ the number of observations before exposure for the narwhal $i$, $\tau^{(i)}$, $\nu^{(i)}$  and $\omega^{(i)}$ the parameters of the diffusion for this narwhal $i$ and  $\tau^{(i)}_j$, $\nu_j^{(i)}$, $\omega_j^{(i)}$ their values at time $t_j^{(i)}$ for $j \in \{1, \cdots,n_{i,pre}\}$,  the mixed effect model is written
 
+\begin{equation}  \left\{
+	\begin{array}{l}
+		Y_{ij}=X_{ij}+\varepsilon_{ij} \quad j \in \{1,\cdots,n_{i,pre}\}\\
+		\varepsilon_{ij} \underset{i.i.d}{\sim} \mathcal{N}(0,\sigma_{obs}^2)  \\
+		dX_i(t)=V_i(t)dt  \\
+		dV_i(t)=-\begin{pmatrix} 
+			\frac{1}{\tau_i} & -\omega_i \\
+			\omega_i & \frac{1}{\tau_i}
+		\end{pmatrix}V_i(t)dt+\frac{2\nu_i}{\sqrt{\pi \tau_i}} dW(t) \\
+		\log(\tau_i)=\log(\tau_{pre})+b_{\tau,pre}^{(i)} \\
+	\log(\nu_i)=\log(\nu_{pre})+b_{\nu,pre}^{(i)}  \\
+	\omega_i=\omega_{0,pre}+\sum_{k=1}^{L} \omega_{k,pre} \psi_k(E_{shore}^{(i)}(t_j^{(i)}),\Theta^{(i)}(t_j^{(i)})) + b_{\omega,pre}^{(i)}
+	\end{array}
+	\right.
+\end{equation}
+
 
 
 \begin{equation} 
@@ -674,9 +690,7 @@ Denoting $n_{i,pre}$ the number of observations before exposure for the narwhal 
 	\left\{
 	\begin{array}{l}
 		
-		\log(\tau^{(i)}_j)=\log(\tau_{pre})+b_{\tau,pre}^{(i)} \\
-		\log(\nu^{(i)}_j)=\log(\nu_{pre})+b_{\nu,pre}^{(i)}  \\
-		\omega^{(i)}_j=\omega_{0,pre}+\sum_{k=1}^{L} \omega_{k,pre} \psi_k(E_{shore}^{(i)}(t_j^{(i)}),\Theta^{(i)}(t_j^{(i)})) + b_{\omega,pre}^{(i)}
+	
 	\end{array}
 	\right.
 	\label{eq: approximate baseline model}
