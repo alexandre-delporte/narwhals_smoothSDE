@@ -80,7 +80,7 @@ formulas <- list(mu1=~1,mu2=~1,
                  nu=~s(ID,bs="re"),
                  omega=~s(AngleNormal,k=10,bs="cs"))
 
-baseline1<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM1",response = c("x","y"),
+baseline1<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
                     par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 #fit_model
@@ -88,7 +88,8 @@ baseline1$fit()
 estimates1=as.list(baseline1$tmb_rep(),what="Est")
 std1=as.list(baseline1$tmb_rep(),what="Std")
 
-res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",npost=1000,level=0.95,show_CI=TRUE)
+res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",show_CI="pointwise",save=TRUE)
+
 
 
 #########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA   ##############################
@@ -96,7 +97,7 @@ res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",npost=1000,leve
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
                  nu=~s(ID,bs="re"),omega=~te(AngleNormal,ExpShore,k=c(6,3),bs="cs"))
 
-baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM1",
+baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("H"=H),
                     fixpar=c("mu1","mu2"))
 
@@ -107,23 +108,22 @@ std2=as.list(baseline2$tmb_rep(),what="Std")
 
 
 #plot parameters
-xmin=list("ExpShore"=1/5,"AngleNormal"=-pi+pi/20)
-xmax=list("ExpShore"=1/0.05,"AngleNormal"=pi-pi/20)
+
+xmin=list("ExpShore"=1/0.5,"AngleNormal"=-pi)
+xmax=list("ExpShore"=1/0.05,"AngleNormal"=pi)
 link=list("ExpShore"=(\(x) 1/x))
 xlabel=list("ExpShore"="Distance to shore")
 
-res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",npost=1000,level=0.95,
-                        xmin=xmin,xmax=xmax,link=link,xlabel=xlabel)
+res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
-p_close=baseline2$plot_par(var="AngleNormal",par_names=c("omega"),covs=data.frame("ExpShore"=0.5,"AngleNormal"=0),show_CI="pointwise")
-
-#########################  BIVARIATE SPLINES ANGLE NORMAL AND EXPSHORE IN OMEGA  ##############################
+#########################  TI SPLINES ANGLE NORMAL AND EXPSHORE IN OMEGA  ##############################
 
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
                  nu=~1,omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+
                    ti(AngleNormal,ExpShore,k=5,bs="cs"))
 
-baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM1",
+baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(0.04)),
                     fixpar=c("mu1","mu2"))
 
@@ -133,10 +133,9 @@ estimates3=as.list(baseline3$tmb_rep(),what="Est")
 std3=as.list(baseline3$tmb_rep(),what="Std")
 
 
-res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",npost=1000,level=0.95,
-                        xmin=xmin,xmax=xmax,link=link,xlabel=xlabel)
+res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
-p_close=baseline3$plot_par(var="AngleNormal",par_names=c("omega"),covs=data.frame("ExpShore"=0.5,"AngleNormal"=0),show_CI="pointwise")
 
 ###########################         AICs VALUES FOR THE BASELINE MODELS        ####################################
 
