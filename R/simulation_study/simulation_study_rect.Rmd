@@ -14,7 +14,7 @@ output:
 
 ```{r libraries}
 #seed for reproducibility 
-set.seed(1)
+set.seed(42)
 
 #parallel computing
 library(foreach)
@@ -58,7 +58,7 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=10
+N_BATCH=100
 
 #number of individual tracks per batch
 N_ID=6
@@ -67,7 +67,7 @@ N_ID=6
 TMAX=0.5*24 
 
 #degree of freedom in tensor splines
-SP_DF=5
+SP_DF=3
   
 ```
 
@@ -374,22 +374,22 @@ plot_basis4 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, st
 saveWidget(plot_spline_omega, file ="spline_smooth_omega_rect.html")
 ```
 
-```{r}
+```{r plot spline omega}
 plot_spline_omega
 ```
 
-```{r}
+```{r plot basis2}
 plot_basis2
 
 saveWidget(plot_basis2, file ="spline_basis2_omega_rect.html")
 ```
 
-```{r}
+```{r plot basis3}
 plot_basis3
 saveWidget(plot_basis3, file ="spline_basis3_omega_rect.html")
 ```
 
-```{r}
+```{r plot basis4}
 plot_basis4
 saveWidget(plot_basis4, file ="spline_basis4_omega_rect.html")
 ```
@@ -585,7 +585,7 @@ for (k in 1:N_BATCH) {
 ```{r estimate te ExpShore for low error samples,cache=TRUE}
 
 
-crcvm_rect_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %do% {
+crcvm_rect_hf_ne1<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %do% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
@@ -729,7 +729,7 @@ ggplotly(plot_sim)
 
 
 
-crcvm_rect_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %do% {
+crcvm_rect_hf_ne2<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %do% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
