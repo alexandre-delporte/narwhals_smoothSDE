@@ -58,7 +58,7 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=100
+N_BATCH=10
 
 #number of individual tracks per batch
 N_ID=6
@@ -136,7 +136,7 @@ n_hf=length(times_hf)-1
 
 ```{r measurement error}
 #no measurement error (we cannot put 0 because only the log of this quantity is used)
-sigma_obs=0.01
+sigma_obs=0.005
 H_hf=array(rep(sigma_obs^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 
 
@@ -287,6 +287,15 @@ vis.gam(m2);title("tensor product")
 ```{r estimated spline coeffs}
 sp_coeff_Dshore=m1$coefficients
 sp_coeff_ExpShore=m2$coefficients
+```
+
+
+```{r}
+sp_coeff_Dshore
+```
+
+```{r}
+sp_coeff_ExpShore
 ```
 
 ### Define spline smooth functions for omega based on the approximations
@@ -476,6 +485,7 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```{r plot one batch low error samples}
 
 plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_hf_ne$BATCH1,aes(p1,p2),shape=5,size=0.1,col="red")+
   geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
   geom_path(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
   geom_point(data = data_rect_hf_ne$BATCH1%>% filter(!duplicated(ID)),
@@ -485,7 +495,7 @@ plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord
 
 
 
-ggsave(filename="samples_rect_hf_ne_omega.png",plot=plot_samples_rect_hf_ne,width=10,height=5)
+ggsave(filename="samples_rect_hf_ne.png",plot=plot_samples_rect_hf_ne,width=10,height=5)
 ggplotly(plot_samples_rect_hf_ne)
 ```
 
@@ -619,7 +629,7 @@ res$fe_omega_theta_ExpShore
 ```
 
 
-#### Violin plot of the estimated spline coefficients for one batch
+#### Violin plot of the estimated coefficients for one batch
 
 ```{r violin plots spline coeff te ExpShore for one batch of low error samples}
 
@@ -641,7 +651,7 @@ coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
 
 for (k in 1:N_BATCH) {
   m<-crcvm_rect_hf_ne1[[paste("BATCH",k,sep="")]]
-  coeffs=m$coeff_re()
+  coeffs=rbind(m$coeff_re(),m$coeff_fe())
   coeff_names=rownames(coeffs)
   coeff_values=as.numeric(coeffs)
   sub_index=grepl("omega",coeff_names)
@@ -664,7 +674,30 @@ p
 
 ```
 
+### Biais and RMSE
 
+```{r compute biais and rmse}
+biais=c()
+rmse=c()
+for (string in names(sp_coeff_ExpShore)) {
+  name=paste("omega.",string,sep="")
+  true_value=sp_coeff_ExpShore[string]
+  estimates=coeffs_df[coeffs_df$coeff_name==name,"estimate"]
+  biais=c(biais,1/N_BATCH*sum(abs(estimates-true_value))/true_value)
+  rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_value)^2)))
+}
+
+names(biais)=paste("omega.",names(sp_coeff_ExpShore),sep="")
+names(rmse)=paste("omega.",names(sp_coeff_ExpShore),sep="")
+```
+
+```{r print biais}
+biais
+```
+
+```{r print rmse}
+rmse
+```
 
 #### Simulate from fitted model
 
@@ -750,6 +783,9 @@ names(crcvm_rect_hf_ne2)=paste("BATCH",1:N_BATCH,sep="")
 ```{r plot estimates te DistanceShore for one batch of low error samples}
 xmin=list("theta"=-pi,"DistanceShore"=0.3)
 xmax=list("theta"=pi,"DistanceShore"=2)
+xlabel=list("DistanceShore"="Distance to shore","theta"="Theta")
+link=list("DistanceShore"=identity,"theta"=identity)
+true_smooths=list("omega"=fomega_splines)
 res=crcvm_rect_hf_ne2$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne2",xmin=xmin,xmax=xmax,
                                     xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
 res$fe_omega_theta_DistanceShore
@@ -772,18 +808,34 @@ ggplotly(p)
 
 #### Violin plot of the estimated spline coefficients for all batches
 
+
 ```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
 
 n_coeffs=length(sp_coeff_Dshore)
 coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
 
 for (k in 1:N_BATCH) {
+  
+  #fitted model
   m<-crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]
-  coeffs=m$coeff_re()
+  
+  #re and fe coeffs
+  coeffs=rbind(m$coeff_re(),m$coeff_fe())
+  
+  #names and values of coeffs
   coeff_names=rownames(coeffs)
   coeff_values=as.numeric(coeffs)
-  sub_index=grepl("omega",coeff_names)
-  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  
+  #keep coeffs that do not contain ID
+  sub_index=grep("ID",coeff_names,invert=TRUE)
+  
+  #standard deviation of random effects
+  sdev=m$sdev()
+  sdev_names=rownames(sdev)[1:2]
+  sdev_values=as.numeric(sdev)[1:2]
+  
+  #bind dataframe
+  sub_coeffs_df=data.frame("estimate"=c(coeff_values[sub_index],sdev_values),"coeff_name"=factor(c(coeff_names[sub_index],sdev_names)))
   coeffs_df=rbind(coeffs_df,sub_coeffs_df)
 }
 
@@ -795,12 +847,66 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
                 theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
                 geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
 
-
-
 p=ggplotly(p)
-saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne2.html")
+saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne1.html")
 
 p
+
+```
+
+
+### Biais and RMSE
+
+```{r compute biais and rmse DistanceShore splines}
+biais=c()
+rmse=c()
+
+#biais and rmse for omega coefficients
+for (string in names(sp_coeff_Dshore)) {
+  name=paste("omega.",string,sep="")
+  true_value=sp_coeff_Dshore[string]
+  estimates=coeffs_df[coeffs_df$coeff_name==name,"estimate"]
+  biais=c(biais,1/N_BATCH*sum(abs(estimates-true_value)))
+  rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_value)^2)))
+}
+
+
+#add biais and rmse for tau
+true_log_tau=0
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_tau)^2)))
+
+#add biais and rmse for nu
+true_log_nu=log(4)
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_nu)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_tau=0.1
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_tau)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_nu=0.3
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_nu)^2)))
+
+
+names(biais)=c(paste("omega.",names(sp_coeff_Dshore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+names(rmse)=c(paste("omega.",names(sp_coeff_Dshore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+
+```
+
+```{r print biais DistanceShore splines}
+biais
+```
+
+```{r print rmse DistanceShore splines}
+rmse
 ```
 
 #### Simulate from fitted model
@@ -808,7 +914,7 @@ p
 ```{r simulate fitted te DistanceShore low error samples,cache=TRUE}
 
 
-fExpShore=function(z,v,p) {
+fDshore=function(z,v,p) {
   
   
   #normal vector
@@ -816,12 +922,7 @@ fExpShore=function(z,v,p) {
   
   #distance to shore
   Dshore=sqrt(normal[1]^2+normal[2]^2)
-  if (Dshore<0.01) {
-    return (100)
-  }
-  else {
-    return (1/Dshore)
-  }
+  return (Dshore)
 }
 
 fangle=function(z,v,p) {
@@ -834,7 +935,7 @@ fangle=function(z,v,p) {
 }
 
 
-atw=list("ExpShore"=fExpShore,"AngleNormal"=fangle)
+atw=list("DistanceShore"=fDshore,"AngleNormal"=fangle)
 sim_data=crcvm_rect_hf_ne2$BATCH1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne2$BATCH1$data(),atw=atw,land=domain)
 
 ```

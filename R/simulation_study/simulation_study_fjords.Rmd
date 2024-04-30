@@ -53,7 +53,7 @@ source("CVM_functions.R")
 
 ```{r}
 #number of batch
-N_BATCH=10
+N_BATCH=1
 
 #number of individual tracks per batch
 N_ID=6
@@ -62,7 +62,7 @@ N_ID=6
 TMAX=1*24 
 
 #degree of freedom in tensor splines
-SP_DF=5
+SP_DF=3
 ```
 
 # SIMULATION
@@ -283,6 +283,13 @@ sp_coeff_Dshore=m1$coefficients
 sp_coeff_ExpShore=m2$coefficients
 ```
 
+```{r}
+sp_coeff_Dshore
+```
+
+```{r}
+sp_coeff_ExpShore
+```
 
 ### Define spline smooth functions for omega based on the approximation
 
@@ -394,8 +401,8 @@ plot_basis4
 ### Generate sample
 
 
-```{r}
-res=sim_theta_CRCVM(ftau=ftau_bump,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[2,],times=seq(0,5*24,by=1/60),land=land,verbose=FALSE)
+```{r illustrative sample}
+res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[2,],times=seq(0,5*24,by=1/60),land=land,verbose=FALSE)
 
 data_sim=res$sim
 data_sim$ID=factor(rep(1,length(data_sim$y1)))
@@ -424,7 +431,7 @@ cores=detectCores()
 cl <- makeCluster(cores[1]-1) #not to overload your computer
 registerDoParallel(cl)
 
-data_fjords_hf_ne <- foreach(i=1:N_BATCH,.packages=c("progress","MASS","sf","foreach")) %dopar% {
+data_fjords_hf_ne <- foreach(k=1:N_BATCH,.packages=c("progress","MASS","sf","foreach")) %dopar% {
   data=foreach (i=1:N_ID,.combine='rbind') %do% {
   
     res=sim_theta_CRCVM(ftau_constant,fomega,fnu_constant,log_sigma_obs=log(sigma_obs),v0,x0[i,],times_hf,land=land,verbose=FALSE)
@@ -448,7 +455,7 @@ names(data_fjords_hf_ne)=paste("BATCH",1:N_BATCH,sep="")
 
 ```{r percentage of low error samples that reached land}
 count=0
-for (k in 1:length(names(data_rect_hf_ne))) {
+for (k in 1:length(names(data_fjords_hf_ne))) {
 
   data=data_fjords_hf_ne[[paste("BATCH",k,sep="")]]
   for (id in unique(data$ID)) {
@@ -470,7 +477,7 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 plot_samples_fjords_hf_ne=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
   geom_point(data=data_fjords_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
   geom_path(data=data_fjords_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID),size=0.1)+
-  geom_point(data = data_fjords_hf_ne$BATCH2%>% filter(!duplicated(ID)),
+  geom_point(data = data_fjords_hf_ne$BATCH1%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
@@ -585,7 +592,7 @@ registerDoParallel(cl)
 
 
 
-crcvm_fjords_hf_ne1<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+crcvm_fjords_hf_ne1<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
