@@ -58,9 +58,6 @@ cat(paste(length(dataBE2[,1]),"positions measured before exposure \n"),file=file
 dataBE2=dataBE2[dataBE2$DistanceShore>0.03,]
 dataBE1=dataBE1[dataBE1$DistanceShore>0.03,]
 
-#put threshold on exposure
-dataBE1[dataBE1$DistanceShore>5,"ExpShore"]=0
-dataBE2[dataBE2$DistanceShore>5,"ExpShore"]=0
 
 
 ############################################# SET MEASUREMENT ERROR ###############################################
@@ -95,7 +92,7 @@ res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",show_CI="pointw
 #########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA   ##############################
 
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
-                 nu=~s(ID,bs="re"),omega=~te(AngleNormal,ExpShore,k=c(6,3),bs="cs"))
+                 nu=~s(ID,bs="re"),omega=~te(AngleNormal,DistanceShore,k=c(5,5),bs="cs"))
 
 baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("H"=H),
@@ -109,8 +106,8 @@ std2=as.list(baseline2$tmb_rep(),what="Std")
 
 #plot parameters
 
-xmin=list("ExpShore"=1/0.5,"AngleNormal"=-pi)
-xmax=list("ExpShore"=1/0.05,"AngleNormal"=pi)
+xmin=list("DistanceShore"=0.05,"AngleNormal"=-pi)
+xmax=list("DistanceShore"=2,"AngleNormal"=pi)
 link=list("ExpShore"=(\(x) 1/x))
 xlabel=list("ExpShore"="Distance to shore")
 

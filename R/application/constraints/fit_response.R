@@ -83,7 +83,7 @@ formulas <- list(mu1=~1,mu2=~1,
                  tau =~1,
                  nu=~1,omega=~te(ExpShore,AngleNormal,k=5,bs="cs"))
 par0 <- c(0,0,1,4,0)
-response1<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM1",
+response1<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
                     other_data=list("H"=H))
 
@@ -103,10 +103,8 @@ xlabel=list("ExpShore"="Distance to shore")
 
 
 res=response1$get_all_plots(baseline=NULL,model_name="response1",xmin=xmin,
-              xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+              xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
-p_far=response1$plot_par(var="AngleNormal",par_names=c("omega"),covs=data.frame("ExpShore"=1/0.5,"AngleNormal"=0),show_CI="pointwise")
-p_close=response1$plot_par(var="AngleNormal",par_names=c("omega"),covs=data.frame("ExpShore"=1/0.1,"AngleNormal"=0),show_CI="pointwise")
 
 
 #########################  RACVM  MODEL WITH tensor splines of  AngleNormal, Distance shore in omega ##############################
@@ -114,9 +112,9 @@ p_close=response1$plot_par(var="AngleNormal",par_names=c("omega"),covs=data.fram
 #define model
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShore,k=5,bs="cs")+s(AngleNormal,k=5,bs="cs"),
                  nu=~s(ID,bs="re"),
-                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=5,bs="cs"))
+                 omega=~te(AngleNormal,ExpShore,k=5,bs="cs"))
 par0 <- c(0,0,1,1,0)
-response2<- SDE$new(formulas = formulas,data =s dataAE,type = "RACVM1",
+response2<- SDE$new(formulas = formulas,data =dataAE,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H))
 
 
