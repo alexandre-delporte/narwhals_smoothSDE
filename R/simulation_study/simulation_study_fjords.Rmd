@@ -9,11 +9,17 @@ date: "2024-03-13"
 ---
 
 # SET UP
-## Import libraries and data
+
+## Import libraries
 
 ```{r import libraries}
 #seed for reproducibility 
 set.seed(42)
+
+#parallel computing
+library(foreach)
+library(doParallel)
+
 
 #for tex code
 library(tinytex)
@@ -53,13 +59,13 @@ source("CVM_functions.R")
 
 ```{r}
 #number of batch
-N_BATCH=1
+N_BATCH=5
 
 #number of individual tracks per batch
 N_ID=6
 
 #duration of each track in hour
-TMAX=1*24 
+TMAX=0.5*24 
 
 #degree of freedom in tensor splines
 SP_DF=3
@@ -573,26 +579,14 @@ for (k in 1:N_BATCH) {
 ```
 
 
-# ESTIMATION
+## Estimate with ExpShore covariate and tensor splines te
 
-## Estimate from high frequency data without error : ExpShore and tensor splines ti
-
-### Use ExpShore covariate and tensor splines te
-
-#### Fit sde
+### Fit sde
 
 
 ```{r estimate te ExpShore for low error samples,cache=TRUE}
 
-
-#setup parallel backend to use many processors
-cores=detectCores()
-cl <- makeCluster(cores[1]-1) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-crcvm_fjords_hf_ne1<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+crcvm_fjords_hf_ne1<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %do% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
@@ -605,16 +599,11 @@ crcvm_fjords_hf_ne1<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
 }
 
 
-#stop cluster
-stopCluster(cl)
-
-
 names(crcvm_fjords_hf_ne1)=paste("BATCH",1:N_BATCH,sep="")
-
 
 ```
 
-#### Plot estimated smooth parameter omega in 3D for one batch
+### Plot estimated smooth parameter omega in 3D for one batch
 
 ```{r get plots from hf e estimates with Expshore}
 xmin=list("theta"=-pi,"ExpShore"=1/2)
@@ -627,9 +616,9 @@ res=crcvm_fjords_hf_ne1$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_fjo
 res$fe_omega_theta_ExpShore
 ```
 
-#### Violin plot of the estimated spline coefficients for one batch
+### Violin plot of the estimated spline coefficients for one batch
 
-```{r}
+```{r violin plots spline coeff te ExpShore for one batch of low error samples}
 
 true_coeff=data.frame(value=sp_coeff_ExpShore,name=paste("omega.",names(sp_coeff_ExpShore),sep=""))
 rownames(true_coeff)=NULL
@@ -640,20 +629,36 @@ ggplotly(p)
 ```
 
 
-#### Violin plot of the estimated spline coefficients for all batches
+### Violin plot of the estimated spline coefficients for all batches
 
 ```{r violin plots spline coeff te ExpShore all batches with low measurement error}
+
 
 n_coeffs=length(sp_coeff_ExpShore)
 coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
 
 for (k in 1:N_BATCH) {
+  
+  #fitted model
   m<-crcvm_fjords_hf_ne1[[paste("BATCH",k,sep="")]]
-  coeffs=m$coeff_re()
+  
+  #re and fe coeffs
+  coeffs=rbind(m$coeff_re(),m$coeff_fe())
+  
+  #names and values of coeffs
   coeff_names=rownames(coeffs)
   coeff_values=as.numeric(coeffs)
-  sub_index=grepl("omega",coeff_names)
-  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
+  
+  #keep coeffs that do not contain ID
+  sub_index=grep("ID",coeff_names,invert=TRUE)
+  
+  #standard deviation of random effects
+  sdev=m$sdev()
+  sdev_names=rownames(sdev)[1:2]
+  sdev_values=as.numeric(sdev)[1:2]
+  
+  #bind dataframe
+  sub_coeffs_df=data.frame("estimate"=c(coeff_values[sub_index],sdev_values),"coeff_name"=factor(c(coeff_names[sub_index],sdev_names)))
   coeffs_df=rbind(coeffs_df,sub_coeffs_df)
 }
 
@@ -666,13 +671,67 @@ p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_nam
                 geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
 
 p=ggplotly(p)
-saveWidget(p, file ="crcvm_fjords_hf_ne1/all_batches_coeffs_crcvm_fjords_hf_ne1.png")
+saveWidget(p, file ="crcvm_fjords_hf_ne1/all_batches_coeffs_crcvm_fjords_hf_ne1.html")
+
+p
+```
 
 
+### Biais and RMSE
+
+```{r compute biais and rmse ExpShore splines}
+biais=c()
+rmse=c()
+
+#biais and rmse for omega coefficients
+for (string in names(sp_coeff_ExpShore)) {
+  name=paste("omega.",string,sep="")
+  true_value=sp_coeff_ExpShore[string]
+  estimates=coeffs_df[coeffs_df$coeff_name==name,"estimate"]
+  biais=c(biais,1/N_BATCH*sum(abs(estimates-true_value)))
+  rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_value)^2)))
+}
+
+
+#add biais and rmse for tau
+true_log_tau=0
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_tau)^2)))
+
+#add biais and rmse for nu
+true_log_nu=log(4)
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_nu)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_tau=0.1
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_tau)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_nu=0.3
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_nu)^2)))
+
+
+names(biais)=c(paste("omega.",names(sp_coeff_ExpShore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+names(rmse)=c(paste("omega.",names(sp_coeff_ExpShore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
 
 ```
 
-#### Simulate from fitted model
+```{r print biais ExpShore splines}
+biais
+```
+
+```{r print rmse ExpShore splines}
+rmse
+```
+
+### Simulate from fitted model
 
 ```{r simulate fitted te ExpShore low error samples,cache=TRUE}
 
@@ -710,7 +769,7 @@ sim_data=crcvm_rect_hf_ne1$BATCH1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne1$BATC
 
 
 
-#### Plot simulation from fitted model
+### Plot simulation from fitted model
 
 ```{r}
 
@@ -728,21 +787,15 @@ ggplotly(plot_sim)
 
 
 
-###  UseDistanceShore covariate and tensor splines ti
+##  Estimate with DistanceShore covariate and tensor splines te
 
-#### Fit sde
+### Fit sde
 
 
 ```{r estimate te DistanceShore for low error samples,cache=TRUE}
 
-#setup parallel backend to use many processors
-cores=detectCores()
-cl <- makeCluster(cores[1]-1) #not to overload your computer
-registerDoParallel(cl)
 
-
-
-crcvm_fjords_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
+crcvm_fjords_hf_ne2<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %do% {
   #estimation with tensor splines
   formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
@@ -755,16 +808,12 @@ crcvm_fjords_hf_ne2<- foreach(i=1:N_BATCH,.packages=c("smoothSDE")) %dopar% {
 }
 
 
-#stop cluster
-stopCluster(cl)
-
-
 names(crcvm_fjords_hf_ne2)=paste("BATCH",1:N_BATCH,sep="")
 ```
 
-#### Plots estimated smooth in 3D for one batch
+### Plots estimated smooth in 3D for one batch
 
-```{r}
+```{r get plots from hf e estimates with DistanceShore}
 xmin=list("theta"=-pi,"DistanceShore"=0.3)
 xmax=list("theta"=pi,"DistanceShore"=2)
 res=crcvm_fjords_hf_ne2$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_fjords_hf_ne2",xmin=xmin,xmax=xmax,
@@ -772,9 +821,9 @@ res=crcvm_fjords_hf_ne2$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_fjo
 res$fe_omega_theta_DistanceShore
 ```
 
-#### Violin plot of the estimated spline coefficients for one batch
+### Violin plot of the estimated spline coefficients for one batch
 
-```{r}
+```{r violin plots spline coeff te DistanceShore for one batch of low error samples}
 
 true_coeff=data.frame(value=sp_coeff_Dshore,name=paste("omega.",names(sp_coeff_Dshore),sep=""))
 rownames(true_coeff)=NULL
@@ -787,8 +836,110 @@ ggplotly(p)
 
 
 
+### Violin plot of the estimated spline coefficients for all batches
 
-#### Simulate from fitted model
+```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
+
+
+n_coeffs=length(sp_coeff_DistanceShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  
+  #fitted model
+  m<-crcvm_fjords_hf_ne2[[paste("BATCH",k,sep="")]]
+  
+  #re and fe coeffs
+  coeffs=rbind(m$coeff_re(),m$coeff_fe())
+  
+  #names and values of coeffs
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  
+  #keep coeffs that do not contain ID
+  sub_index=grep("ID",coeff_names,invert=TRUE)
+  
+  #standard deviation of random effects
+  sdev=m$sdev()
+  sdev_names=rownames(sdev)[1:2]
+  sdev_values=as.numeric(sdev)[1:2]
+  
+  #bind dataframe
+  sub_coeffs_df=data.frame("estimate"=c(coeff_values[sub_index],sdev_values),"coeff_name"=factor(c(coeff_names[sub_index],sdev_names)))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_fjords_hf_ne2/all_batches_coeffs_crcvm_fjords_hf_ne2.html")
+
+p
+```
+
+
+### Biais and RMSE
+
+```{r compute biais and rmse DistanceShore splines}
+biais=c()
+rmse=c()
+
+#biais and rmse for omega coefficients
+for (string in names(sp_coeff_ExpShore)) {
+  name=paste("omega.",string,sep="")
+  true_value=sp_coeff_ExpShore[string]
+  estimates=coeffs_df[coeffs_df$coeff_name==name,"estimate"]
+  biais=c(biais,1/N_BATCH*sum(abs(estimates-true_value)))
+  rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_value)^2)))
+}
+
+
+#add biais and rmse for tau
+true_log_tau=0
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_tau)^2)))
+
+#add biais and rmse for nu
+true_log_nu=log(4)
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_nu)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_tau=0.1
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_tau)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_nu=0.3
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_nu)^2)))
+
+
+names(biais)=c(paste("omega.",names(sp_coeff_ExpShore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+names(rmse)=c(paste("omega.",names(sp_coeff_ExpShore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+
+```
+
+```{r print biais DistanceShore splines}
+biais
+```
+
+```{r print rmse DistanceShore splines}
+rmse
+```
+
+
+### Simulate from fitted model
 
 ```{r simulate fitted te DistanceShore low error samples,cache=TRUE}
 
@@ -839,36 +990,4 @@ plot_sim=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(3262
 
 ggsave("sim_crcvm_fjords_hf_ne2.png",plot=plot_sim,width=10,height=5,path="crcvm_fjords_hf_ne2")
 ggplotly(plot_sim)
-```
-
-#### Violin plot of the estimated spline coefficients for all batches
-
-```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
-
-n_coeffs=length(sp_coeff_Dshore)
-coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
-
-for (k in 1:N_BATCH) {
-  m<-crcvm_fjords_hf_ne2[[paste("BATCH",k,sep="")]]
-  coeffs=m$coeff_re()
-  coeff_names=rownames(coeffs)
-  coeff_values=as.numeric(coeffs)
-  sub_index=grepl("omega",coeff_names)
-  sub_coeffs_df=data.frame("estimate"=coeff_values[sub_index],"coeff_name"=factor(coeff_names[sub_index]))
-  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
-}
-
-#remove initialization row
-coeffs_df=coeffs_df[-1,]
-
-p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
-                xlab(" ")+labs(fill = "Estimated coefficients")+
-                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
-
-
-
-p=ggplotly(p)
-saveWidget(p, file ="crcvm_fjords_hf_ne2/all_batches_coeffs_crcvm_fjords_hf_ne2.html")
-
 ```
