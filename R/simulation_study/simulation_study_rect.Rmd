@@ -58,7 +58,7 @@ source("CVM_functions.R")
 
 ```{r global variables}
 #number of batch
-N_BATCH=10
+N_BATCH=20
 
 #number of individual tracks per batch
 N_ID=6
