@@ -1,0 +1,1009 @@
+---
+title: "Simulation study in rectangular domain"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+  date: "2024-03-13"
+---
+
+# SET UP
+
+## Import libraries
+
+```{r libraries}
+#seed for reproducibility 
+set.seed(42)
+
+#parallel computing
+library(foreach)
+library(doParallel)
+
+#for tex code
+library(tinytex)
+
+#for tex expression in plot legends
+library(latex2exp)
+
+#for pipeline operator
+library(dplyr)
+
+#plots
+library(ggplot2)
+library(plotly)
+library(htmlwidgets)
+
+#data managing
+library(tidyr)
+
+#progress bar
+library(progress)
+
+#for land polygons
+library(sf)
+
+#SDE fit
+library(smoothSDE)
+
+#to fit smooth function with tensor splines
+library(mgcv)
+
+
+#some auxiliary functions
+source("CVM_functions.R")
+```
+
+## global variables
+
+```{r global variables}
+
+#number of individual tracks per batch
+N_ID=6
+
+#duration of each track in hour
+TMAX=0.5*24 
+
+#degree of freedom in tensor splines
+SP_DF=3
+  
+```
+
+# SIMULATION
+
+## Create the rectangle
+
+We create a square with sides of length 8km.
+
+```{r create rectangle}
+
+#rectangular domain 
+large_rectangle_coords <- matrix(c(0, 0, 0, 10, 10, 10, 10, 0, 0, 0), ncol = 2, byrow = TRUE)
+small_rectangle_coords <- matrix(c(1,1, 1, 9, 9, 9, 9, 1, 1, 1), ncol = 2, byrow = TRUE)
+
+# Create an sf object representing the rectangles
+large_rectangle <- st_sfc(st_polygon(list(large_rectangle_coords)))
+large_rectangle<-st_sf(geometry = large_rectangle)
+
+small_rectangle <- st_sfc(st_polygon(list(small_rectangle_coords)))
+small_rectangle<-st_sf(geometry = small_rectangle)
+
+#change its crs
+domain<- st_sym_difference(large_rectangle, small_rectangle)
+
+```
+
+```{r plot rectangle}
+
+plot_domain=ggplot()+geom_sf(data=domain$geometry,fill="blue")
+plot_domain
+```
+
+## Sample initial positions uniformly in the domain
+
+```{r initial positions}
+
+#initial velocity and location
+v0=c(0,0)
+
+#generate random initial points
+x0=matrix(rep(NA,N_ID*2),ncol=2)
+colnames(x0)=c("x1","x2")
+  
+for (i in 1:N_ID) {
+  #choose location uniformly in the domain
+  x=c(runif(1,min=1.5,max=8.5),runif(1,min=1.5,max=8.5))
+  x0[i,]=x
+}
+  
+```
+
+## Fix time steps for observations 
+
+```{r time steps}
+#time step
+hf=1/60 
+
+#high frequency time points
+times_hf=seq(0,TMAX,by=hf)
+n_hf=length(times_hf)-1
+
+```
+
+## Set observation error
+
+```{r measurement error}
+#no measurement error (we cannot put 0 because only the log of this quantity is used)
+sigma_obs=0.005
+H_hf=array(rep(sigma_obs^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
+
+
+```
+
+
+## Smooth parameters of the CRCVM
+
+### Define smooth functions for tau and omega.
+
+```{r smooth parameters}
+
+#smooth parameters
+
+
+ftau=function(cov_data,D0=0.3,delta0=0.2,tau0=1,tau1=2,tau2=2,lambda=4,kappa=0.1) {
+  Dshore=cov_data$DistanceShore
+  theta=cov_data$theta
+  coeff=exp(-kappa*(Dshore/D0)^2)
+  tau=tau0*(1-coeff)+(delta0+(tau0-delta0)*exp(-theta^2/pi^2)+(tau1-delta0)*exp(-lambda*(theta-pi/2)^2)+(tau2-delta0)*exp(-lambda*(theta+pi/2)^2))*coeff
+  return (tau)
+}
+
+#mixture of independent gaussian
+ftau_gauss=function(cov_data,D0=0.5,tau0=1,tau1=1.5) {
+  Dshore=cov_data$DistanceShore
+  theta=cov_data$theta
+  tau=tau0+(tau1-tau0)*exp(-((theta-pi/2)/(pi/10))^2-(Dshore/D0)^2)+(tau1-tau0)*exp(-((theta+pi/2)/(pi/10))^2-(Dshore/D0)^2)
+  return (tau)
+}
+
+#constant tau
+ftau_constant=function(cov_data,tau=1,sigma_re=0.1) {
+  b=rnorm(1,mean=0,sd=sigma_re)
+  return (tau+b)
+}
+
+fomega=function(cov_data,D0=0.3,omega0=60*pi,lambda=1.5,kappa=0.5) {
+    Dshore=cov_data$DistanceShore
+    theta=cov_data$theta
+    if (is.null(Dshore)){
+      Dshore=1/cov_data$ExpShore
+    }
+    coeff=exp(-kappa*(Dshore/D0)^2)
+    omega=omega0/2*(tanh(lambda*(theta+pi/2-atanh(-0.9)/lambda))+tanh(lambda*(theta-(pi/2-atanh(-0.9)/lambda))))*coeff
+    return(omega)
+}
+
+#constant nu
+fnu_constant=function(cov_data,nu=4,sigma_re=0.3) {
+    b=rnorm(1,mean=0,sd=sigma_re)
+  return (nu+b)
+}
+
+```
+
+### Plot smooth functions.
+
+```{r plot smooth parameters}
+
+Dshore=seq(from=0.3,to=2,length.out=30)
+theta=seq(from=-pi,to=pi,length.out=30)
+grid<- as.data.frame(expand.grid(Dshore,theta))
+colnames(grid)=c("DistanceShore","theta")
+true_tau=matrix(ftau_constant(grid),30,30)
+true_omega=matrix(fomega(grid),30,30)
+
+
+plot_true_tau <- plot_ly(type = "surface",
+                         x = ~theta,y = ~Dshore,z=~true_tau,
+                         colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("True tau"),
+                       scene=list(xaxis = list(title = "Theta",showgrid = F),
+                      yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "tau"))) 
+
+plot_true_omega <- plot_ly(type = "surface",
+                           contours = list(z = list(show = TRUE, start = min(true_omega), end = max(true_omega), size = 5,color="black")),
+                         x = ~theta,y = ~Dshore,z=~true_omega,
+                         colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("True omega"),
+                       scene=list(xaxis = list(title = "Theta",showgrid = F),
+                      yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
+
+plot_true_tau
+plot_true_omega
+
+saveWidget(plot_true_omega, file ="true_smooth_omega_rect.html")
+
+```
+
+### Approximate smooth functions with tensor splines of DistanceShore
+
+```{r approximate smooth omega with DistanceShore splines}
+
+#number of points
+n <- 1000
+
+#sample theta and DistanceShore points in the domain
+theta <- runif(n,-pi,pi);
+DistanceShore <- runif(n,0.2,5);
+samples=data.frame(theta=theta,DistanceShore=DistanceShore)
+
+#define grid of values
+theta_v <- seq(-pi,pi,length=30)
+Dshore_v<- seq(0.2,5,length=30)
+pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
+
+# true values of the function over this grid
+truth <- matrix(fomega(pr),30,30)
+
+#points on the surface perturbed by gaussian noise
+f <- fomega(samples)
+y <- f+0*rnorm(n)
+
+#plot true function
+persp(theta_v,Dshore_v,truth);
+title("truth")
+
+
+#fit with bivariate splines te
+m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs="cs"),knots=list(theta=seq(-pi,pi,len=SP_DF),DistanceShore=seq(0.2,5,len=SP_DF)))
+
+#visualize
+vis.gam(m1);title("tensor product")
+
+df=data.frame("x"=theta,"z"=DistanceShore,"y"=y)
+fig <- plot_ly(df,type="scatter3d", x = ~x, y = ~z, z = ~y,mode="markers",marker=list(size=4))
+fig
+```
+
+
+### Approximate smooth functions with tensor splines of ExpShore
+
+```{r approximate smooth omega with ExpShore splines}
+ExpShore=1/DistanceShore
+
+#fit with bivariate splines te
+m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/5,1/0.2,len=SP_DF)))
+
+#visualize
+vis.gam(m2);title("tensor product")
+
+
+```
+
+### Get estimated spline coefficients
+
+```{r estimated spline coeffs}
+sp_coeff_Dshore=m1$coefficients
+sp_coeff_ExpShore=m2$coefficients
+```
+
+
+```{r}
+sp_coeff_Dshore
+```
+
+```{r}
+sp_coeff_ExpShore
+```
+
+### Define spline smooth functions for omega based on the approximations
+
+```{r spline smooth omega definition}
+
+
+fomega_splines=function(cov_data) {
+  
+  if (is.null(cov_data$ExpShore)){
+    omega=predict(m1,newdata=cov_data)
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    omega=predict(m2,newdata=cov_data)
+  }
+  
+  return(as.numeric(omega))
+}
+
+#k-th basis spline function
+fomega_spline_basis=function(cov_data,k=1) {
+  
+  if (is.null(cov_data$ExpShore)){
+    Xp=predict(m1, newdata = cov_data, type = "lpmatrix")
+    
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    Xp=predict(m2, newdata = cov_data, type = "lpmatrix")
+  }
+  coeffs=rep(0,ncol(Xp))
+  coeffs[k]=1
+  return(as.numeric(Xp%*%coeffs))
+}
+
+```
+
+### Plot spline omega and spline basis functions
+
+```{r plot spline smooth omega}
+
+Dshore=seq(from=0.3,to=2,length.out=30)
+theta=seq(from=-pi,to=pi,length.out=30)
+grid<- as.data.frame(expand.grid(Dshore,theta))
+colnames(grid)=c("DistanceShore","theta")
+spline_omega=matrix(fomega_splines(grid),30,30)
+
+# Extract the basis function values for the k-th basis function on the grid
+z2=matrix(fomega_spline_basis(grid,k=2),30,30)
+z3=matrix(fomega_spline_basis(grid,k=3),30,30)
+z4=matrix(fomega_spline_basis(grid,k=4),30,30)
+
+
+plot_spline_omega <- plot_ly(type = "surface",
+                             contours = list(z = list(show = TRUE, start = min(spline_omega), end = max(spline_omega), size = 5,color="black")),
+                         x = ~theta,y = ~Dshore,z=~spline_omega,
+                         colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline smooth omega"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis2 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z2), end = max(z2), size = 0.05,color="black")),
+                         x = ~theta,y = ~Dshore,z=~z2, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 2"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis3 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z3), end = max(z3), size = 0.05,color="black")),
+                         x = ~theta,y = ~Dshore,z=~z3, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 3"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega"))) 
+
+
+
+plot_basis4 <- plot_ly(type = "surface",contours = list(z = list(show = TRUE, start = min(z4), end = max(z4), size = 0.05,color="black")),
+                         x = ~Dshore,y = ~theta,z=~z4, colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
+                layout(title=paste("Spline basis 4"),scene=list(xaxis = list(title = "Theta",showgrid = T),
+                                                                 yaxis = list(title = "Distance to shore",showgrid = F),
+                                                            zaxis = list(title = "omega")))
+
+saveWidget(plot_spline_omega, file ="spline_smooth_omega_rect.html")
+```
+
+```{r plot spline omega}
+plot_spline_omega
+```
+
+```{r plot basis2}
+plot_basis2
+
+saveWidget(plot_basis2, file ="spline_basis2_omega_rect.html")
+```
+
+```{r plot basis3}
+plot_basis3
+saveWidget(plot_basis3, file ="spline_basis3_omega_rect.html")
+```
+
+```{r plot basis4}
+plot_basis4
+saveWidget(plot_basis4, file ="spline_basis4_omega_rect.html")
+```
+
+## Simulation with low measurement errors and high frequency 
+
+### Generate samples
+
+```{r illustrative sample for the paper}
+
+res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],times=seq(0,2*24,by=1/60),land=domain,verbose=FALSE)
+
+data_sim=res$sim
+data_sim$ID=factor(rep(1,length(data_sim$y1)))
+data_shore=res$shore[,c("p1","p2")]
+data_sim=cbind(data_sim,data_shore)
+
+data_sim=data_sim[seq(1,length(data_sim$time),by=5),]
+
+plot_illust_rect=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_sim,aes(p1,p2),shape=5,size=0.1,col="red")+
+  geom_point(data=data_sim,mapping=aes(y1,y2),size=0.1)+
+  geom_path(data=data_sim,mapping=aes(y1,y2),size=0.1)+
+  geom_point(data = data_sim%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
+
+plot_illust_rect
+
+ggsave(filename="illustrative_sample_rect.png",plot=plot_illust_rect,width=10,height=5)
+```
+
+
+
+```{r parallel generate batches of hf low errors samples,cache=TRUE}
+
+#setup parallel backend to use many processors
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
+
+data_rect_hf_ne <- foreach(k=1:N_BATCH,.packages=c("progress","MASS","sf","foreach","mgcv")) %dopar% {
+  data=foreach (i=1:N_ID,.combine='rbind') %do% {
+  
+    res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
+                        log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=domain,verbose=FALSE)
+
+    data_sim=res$sim
+    data_sim$ID=factor(rep(i,length(data_sim$y1)))
+    data_shore=res$shore[,c("p1","p2")]
+    cbind(data_sim,data_shore)
+  }
+  data 
+}
+
+#stop cluster
+stopCluster(cl)
+
+
+
+names(data_rect_hf_ne)=paste("BATCH",1:N_BATCH,sep="")
+```
+
+### percentage of samples that reached land
+
+```{r percentage of low error samples that reached land}
+count=0
+for (k in 1:length(names(data_rect_hf_ne))) {
+
+  data=data_rect_hf_ne[[paste("BATCH",k,sep="")]]
+  for (id in unique(data$ID)) {
+    sub_data=data[data$ID==id,]
+    if (nrow(sub_data) < n_hf) {
+      count=count+1
+      cat(paste("BATCH",k,sep=""),":",id,"\n",sep=" ")
+    }
+  }
+}
+cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
+```
+
+
+### plot one batch
+
+```{r plot one batch low error samples}
+
+plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=data_rect_hf_ne$BATCH1,aes(p1,p2),shape=5,size=0.1,col="red")+
+  geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
+  geom_path(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
+  geom_point(data = data_rect_hf_ne$BATCH1%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
+
+
+
+
+ggsave(filename="samples_rect_hf_ne.png",plot=plot_samples_rect_hf_ne,width=10,height=5)
+ggplotly(plot_samples_rect_hf_ne)
+```
+
+
+
+# ESTIMATION
+
+## Compute distance to shore and empirical deviation angles
+
+```{r compute covs}
+
+signed_angle <- function(u, v) {
+    #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
+    # as in 
+    # https://math.stackexchange.com/questions/529555/signed-angle-between-2-vectors
+    u <- matrix(u, ncol = 2)
+    v <- matrix(v, ncol = 2)
+    if (nrow(u) != nrow(v)) stop("u and v must have the same number of 
+                                  rows")
+    result <- as.numeric(atan2(v[,2], v[,1]) - atan2(u[,2], u[,1]))
+    ind1 <- which(result > pi)
+    ind2 <- which(result <= -pi)
+    result[ind1] <- result[ind1] - 2*pi
+    result[ind2] <- result[ind2] + 2*pi
+    return(result) 
+} 
+
+add_covs=function(data) {
+  #data has at least columns "time","y1" "y2", "p1","p2"
+  #this function new data frame with three more columns "theta", "DistanceShore" and "ExpShore"
+  
+  new_data=data
+  #observed deviation angles
+  n=length(new_data$time)
+
+  new_data$theta=rep(NA,n)
+
+  for (id in unique(new_data$ID)) {
+  
+    #filter data with specific id
+    sub_ind=(new_data$ID==id)
+    sub_data=new_data[sub_ind,]
+    n_sub=length(sub_data$time)
+  
+    #time steps
+    dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
+  
+    #step lengths
+    dx=sub_data[2:n_sub,"y1"]-sub_data[1:(n_sub-1),"y1"]
+    dy=sub_data[2:n_sub,"y2"]-sub_data[1:(n_sub-1),"y2"]
+  
+    #matrix of empirical velocity
+    vexp_df=cbind(dx/dtimes,dy/dtimes)
+
+    #matrix of normal vectors
+    normal=as.matrix(sub_data[2:n_sub,c("y1","y2")]-sub_data[2:n_sub,c("p1","p2")])
+  
+    #angle between velocity and normal vector
+    theta_coast=signed_angle(normal,vexp_df)
+  
+    #adjust lengths 
+    theta_coast=c(theta_coast,1) 
+  
+    new_data[sub_ind,"theta"]=theta_coast
+  }
+
+  #distance to shore
+  Dshore=sqrt((new_data$y1-new_data$p1)^2+(new_data$y2-new_data$p2)^2)
+  new_data$DistanceShore=Dshore
+  new_data$ExpShore=1/Dshore
+  
+  return(new_data)
+}
+
+
+for (k in 1:N_BATCH) {
+  
+  #dataframes for this batch
+  df_ne=data_rect_hf_ne[[paste("BATCH",k,sep="")]]
+  
+  #add covariates columns
+  df_ne=add_covs(df_ne)
+  
+  #change in the list of batch
+  data_rect_hf_ne[[paste("BATCH",k,sep="")]]=df_ne
+}
+
+```
+
+
+## Estimate with ExpShore covariate and tensor splines te
+
+### Fit sde
+
+```{r estimate te ExpShore for low error samples,cache=TRUE}
+
+
+crcvm_rect_hf_ne1<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %do% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
+  par0 <- c(0,0,1,1,0)
+  knots=list("omega"=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/5,1/0.2,len=SP_DF)))
+  
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH",k,sep="")]],type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
+                      other_data=list("H"=H_hf),knots=knots)
+  m$fit(method="BFGS")
+  m 
+}
+
+
+names(crcvm_rect_hf_ne1)=paste("BATCH",1:N_BATCH,sep="")
+
+
+```
+
+
+
+### Plot estimated smooth parameter omega in 3D for one batch
+
+```{r plot estimates te ExpShore for one batch of low error samples}
+xmin=list("theta"=-pi,"ExpShore"=1/2)
+xmax=list("theta"=pi,"ExpShore"=1/0.3)
+xlabel=list("ExpShore"="Distance to shore","theta"="Theta")
+link=list("ExpShore"=(\(x) 1/x),"theta"=identity)
+true_smooths=list("omega"=fomega_splines)
+res=crcvm_rect_hf_ne1$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne1",xmin=xmin,xmax=xmax,
+                                    xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=FALSE)
+res$fe_omega_theta_ExpShore
+```
+
+
+### Violin plot of the estimated spline coefficients for one batch
+
+```{r violin plots spline coeff te ExpShore for one batch of low error samples}
+
+true_coeff=data.frame(value=sp_coeff_ExpShore,name=c(paste("omega.",names(sp_coeff_ExpShore),sep="")))
+rownames(true_coeff)=NULL
+
+p=crcvm_rect_hf_ne1$BATCH1$plot_violin_coeff(model_name="crcvm_rect_hf_ne1",substring="omega",true_coeff=true_coeff,save=TRUE)
+
+ggplotly(p)
+```
+
+
+### Violin plot of the estimated spline coefficients for all batches
+
+```{r violin plots spline coeff te ExpShore all batches with low measurement error}
+
+
+n_coeffs=length(sp_coeff_ExpShore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  
+  #fitted model
+  m<-crcvm_rect_hf_ne1[[paste("BATCH",k,sep="")]]
+  
+  #re and fe coeffs
+  coeffs=rbind(m$coeff_re(),m$coeff_fe())
+  
+  #names and values of coeffs
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  
+  #keep coeffs that do not contain ID
+  sub_index=grep("ID",coeff_names,invert=TRUE)
+  
+  #standard deviation of random effects
+  sdev=m$sdev()
+  sdev_names=rownames(sdev)[1:2]
+  sdev_values=as.numeric(sdev)[1:2]
+  
+  #bind dataframe
+  sub_coeffs_df=data.frame("estimate"=c(coeff_values[sub_index],sdev_values),"coeff_name"=factor(c(coeff_names[sub_index],sdev_names)))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_ne1/all_batches_coeffs_crcvm_rect_hf_ne1.html")
+
+p
+
+```
+
+### Biais and RMSE
+
+```{r compute biais and rmse ExpShore splines}
+biais=c()
+rmse=c()
+
+#biais and rmse for omega coefficients
+for (string in names(sp_coeff_ExpShore)) {
+  name=paste("omega.",string,sep="")
+  true_value=sp_coeff_ExpShore[string]
+  estimates=coeffs_df[coeffs_df$coeff_name==name,"estimate"]
+  biais=c(biais,1/N_BATCH*sum(abs(estimates-true_value)))
+  rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_value)^2)))
+}
+
+
+#add biais and rmse for tau
+true_log_tau=0
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_tau)^2)))
+
+#add biais and rmse for nu
+true_log_nu=log(4)
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_nu)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_tau=0.1
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_tau)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_nu=0.3
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_nu)^2)))
+
+
+names(biais)=c(paste("omega.",names(sp_coeff_ExpShore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+names(rmse)=c(paste("omega.",names(sp_coeff_ExpShore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+
+```
+
+```{r print biais ExpShore splines}
+biais
+```
+
+```{r print rmse ExpShore splines }
+rmse
+```
+
+### Simulate from fitted model
+
+```{r simulate fitted te ExpShore low error samples,cache=TRUE}
+
+
+fExpShore=function(z,v,p) {
+  
+  
+  #normal vector
+  normal=c(z[1]-p[1],z[2]-p[2])
+  
+  #distance to shore
+  Dshore=sqrt(normal[1]^2+normal[2]^2)
+  if (Dshore<0.005) {
+    return (2000)
+  }
+  else {
+    return (1/Dshore)
+  }
+}
+
+fangle=function(z,v,p) {
+  
+  #normal vector
+  normal=c(z[1]-p[1],z[2]-p[2])
+  
+  #return angle
+  return (signed_angle(normal,v))
+}
+
+
+atw=list("ExpShore"=fExpShore,"AngleNormal"=fangle)
+sim_data=crcvm_rect_hf_ne1$BATCH1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne1$BATCH1$data(),atw=atw,land=domain)
+
+```
+
+
+### Plot simulation from fitted model
+
+```{r plot sim te ExpShore low error samples}
+
+plot_sim=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=sim_data,mapping=aes(y1,y2),size=0.1)+
+  geom_path(data=sim_data,mapping=aes(y1,y2),size=0.1)+
+  geom_point(data = sim_data%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2 ), shape = 3, size = 4, col = "red")+
+    xlab("x") + ylab("y")
+
+
+ggsave("sim_crcvm_rect_hf_ne1.png",plot=plot_sim,width=10,height=5,path="crcvm_rect_hf_ne1")
+ggplotly(plot_sim)
+```
+
+
+
+## Estimate with ExpShore covariate and tensor splines te
+
+### Fit sde
+
+```{r estimate te DistanceShore for low error samples,cache=TRUE}
+
+
+crcvm_rect_hf_ne2<- foreach(k=1:N_BATCH,.packages=c("smoothSDE")) %do% {
+  #estimation with tensor splines
+  formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+  par0 <- c(0,0,1,1,0)
+  knots=list("omega"=list(theta=seq(-pi,pi,len=SP_DF),DistanceShore=seq(0.2,5,len=SP_DF)))
+  
+  m <- SDE$new(formulas = formulas,data = data_rect_hf_ne[[paste("BATCH",k,sep="")]],type = "RACVM",
+                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
+                      other_data=list("H"=H_hf),knots=knots)
+  m$fit(method="BFGS")
+  m 
+}
+
+
+names(crcvm_rect_hf_ne2)=paste("BATCH",1:N_BATCH,sep="")
+```
+
+### Plots estimated smooth in 3D
+
+```{r plot estimates te DistanceShore for one batch of low error samples}
+xmin=list("theta"=-pi,"DistanceShore"=0.3)
+xmax=list("theta"=pi,"DistanceShore"=2)
+xlabel=list("DistanceShore"="Distance to shore","theta"="Theta")
+link=list("DistanceShore"=identity,"theta"=identity)
+true_smooths=list("omega"=fomega_splines)
+res=crcvm_rect_hf_ne2$BATCH1$get_all_plots(baseline=NULL,model_name="crcvm_rect_hf_ne2",xmin=xmin,xmax=xmax,
+                                    xlabel=xlabel,link=link,show_CI="pointwise",true_smooths=true_smooths,save=TRUE)
+res$fe_omega_theta_DistanceShore
+```
+
+
+### Violin plot of the estimated spline coefficients
+
+```{r violin plots spline coeffs te DistanceShore for one batch of low error sample}
+
+true_coeff=data.frame(value=sp_coeff_Dshore,name=c(paste("omega.",names(sp_coeff_Dshore),sep="")))
+rownames(true_coeff)=NULL
+
+p=crcvm_rect_hf_ne2$BATCH1$plot_violin_coeff(model_name="crcvm_rect_hf_ne2",substring="omega",
+                                             true_coeff=true_coeff,save=TRUE)
+
+ggplotly(p)
+```
+
+
+### Violin plot of the estimated spline coefficients for all batches
+
+
+```{r violin plots spline coeff te DistanceShore all batches with low measurement error}
+
+n_coeffs=length(sp_coeff_Dshore)
+coeffs_df=data.frame("estimate"=NA,"coeff_name"=NA)
+
+for (k in 1:N_BATCH) {
+  
+  #fitted model
+  m<-crcvm_rect_hf_ne2[[paste("BATCH",k,sep="")]]
+  
+  #re and fe coeffs
+  coeffs=rbind(m$coeff_re(),m$coeff_fe())
+  
+  #names and values of coeffs
+  coeff_names=rownames(coeffs)
+  coeff_values=as.numeric(coeffs)
+  
+  #keep coeffs that do not contain ID
+  sub_index=grep("ID",coeff_names,invert=TRUE)
+  
+  #standard deviation of random effects
+  sdev=m$sdev()
+  sdev_names=rownames(sdev)[1:2]
+  sdev_values=as.numeric(sdev)[1:2]
+  
+  #bind dataframe
+  sub_coeffs_df=data.frame("estimate"=c(coeff_values[sub_index],sdev_values),"coeff_name"=factor(c(coeff_names[sub_index],sdev_names)))
+  coeffs_df=rbind(coeffs_df,sub_coeffs_df)
+}
+
+#remove initialization row
+coeffs_df=coeffs_df[-1,]
+
+p=ggplot()+geom_violin(data=coeffs_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
+                xlab(" ")+labs(fill = "Estimated coefficients")+
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                geom_point(data = true_coeff, aes(x = name, y = value), color = "red", size = 1,shape=4)
+
+p=ggplotly(p)
+saveWidget(p, file ="crcvm_rect_hf_ne2/all_batches_coeffs_crcvm_rect_hf_ne2.html")
+
+p
+
+```
+
+
+### Biais and RMSE
+
+```{r compute biais and rmse DistanceShore splines}
+biais=c()
+rmse=c()
+
+#biais and rmse for omega coefficients
+for (string in names(sp_coeff_Dshore)) {
+  name=paste("omega.",string,sep="")
+  true_value=sp_coeff_Dshore[string]
+  estimates=coeffs_df[coeffs_df$coeff_name==name,"estimate"]
+  biais=c(biais,1/N_BATCH*sum(abs(estimates-true_value)))
+  rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_value)^2)))
+}
+
+
+#add biais and rmse for tau
+true_log_tau=0
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_tau)^2)))
+
+#add biais and rmse for nu
+true_log_nu=log(4)
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(Intercept)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_log_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_log_nu)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_tau=0.1
+estimates=coeffs_df[coeffs_df$coeff_name=="tau.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_tau)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_tau)^2)))
+
+#add biais and rmse for sdev tau
+true_sdev_nu=0.3
+estimates=coeffs_df[coeffs_df$coeff_name=="nu.(ID)","estimate"]
+biais=c(biais,1/N_BATCH*sum(abs(estimates-true_sdev_nu)))
+rmse=c(rmse,sqrt(1/N_BATCH*sum((estimates-true_sdev_nu)^2)))
+
+
+names(biais)=c(paste("omega.",names(sp_coeff_Dshore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+names(rmse)=c(paste("omega.",names(sp_coeff_Dshore),sep=""),"tau.(Intercept)","nu.(Intercept)","tau.(ID)","nu.(ID)")
+
+```
+
+```{r print biais DistanceShore splines}
+biais
+```
+
+```{r print rmse DistanceShore splines}
+rmse
+```
+
+### Simulate from fitted model
+
+```{r simulate fitted te DistanceShore low error samples,cache=TRUE}
+
+
+fDshore=function(z,v,p) {
+  
+  
+  #normal vector
+  normal=c(z[1]-p[1],z[2]-p[2])
+  
+  #distance to shore
+  Dshore=sqrt(normal[1]^2+normal[2]^2)
+  return (Dshore)
+}
+
+fangle=function(z,v,p) {
+  
+  #normal vector
+  normal=c(z[1]-p[1],z[2]-p[2])
+  
+  #return angle
+  return (signed_angle(normal,v))
+}
+
+
+atw=list("DistanceShore"=fDshore,"AngleNormal"=fangle)
+sim_data=crcvm_rect_hf_ne2$BATCH1$simulate(z0=x0[1,],data=crcvm_rect_hf_ne2$BATCH1$data(),atw=atw,land=domain)
+
+```
+
+
+### Plot simulation from fitted model
+
+```{r plot sim te DistanceShore low error samples}
+
+plot_sim=ggplot()+geom_sf(data=domain$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
+  geom_point(data=sim_data,mapping=aes(y1,y2),size=0.1)+
+  geom_path(data=sim_data,mapping=aes(y1,y2),size=0.1)+
+  geom_point(data = sim_data%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2 ), shape = 3, size = 4, col = "red")+
+    xlab("x") + ylab("y")
+
+
+ggsave("sim_crcvm_rect_hf_ne2.png",plot=plot_sim,width=10,height=5,path="crcvm_rect_hf_ne2")
+ggplotly(plot_sim)
+```
+
+
+
+
+
+
