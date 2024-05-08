@@ -96,10 +96,10 @@ Anthropogenic underwater noise in the Arctic environment causes disturbances in 
 Research recommendations include a particular focus on measurement of behavioral reactions to various type of sound exposure \cite{southall_marine_2008,southall_marine_2019}. Rich behavioral studies typically involve controlled exposure experiments during which animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured such as GPS positions, depth, sound exposure level, temperature, pressure, heart beat, stroke rate, vocalizations... Numerous surveys have been conducted about beaked whales, which have been regularly implicated in stranding events following sonar exercises \cite{tyack_beaked_2011,cioffi_trade-offs_2022}, belugas \cite{martin_exposure_2023}, sperm whales \cite{madsen_quantitative_2006}, blue whales \cite{friedlaender_preymediated_2016}, and narwhals \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. \\
 A severity scale is defined in \cite{southall_marine_2008} to help assessing which behavioral responses are more likely to alter a population's capacity to survive, reproduce or forage. Changes in movement speed and direction, avoidance reactions as well as modified dive profiles or vocalizations  are ranked between 4 and 7 on a scale out of 9 (9 being stranding events that can directly lead to the death of the animal) depending on the magnitude of the changes and their duration.\\
 
-So far, the studies about narwhals behavioral responses to sound exposure prove that they can exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}.  Though GPS positions are retrieved only when the narwhals emerge to the surface, that is irregularly in time, they have so far been analyzed with discrete time methods relying on linear interpolation to obtain data every second. In \cite{heide-jorgensen_behavioral_2021}, the positions are classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second, and the dynamic of the states is modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source is then used to model the transition probabilities of the Markov Chain, and the probabilities of being in states "Close to the shore" and "Moving toward the shore" are shown to increase with exposure to the sound, while probability of being in state "Far from the shore" decreases. Additionally, an overall speed increase due to sound exposure is revealed by an analysis of the consecutive GPS positions through a mixed effect model. 
+So far, the studies about narwhals behavioral responses to sound exposure prove that they can exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}.  Though GPS positions are retrieved only when the narwhals emerge to the surface, that is irregularly in time, they have so far been analyzed with discrete time methods relying on linear interpolation to obtain data every second. In \cite{heide-jorgensen_behavioral_2021}, the positions are classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second, and the dynamic of the states is modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source is then used to model the transition probabilities of the Markov Chain. The probabilities of being in states "Close to the shore" and "Moving toward the shore" are shown to increase with exposure to the sound, while probability of being in state "Far from the shore" decreases. Additionally, an overall speed increase due to sound exposure is revealed by an analysis of the consecutive GPS positions through a mixed effect model. 
 Here, we  make use of a continuous time model to analyse the GPS positions in order to be able to quantify the effect of sound exposure on the speed and the heading of the narwhals in one single model. \\
 
-We focus on continuous-time models defined as a solution of a stochastic differential equation with time-varying coefficients. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. The following formulation of the equations represents an extension of the CVM \cite{johnson_continuoustime_2008}, which involves a rotational component and  is based on biologically interpretable parameters \cite{gurarie_correlated_2017}.
+We focus on continuous-time models defined as a solution of a stochastic differential equation with time-varying coefficients. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. The following formulation of the equations represents an extension of the CVM which involves a rotational component and  is based on biologically interpretable parameters \cite{gurarie_correlated_2017}.
 \begin{equation} \left\{
 	\begin{array}{l}
 		dX(t)=V(t)dt \\
@@ -112,9 +112,7 @@ We focus on continuous-time models defined as a solution of a stochastic differe
 	\label{eq: RACVM equation}
 \end{equation}
 where $V(t)$ is the horizontal two-dimensional velocity at time $t$ and $X(t)$ is the position, typically in longitude and latitude or in UTM coordinates. Here, $W(t)$ is a two-dimensional brownian motion. 
-The parameter $\tau$ is an autocorrelation time scale, $\nu$ controls the norm of the velocity and drives the random variability, $\mu$ is the long term velocity, while $\omega$ is an angular velocity that controls how fast the velocity vector rotates. The case $\omega=0$ corresponds to a standard CVM. In most applications, this model is satisfactory, but in case of tortuous movement, a non-zero value of $\omega$ is sometimes needed \cite{gurarie_correlated_2017,alt_correlation_1990,albertsen_generalizing_2018}. 
-
-Whether or not to include a non-zero mean velocity parameter $\mu$ depends on the specific context of the study. Typically, it would make sense to have $\mu\neq (0,0)$ when examining migratory patterns or avoidance reactions. We follow \cite{gurarie_correlated_2017} and refer to~\ref{eq: RACVM equation} as "Rotational Correlated Velocity Model" (RCVM) in the case $\mu=(0,0)$, and "Rotational Advective Correlated Velocity Model" (RACVM) in the case $\mu \neq (0,0)$.\\
+The parameter $\tau$ is an autocorrelation time scale, $\nu$ controls the norm of the velocity and drives the random variability, $\mu$ is the long term velocity, while $\omega$ is an angular velocity that controls how fast the velocity vector rotates. The case $\omega=0$ corresponds to a standard CVM. In most applications, this standard model is satisfactory, but in case of tortuous movement, a non-zero value of $\omega$ is sometimes needed \cite{gurarie_correlated_2017,alt_correlation_1990,albertsen_generalizing_2018}. Moreover, whether or not to include a non-zero mean velocity parameter $\mu$ depends on the specific context of the study. Typically, it would make sense to have $\mu\neq (0,0)$ when examining migratory patterns or avoidance reactions. We follow \cite{gurarie_correlated_2017} and refer to~\ref{eq: RACVM equation} as "Rotational Correlated Velocity Model" (RCVM) in the case $\mu=(0,0)$, and "Rotational Advective Correlated Velocity Model" (RACVM) in the case $\mu \neq (0,0)$.\\
 
 
 In general, the motion of marine mammals is subject to spatial constraints induced by the coastline. This is particularly the case for the narwhal data we want to analyse: the animals move in a restricted domain that consists in a complex system of fjords in Scoresby Sound (South-East Greenland). Thus, constraints for the shore are needed in the location process $X$. However, this is not the case in model~\ref{eq: RACVM equation}, nor in most of the SDE used for animal movement \cite{johnson_continuoustime_2008,michelot_varying-coefficient_2021,gurarie_correlated_2017}. 
@@ -124,7 +122,7 @@ Additionally, the way to model the motion of an animal near the boundary of the 
 
 
 
-Here, we show that the angular velocity  can be estimated as a function of the two covariates in the framework of the \texttt{R} package \texttt{smoothSDE} \cite{michelot_varying-coefficient_2021}. To make this possible, we formulate a state-space model by binding the velocity and location in one single hidden state vector, following \cite{johnson_continuoustime_2008}. Maximum likelihood estimation based on Kalman filter is then performed as for any other model in \texttt{smoothSDE}.\\
+Here, we show that the angular velocity  can be estimated as a function of the two covariates in the framework of the \texttt{R} package \texttt{smoothSDE} \cite{michelot_varying-coefficient_2021}. To make this possible, we formulate a state-space model by binding the velocity and location in one hidden state vector, following \cite{johnson_continuoustime_2008}. Maximum likelihood estimation based on Kalman filter is then performed as for any other model in \texttt{smoothSDE}.\\
 
 
 Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in equation \ref{eq: RACVM equation}. This effect is estimated as a smooth function of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model is compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
@@ -140,8 +138,7 @@ To summarize, the main contributions of this paper are
 \end{itemize}
 
 In Section 2, we give an overview of the narwhal data available for the analysis.
-The diffusion models are discussed in Section 3. Inference and simulation study results are explained in section 4.
-Then, our models are applied to analyse a behavioral response of the narwhals in section 5. The last section is dedicated to a discussion about these results, and potential extension of the models.
+Then, the diffusion models are discussed in Section 3. Section 4 is dedicated to the statistical model used to infer the shore and sound exposure effect. Simulation study results are shown in section 5. Eventually, our models are applied to analyse a behavioral response of the narwhals in section 6.
 
 
 
@@ -170,22 +167,22 @@ Measures that result in a velocity higher than $20$ km/h were also discarded (on
 Overall, $4192$ GPS positions are kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure results in $935$ measures before exposure and $3257$ measures after exposure.
 
 \subsection{Notations and definition of the covariates}
+\label{subsection: covariates}
 
+For each narwhal $i \in \{1,\cdots,N\}$ with $N=6$, we denote $n_i$ the total number of observations, which can be decomposed in $n_i=n_{i,pre}+n_{i,post}$ where $n_{i,pre}$ is the number of observations before exposure, and $n_{i,post}$ is the number of observations after exposure. We suppose that the positions are observed at times $t_{i1}, t_{i2}, \cdots,t_{in_i}$ and  for $j \in \{1,\cdots,n_i\}$, we denote $y_{ij}=\begin{pmatrix} y_{ij1} & y_{ij2} \end{pmatrix}^\top$ the observed GPS position at time $t_{ij}$, converted in UTM zone 26 North coordinates with the \texttt{R} package \texttt{rgdal}. These points are noisy observations of the underlying unobserved true positions $x_{ij}$.\\
 
-For each narwhal $i \in \{1,\cdots,N\}$ with $N=6$, we denote $n_i$ the total number of observations, which can be decomposed in $n_i=n_{i,pre}+n_{i,post}$ where $n_{i,pre}$ is the number of observations before exposure, and $n_{i,post}$ is the number of observations after exposure. We suppose that the positions are observed at times $t_{i1}, t_{i2}, \cdots,t_{in_i}$ and  for $j \in \{1,\cdots,n_i\}$, we denote $y_{ij}=\begin{pmatrix} y_{ij1} & y_{ij2} \end{pmatrix}^\top$ the observed GPS position at time $t_{ij}$, converted in Easting and Northing. These are noisy observations of the underlying unobserved true positions $x_{ij}$.\\
-
-The land geometry for the specific region in South-East Greenland is gathered from \href{https://www.openstreetmap.org/#map=11/70.4029/-27.2928}{OpenStreetMap} database. The land polygons define the boundaries of the domain $\mathcal{D}$ in which the narwhals can move. The closest point on the shoreline to the observed GPS position $y_{ij}$  is denoted $\hat{p}_{ij}$. Due to GPS measurement errors, it is an approximation of the unobserved closest point $p_{ij}$ to the true position, and therefore the distance to $\hat{p}_{ij}$, denoted $\hat{D}^{shore}_{ij}$ in the sequel, is considered a close approximation of the actual distance to the boundary $D^{shore}_{ij}$. The resulting values range from $0$ to $7.5$ km. About $9\%$ of the GPS measurements in the dataset turned out to be on land. This is primarily attributed to inaccuracies in the shoreline maps rather than errors in GPS measurements. For constrained movement models, these points are ignored. Then, exposure to the shore is defined with the following formula
+The land geometry for the specific region in South-East Greenland is gathered from \href{https://www.openstreetmap.org/#map=11/70.4029/-27.2928}{OpenStreetMap} database. The land polygons define the boundaries of the domain $\mathcal{D}$ in which the narwhals can move. The closest point on the shoreline to the observed GPS position $y_{ij}$  is denoted $\hat{p}_{ij}$. Due to GPS measurement errors, it is an approximation of the unobserved closest point $p_{ij}$ to the true position, and therefore the distance to $\hat{p}_{ij}$, denoted $\hat{D}^{shore}_{ij}$ in the sequel, is considered a close approximation of the actual distance to the boundary $D^{shore}_{ij}=d(x_{ij},p_{ij})$. About $9\%$ of the GPS measurements in the dataset turned out to be on land. After visual examination, this was attributed to inaccuracies in the shoreline maps rather than errors in GPS measurements. We therefore modified the land polygons using \texttt{qgis} based on a satellite image of Sentinel-2 downloaded from Google Earth Engine API. After modification,  $1.4 \%$ of the observations remained on land. Distance to shore values range from $0$ to $7.6$ km. We define an exposure to the shore covariate with the following formula
 \begin{equation}
 	\left\{
 	\begin{array}{ll}
-		E^{shore}_{ij}=0 & \mbox{if } D^{shore}_{ij}>D_{ref} \\
-		E^{shore}_{ij}=\frac{1}{D_{shore}(t_j)} & \mbox{if } D^{shore}_{ij} \leq D_{ref}
+		E^{shore}_{ij}=0 & \mbox{if } D_{min} <D^{shore}_{ij}<D_{max} \\
+		E^{shore}_{ij}=\frac{1}{D_{shore}(t_{ij})} & \mbox{if } D^{shore}_{ij} \leq D_{max}
 	\end{array}
 	\right.
 	\label{eq: exp shore definition}
 \end{equation}
-where the reference threshold $D_{ref}$ is chosen equal to $0.5$ km. We denote $\hat{E}^{shore}_{ij}$ the approximation of $E^{shore}_{ij}$ obtained by replacing the true distance $D^{shore}_{ij}$ by $\hat{D}^{shore}_{ij}$.
-The angle between the narwhal's heading and the shoreline, denoted $\Theta_{ij}$, is estimated as the angle $\hat{\Theta}_{ij}$ between the observed empirical velocity $\hat{v}_{ij}=\frac{y_{i,j+1}-y_{ij}}{\Delta_j}$, where $\Delta_j=t_{i,j+1}-t_{ij}$, and the vector $n_{ij}=y_{ij}-p_{ij}$. This is illustrated in figure~\ref{fig: illustration nearest shore points}. A value $\Theta_{ij}=\pm \frac{\pi}{2}$ indicates movement parallel to the shore, while $\Theta_{ij} \in \left]\frac{\pi}{2},\pi\right] \cup \left[-\pi,-\frac{\pi}{2}\right[$ indicates movement toward the shore. 
+where the reference thresholds are $D_{min}=58$ m, which is the $5\%$ quantile of observed distances, and $D_{max}=335$ m, which is the $25 \%$ quantile of observed distance. Thus we only consider the effect of the shore when the narwhals are close enough to it. We denote $\hat{E}^{shore}_{ij}$ the approximation of $E^{shore}_{ij}$ obtained by replacing the true distance $D^{shore}_{ij}$ by $\hat{D}^{shore}_{ij}$.
+The angle between the narwhal's heading and the shoreline $\Theta_{ij}$ is defined as the angle between the vectors $x_{ij}-p_{ij}$ and the true velocity $v_{ij}$. It is estimated as the angle $\hat{\Theta}_{ij}$ between the observed empirical velocity $\hat{v}_{ij}=\frac{y_{i,j+1}-y_{ij}}{\Delta_j}$, where $\Delta_j=t_{i,j+1}-t_{ij}$, and the vector $n_{ij}=y_{ij}-\hat{p}_{ij}$. This is illustrated in figure~\ref{fig: illustration nearest shore points}. A value $\Theta_{ij}=\pm \frac{\pi}{2}$ indicates movement parallel to the shore, while $\Theta_{ij} \in \left]\frac{\pi}{2},\pi\right] \cup \left[-\pi,-\frac{\pi}{2}\right[$ indicates movement toward the shore. 
 
 
 \begin{figure}[H]
@@ -211,7 +208,7 @@ The angle between the narwhal's heading and the shoreline, denoted $\Theta_{ij}$
 		\node[left] at (-1,3.5) {Land};
 		\node[right] at (1,3.5) {Water};
 		\node[left] at (0,0) {$\partial \mathcal{D}$};
-		\node[left] at (0,2) {$p_{ij}$};
+		\node[left] at (0,2) {$\hat{p}_{ij}$};
 		\node[left] at (1.2,2.8) {$\hat{v}_{ij}$};
 		\node[below] at (1.8,2) {$y_{ij}$};
 		\node[below,red] at (3,2) {$\vec{n}_{ij}$};
@@ -240,8 +237,8 @@ The angle between the narwhal's heading and the shoreline, denoted $\Theta_{ij}$
 	\end{figure}
 \end{comment}
 
-The distance from the ship, denoted $D^{ship}_{ij}$, is computed from the GPS ship and narwhals's positions. The values are comprised between $2.68$ and $63.8$ km.
-Exposure to ship covariate for narwhal $i$ at time $t_{ij}$, denoted $E^{ship}_{ij}$, is defined as the inverse of the distance to the ship (in km) \cite{heide-jorgensen_behavioral_2021}.
+The distance from the ship denoted $D^{ship}_{ij}$, is estimated as the distance between the GPS ship and narwhals's positions. We denote $\hat{D}^{ship}_{ij}$ this estimation. The values are comprised between $2.68$ and $63.8$ km.
+Exposure to ship covariate for narwhal $i$ at time $t_{ij}$, denoted $E^{ship}_{ij}$, is defined as the inverse of the distance to the ship (in km) \cite{heide-jorgensen_behavioral_2021}. Its estimate $\hat{E}^{ship}$ is the inverse of $\hat{D}^{ship}$.
 $D^{ship}$ is only known when the narwhal is in line of sight with the boat, so that exposures are set to $0$ when this is not this case. This implies that the effect of the ship noise on the narwhals's movement is only considered in this specific case in the whole study, though it is very likely that narwhals can perceive the disturbance even when they are not clearly in line of sight with the sound source. This provides a conservative estimate of the effect of the noise exposure. The covariate $E^{ship}$ is meant to be a proxy for sound exposure levels received by the narwhals. Reasonably, the closer the narwhal is to the ship, the more it can hear its sound, and the greater the exposure. Exposure levels for each narwhals are displayed in figure~\ref{fig: realexpthroughtime}.
 
 
@@ -341,7 +338,7 @@ and one can check that for $\omega=0$, the formulas that are derived here match 
 Unconstrained movement of animals that do not exhibit a clear rotational movement, as it is often the case for marine mammals, is generally modeled through a CVM, that is equation~\ref{eq: RACVM equation} with $\omega=0$.
 To get a constrained version of the CVM, we propose to make use of a new RCVM that includes how the animals turn in reaction to the shore. To do so, we introduce $\omega$ as a smooth function of the distance to the shore and the angle between the velocity vector and the shore normal vector. 
 The smooth function should be non zero close to the shore, that is when a change of direction due to the proximity of the shore is expected, and  zero far away from the shore. 
-We denote $\mathcal{D} \subset \R^2$ the polygon defining the domain of the process $X$. The new formulation of the equation is 
+We keep the notation $\mathcal{D} \subset \R^2$ for the polygon defining the domain of the process $X$. The new formulation of the equation is 
 \begin{equation} \left\{
 	\begin{array}{l}
 		dX(t)=V(t) dt \\
@@ -352,12 +349,16 @@ We denote $\mathcal{D} \subset \R^2$ the polygon defining the domain of the proc
 	\label{eq: CRCVM equation}
 \end{equation}
 
-with $A(X(t),V(t))=\begin{pmatrix} 
-	\frac{1}{\tau} & -\omega(t) \\
-	\omega(t) & \frac{1}{\tau}
-\end{pmatrix}$
-where $\omega(t)=f_{\omega}(D^{shore}(t),\Theta(t))$, $D^{shore}(t)=d(X(t),\partial\mathcal{D})$ is the distance to the boundary of the domain,
-$\Theta(t)=\widehat{(X(t)-p(t),V(t))}$, $p(t)$ is the projection of $X(t)$ on $\partial \mathcal{D}$ and $f_{\omega}$ is a smooth function from $\R^{+} \times [-\pi,\pi]$ into $\R$.
+with 
+\begin{equation} 
+		A(X(t),V(t))=\begin{pmatrix} 
+			\frac{1}{\tau} & -\omega(X(t),V(t)) \\
+			\omega(X(t),V(t)) & \frac{1}{\tau}
+		\end{pmatrix}
+	\label{eq: CRCVM matrix A}
+\end{equation}
+where $\omega(X(t),V(t))=f_{\omega}(D^{shore}(X(t)),\Theta(X(t),V(t)))$, $D^{shore}(X(t))$ is the distance from $X(t)$ to the boundary of the domain $\partial \mathcal{D}$
+and $\Theta(X(t),V(t))$ is the angle between the velocity and the shoreline as defined in subsection ~\ref{subsection: covariates}.Thus, $f_{\omega}$ is a smooth function from $\R^{+} \times [-\pi,\pi]$ into $\R$.
 
 Solving explicitly such a model is out of reach due to the non-linearity induced by the distance to the shore and the angle $\Theta$, but it is possible to get an approximate solution.
 For any $t \geq 0$ and $\Delta>0$, if $\Delta$ is small enough, we can use the approximations
@@ -379,7 +380,7 @@ f_{\omega}(\Theta,D^{shore})=\frac{\omega_0}{2}\left(\tanh(\lambda(\theta+\theta
 \end{equation}
 for some $\omega_0 \in \R$, $\lambda>0$, $\theta^* \in [0,2\pi]$.
 
-This parametrization of $\omega$ is only motivated by the observations above, and do not pretend to be optimal. Any smooth function that meets minimum requirements could be used instead. The general model is very flexible, and different species-specific behaviours could be described. An alternative is to specify the smooth function $f_{\omega}$ using spline basis functions. Figure~\ref{fig: trueomega} shows a smooth function obtained from equation~\ref{eq: smooth omega} for the parameter $\omega$, while figure~\ref{fig: splineomega} represents a smooth function $f_{\omega}$ obtained as a combination of nine cubic spline basis functions. In the sequel, such models with $\omega$ as a smooth function of $D^{shore}$ and $\Theta$ will be refered to as Constrained Rotational Correlated Velocity Models (CRCVM). A sample of a CRCVM with smooth function $f_{\omega}$ defined as by equation~\ref{eq: smooth omega} is illustrated in Figure~\ref{fig: samples_fjords_CRCVM}. The domain in which the process $X$ is constrained represents Scoresby-Sound fjords system coastline in South-East Greenland.
+This parametrization of $\omega$ is only motivated by the observations above, and do not pretend to be optimal. Any smooth function that meets minimum requirements could be used instead.An alternative is to specify the smooth function $f_{\omega}$ using spline basis functions. Figure~\ref{fig: trueomega} shows a smooth function obtained from equation~\ref{eq: smooth omega} for the parameter $\omega$, while figure~\ref{fig: splineomega} represents a smooth function $f_{\omega}$ obtained as a combination of nine cubic spline basis functions. In the sequel, such models with $\omega$ as a smooth function of $D^{shore}$ and $\Theta$ will be refered to as Constrained Rotational Correlated Velocity Models (CRCVM). A sample of a CRCVM with smooth function $f_{\omega}$ defined as by equation~\ref{eq: smooth omega} is illustrated in Figure~\ref{fig: sample RACVM}. The domain in which the process $X$ is constrained represents Scoresby-Sound fjords system coastline in South-East Greenland.
 
 
 \begin{figure}[H]
@@ -400,18 +401,17 @@ This parametrization of $\omega$ is only motivated by the observations above, an
 \end{figure}
 
 
+ The general model is very flexible, and different species-specific behaviours could be described. The function $\omega$ allows to control at which distance the animal will turn away from the shore, and how fast it will turn. We will show in section~\ref{section: simulation constrained motion} that is can be estimated from the observed positions, distances and angles. Specific constraints on the smooth function $f_{\omega}$ could also be set by biological expertise and knowledge about the species in question. Additionally, the tendency of an animal to move along the boundary of its spatial domain can be captured in the parameter $\tau$, as more persistent movement when the angle $\theta$ has value close to $\pm\frac{\pi}{2}$ would represent such an inclination. Again, this behavior can be statistically assessed from the observations. Examples of trajectories for different assumptions on the smooth parameters $\tau$ and $\nu$ are shown in Appendix.
 
 
 
 
 
-\label{section: simulation study}
-%samples and estimation
 %discussion about tensor splines vs additive splines
 
 
 
-\section{Inference}
+\section{Statistical model}
 
 
 \subsection{Mixed effet model for ship exposure and shore effects}
@@ -512,10 +512,12 @@ where $\zeta_{ij}$ and $\xi_{ij}$ are centered normal random vectors.
 The state space equations are
 
 \begin{equation}
-	\left\{
+	\forall i \in \{1,\cdots,N\}, \left\{
 	\begin{array}{l}
-		Y_{ij}=Z\alpha_{ij}+\varepsilon_{ij} \\
+		Y_{ij}=Z\alpha_{ij}+\varepsilon_{ij} \quad j \in \{1,\cdots,n_i\}\\
+		\varepsilon_{ij} \underset{i.i.d}{\sim} \mathcal{N}(0,\sigma_{obs}) \\
 		\alpha_{i,j+1}=T_{ij} \alpha_{ij} + \eta_{ij}
+		\eta_{ij} \sim \mathcal{N}(0,Q_{ij})
 	\end{array}
 	\right.
 	\label{eq: RACVM state space}
@@ -523,7 +525,7 @@ The state space equations are
 where the link matrices are 
 \[Z=\begin{pmatrix} I_2 & 0_{2,2}\end{pmatrix} \quad  T_{ij}=\begin{pmatrix} I_2 & A_{ij}^{-1}(I_2-\exp(-A_{ij} \Delta_j)) \\ 0_{2,2} & \exp(-A_{ij} \Delta_j) \end{pmatrix}\]
 
-The vector $\eta_{ij}=\begin{pmatrix} \xi_{ij,1} & \xi_{ij,2} & \zeta_{ij,1} & \zeta_{ij,2} \end{pmatrix}^\top$ is a 4 dimensional normal random vector, with mean zero. Its covariance matrix $Q_{ij}$ can be computed explicitly.
+The vector $\eta_{ij}$ with covariance matrix 
 \begin{equation}
 	Q_{ij}=\begin{pmatrix}
 		M_{ij} & L_{ij} \\
@@ -531,7 +533,7 @@ The vector $\eta_{ij}=\begin{pmatrix} \xi_{ij,1} & \xi_{ij,2} & \zeta_{ij,1} & \
 	\end{pmatrix}
 	\label{eq: state space covariance}
 \end{equation}
-where $M_{ij}$, $N_{ij}$and $L_{ij}$ are block matrices of size $2 \times 2$ such that 
+where $M_{ij}$, $N_{ij}$ and $L_{ij}$ are block matrices of size $2 \times 2$ such that 
 \[M_{ij}=\frac{\sigma_i^2}{C_{ij}}\left( \Delta-2 \frac{\omega_{ij} \sin(\omega_{ij} \Delta_{ij})-\frac{1}{\tau_{i}} \cos(\omega_{ij} \Delta_{ij})}{C_{ij} } \exp\left( -\frac{\Delta_{ij}}{\tau_{ij}} \right) +\frac{\tau_{i}}{2} \left( \frac{\omega_{ij}^2-\frac{3}{\tau_{ij}^2}}{C_{ij}}-\exp\left( -\frac{2\Delta_{ij}}{\tau_i}\right)\right) \right)I_2\]
 
 \[N_{ij}=\frac{\sigma_i^2}{2}\left(1-e^{-\frac{2 \Delta_{ij}}{\tau_{i}}}\right)I_2\]
@@ -604,7 +606,7 @@ The function $f_{\omega}$  is plotted as a function of $\Theta$ for different fi
 \end{figure}
 
 
-For each batch of $6$ trajectories, we obtain estimates $\widehat{\log(\tau_0)}^{(k)}$, $\widehat{\log(\nu_0)}^{(k)}$, $\hat{\omega}_l^{(k)}, l \in \{0,\cdots, L\}$, $\hat{\sigma}_{\tau}^{(k)}$ and $\hat{\sigma}_{\nu}^{(k)}$, $k \in \{1,\cdots,100\}$ and compute the root mean squared error and the biais of the estimator. The results are summarized in Tables~\ref{table: estimation performance rect} and~\ref{table: estimation performance fjords}.
+For each batch of $6$ trajectories, we obtain estimates $\widehat{\log(\tau_{pre})}^{(k)}$, $\widehat{\log(\nu_{pre})}^{(k)}$, $\hat{\omega}_l^{(k)}, l \in \{0,\cdots, L\}$, $\hat{\sigma}_{\tau}^{(k)}$ and $\hat{\sigma}_{\nu}^{(k)}$, $k \in \{1,\cdots,100\}$ and compute the root mean squared error and the biais of the estimator. The results are summarized in Tables~\ref{table: estimation performance rect} and~\ref{table: estimation performance fjords}.
 
 \begin{table}[H]
 	\centering
@@ -612,9 +614,9 @@ For each batch of $6$ trajectories, we obtain estimates $\widehat{\log(\tau_0)}^
 		\hline
 		Coefficient  & True value & Absolute biais  & Relative biais & RMSE\\
 		\hline
-		$\log(\tau_0)$  & 0& 0.08 &  & 0.16\\
+		$\log(\tau_{pre})$  & 0& 0.08 &  & 0.16\\
 		
-		$\log(\nu_0)$  & 1.38 & -0.07 & $-5.4 \%$ & 0.10 \\
+		$\log(\nu_{pre})$  & 1.38 & -0.07 & $-5.4 \%$ & 0.10 \\
 		
 		$\omega_0$  &  0.20  & -0.11 & $-58\%$ & 0.30 \\
 		
@@ -634,9 +636,9 @@ For each batch of $6$ trajectories, we obtain estimates $\widehat{\log(\tau_0)}^
 	
 		$\omega_8$  &  8.81 & -3.91 & $-44.4 \%$ & 5.88\\
 		
-		$\sigma_{\tau}$ & 0.1 & 0.015& $15\%$ & 0.10\\
+		$\sigma_{\tau,pre}$ & 0.1 & 0.015& $15\%$ & 0.10\\
 		
-		$\sigma_{\nu}$ & 0.3 & 0.007 & $7 \%$ & 0.04\\
+		$\sigma_{\nu,pre}$ & 0.3 & 0.007 & $7 \%$ & 0.04\\
 		\hline
 	\end{tabular}
 	\caption{Measures of estimation performance in the rectangular domain}
@@ -645,35 +647,35 @@ For each batch of $6$ trajectories, we obtain estimates $\widehat{\log(\tau_0)}^
 
 \begin{table}[H]
 	\centering
-	\begin{tabular}{|c|c|c|c|}
+	\begin{tabular}{|c|c|c|c|c|}
 		\hline
-		Coefficient  & True value & Biais & RMSE  \\
+		Coefficient  & True value & Absolute biais & Relative biais & RMSE  \\
 		\hline
-		$\log(\tau_0)$  &  0 &  &  \\
+		$\log(\tau_{pre})$  &  0 &  & & \\
 	
-		$\log(\nu_0)$  &  1.38 &  &  \\
+		$\log(\nu_{pre})$  &  1.38 &  & & \\
 	
-		$\omega_0$  & -0.34 &  &  \\
+		$\omega_0$  & -0.34 &  & & \\
 	
-		$\omega_1$  & 14.17  &  &  \\
+		$\omega_1$  & 14.17  &  & &  \\
 		
-		$\omega_2$  & -2.57 &  &  \\
+		$\omega_2$  & -2.57 &  & & \\
 		
-		$\omega_3$  & 11.14 &  &  \\
+		$\omega_3$  & 11.14 &  &  &\\
 	
-		$\omega_4$  & 36.48  &  &  \\
+		$\omega_4$  & 36.48  &  & & \\
 		
-		$\omega_5$  & 11.73 &  &  \\
+		$\omega_5$  & 11.73 &  & & \\
 		
-		$\omega_6$  & 53.69 &  &  \\
+		$\omega_6$  & 53.69 &  & & \\
 	
-		$\omega_7$  & 9.23 &  &  \\
+		$\omega_7$  & 9.23 &  & & \\
 	
-		$\omega_8$  & 10.19 &  &  \\
+		$\omega_8$  & 10.19 &  &  &\\
 		
-		$\sigma_{\tau}$ & 0.1 & & \\
+		$\sigma_{\tau,pre}$ & 0.1 & & &\\
 	
-		$\sigma_{\nu}$ & 0.3 & & \\
+		$\sigma_{\nu,pre}$ & 0.3 & & &\\
 		\hline
 	\end{tabular}
 	\caption{Measures of estimation performance in the Scoresby Sound domain}
