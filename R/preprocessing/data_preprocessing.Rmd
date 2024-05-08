@@ -571,9 +571,6 @@ greenland_data_path <- file.path(par_dir,"Data", "Greenland")
 #get land polygons
 land_utm<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 
-#get land polygons
-modified_land_utm<-st_read(file.path(greenland_data_path,"modified_land_utm.shp"))
-modified_land_utm <- st_transform(modified_land_utm, crs = "+init=EPSG:32626 +units=km")
 
 #scoresby sound google
 land_google_utm<-st_read(file.path(greenland_data_path,"land_google_utm.shp"))
@@ -585,8 +582,7 @@ st_crs(land_google_utm)="+init=EPSG:32626"
 ```{r plot coastline and land}
 plot_land=ggplot()+geom_sf(data=land_utm$geometry,fill="grey",col="brown")+
   coord_sf(datum=st_crs(32626))
-plot_modified_land=ggplot()+geom_sf(data=modified_land_utm$geometry,fill="grey",col="blue")+
-  coord_sf(datum=st_crs(32626))
+
 plot_land_google=ggplot()+geom_sf(data=land_google_utm$geometry,fill="grey",col="blue")+
   coord_sf(datum=st_crs(32626))
 ```
@@ -681,6 +677,7 @@ plot(res_land$min_distances-dataprep$DistanceShore)
 ```{r summary distances to shore}
 summary(res_land$min_distances)
 summary(dataprep$DistanceShore)
+quantile(res_land$min_distance,probs=c(0.05,0.95))
 ```
 
 
@@ -719,9 +716,6 @@ cat("Percentage of points on land with the original distance to shore : \n",
 cat("Percentage of points on land with distance from land : \n",
     length(which(res_land$min_distances==0))/length(dataprep$time)*100,"\n")
 
-
-cat("Percentage of points on land with distance from modified : \n",
-    length(which(res_modified_land$min_distances==0))/length(dataprep$time)*100)
 ```
 
 
