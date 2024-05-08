@@ -65,11 +65,11 @@ cat(paste(length(dataBE2[,1]),"positions measured before exposure \n"),file=file
 
 #### Preprocess data ----------
 
-dataBE1=dataBE1[dataBE1$DistanceShore> 0.03,]
-dataBE2=dataBE2[dataBE2$DistanceShore> 0.03,]
+#dataBE1=dataBE1[dataBE1$DistanceShore> 0.02,]
+#dataBE2=dataBE2[dataBE2$DistanceShore> 0.02,]
 
-dataBE1[dataBE1$DistanceShore> 2,"ExpShore"]=0
-dataBE1[dataBE1$DistanceShore> 2,"ExpShore"]=0
+#dataBE1[dataBE1$DistanceShore> 3,"ExpShore"]=0
+#dataBE1[dataBE1$DistanceShore> 3,"ExpShore"]=0
 
 #### Set measurement errors -----
 
@@ -155,12 +155,12 @@ par0 <- c(0,0,1,4,0)
 
 #model formula
 formulas <- list(mu1=~1,mu2=~1,
-                 tau =~1,
+                 tau =~s(AngleNormal,k=6,bs="cs")+s(ID,bs="re"),
                  nu=~s(ID,bs="re"),
-                 omega=~s(AngleNormal,k=10,bs="cs"))
+                 omega=~s(AngleNormal,k=4,bs="cs"))
 
 baseline1<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
-                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
 
 #fit_model
 baseline1$fit()
@@ -173,8 +173,34 @@ res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",show_CI="pointw
 
 #########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA   ##############################
 
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
-                 nu=~s(ID,bs="re"),omega=~te(AngleNormal,DistanceShore,k=7,bs="cs"))
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~s(AngleNormal,k=6,bs="cs")+s(DistanceShore,k=4,bs="cs"),
+                 nu=~1,omega=~te(AngleNormal,DistanceShore,k=c(5,4),bs="cs"))
+
+baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                    fixpar=c("mu1","mu2"))
+
+
+#fit_model
+baseline2$fit()
+estimates2=as.list(baseline2$tmb_rep(),what="Est")
+std2=as.list(baseline2$tmb_rep(),what="Std")
+
+
+#plot parameters
+
+xmin=list("DistanceShore"=0.05,"AngleNormal"=-pi)
+xmax=list("DistanceShore"=2,"AngleNormal"=pi)
+link=list("ExpShore"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore")
+
+res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+#########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA WITH FIXED COEFFS   ##############################
+
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~s(AngleNormal,k=6,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~te(AngleNormal,DistanceShore,k=c(4,3),bs="cs"))
 
 baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("H"=H),
