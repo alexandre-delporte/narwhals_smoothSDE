@@ -394,6 +394,8 @@ for (id in unique(dataprep$ID)){
 ```
 
 
+
+
 # Data exploration after second preprocessing
 
 ## measurement periods for each narwhal
@@ -550,6 +552,12 @@ anim_save(path=plots_folder,filename="all_narwhals_tracks.gif",
 map
 ```
 
+```{r save points as geojson in data folder}
+points_sf <- st_as_sf(dataprep[,c("x","y")], coords = c("x","y"))
+st_crs(points_sf)="+init=EPSG:32626 +units=km"
+st_write(points_sf,file.path(narwhal_data_path,"narwhals_positions.shp"))
+```
+
 # Coastline and land data
 
 ## Extract coastline and land polygons
@@ -560,23 +568,26 @@ map
 par_dir=dirname(dirname(getwd())) #parent directory 
 greenland_data_path <- file.path(par_dir,"Data", "Greenland")
 
-#get the coastline geometry from the geojson file
-coastline_utm<-st_read(file.path(greenland_data_path,"coastline_utm.geojson"))
-st_crs(coastline_utm)="+init=EPSG:32626"
-
 #get land polygons
 land_utm<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 
+#get land polygons
+modified_land_utm<-st_read(file.path(greenland_data_path,"modified_land_utm.shp"))
+modified_land_utm <- st_transform(modified_land_utm, crs = "+init=EPSG:32626 +units=km")
 
-
+#scoresby sound google
+land_google_utm<-st_read(file.path(greenland_data_path,"land_google_utm.shp"))
+st_crs(land_google_utm)="+init=EPSG:32626"
 ```
 
 ## Plot coastline and land
 
 ```{r plot coastline and land}
-plot_land=ggplot()+geom_sf(data=land_utm$geometry,fill=NA,col="brown")+
+plot_land=ggplot()+geom_sf(data=land_utm$geometry,fill="grey",col="brown")+
   coord_sf(datum=st_crs(32626))
-plot_coastline=ggplot()+geom_sf(data=coastline_utm$geometry,fill=NA,col="blue")+
+plot_modified_land=ggplot()+geom_sf(data=modified_land_utm$geometry,fill="grey",col="blue")+
+  coord_sf(datum=st_crs(32626))
+plot_land_google=ggplot()+geom_sf(data=land_google_utm$geometry,fill="grey",col="blue")+
   coord_sf(datum=st_crs(32626))
 ```
 
@@ -585,7 +596,11 @@ ggplotly(plot_land)
 ```
 
 ```{r display coastline , fig.cap="Coastline polygons and linestrings"}
-plot_coastline
+ggplotly(plot_modified_land)
+```
+
+```{r}
+ggplotly(plot_land_google)
 ```
 
 ## Compute nearest point on land and coastline for each GPS position
@@ -649,7 +664,6 @@ narwhal_positions=dataprep[,c("x","y")]
 result=system.time({
 
 res_land=nearest_points(positions=narwhal_positions,coastline=land_utm)
-res_coastline=nearest_points(positions=narwhal_positions,coastline=coastline_utm)
 })
 
 ```
@@ -662,42 +676,34 @@ cat("Elapsed time:", result[3]/60, "minutes\n")
 
 ```{r compare distances to shore}
 plot(res_land$min_distances-dataprep$DistanceShore)
-plot(res_coastline$min_distances-dataprep$DistanceShore)
 ```
 
 ```{r summary distances to shore}
 summary(res_land$min_distances)
-summary(res_coastline$min_distances)
 summary(dataprep$DistanceShore)
 ```
-Coastline distances are a bit closer to original distances in the dataset.
-Anyway, we shall keep distance computed from the land in the sequel, since the land polygons will be the reference domain
-for constrained movement of the narwhals.
+
+
 
 ```{r histograms distances to shore}
 histo1=ggplot(dataprep[dataprep$DistanceShore>0,], aes(x = DistanceShore)) +
   geom_histogram(fill="cyan",bins=100,color="black")+xlab("Original distance to shore (km)")
 
-df=data.frame(DistanceShore=res_coastline$min_distances[res_coastline$min_distances>0])
-histo2=ggplot(df, aes(x =DistanceShore)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance from coastline (km)")
 
 df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances>0])
-histo3=ggplot(df, aes(x =DistanceShore)) +
+histo2=ggplot(df, aes(x =DistanceShore)) +
   geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance fom land (km)")
 ```
 
 ```{r display histograms}
 histo1
 histo2
-histo3
 ```
 
 
 ```{=tex}
-There are pretty big differences between distances calculates with the coastline data and the land data.
 
-For the rest of the analysis, we'll keep the bounded domain defined by the polygons in \texttt{land\_utm} sf object as a reference.
+For the rest of the analysis, we'll keep the bounded domain defined by the polygons in \texttt{modified\_land\_utm} sf object as a reference.
 Doing that involves having some points on land, that is points with Distance to shore equal to 0.
 This should be essentially due to the error in the land polygons than to the error in GPS measurements.
 ```
@@ -714,8 +720,8 @@ cat("Percentage of points on land with distance from land : \n",
     length(which(res_land$min_distances==0))/length(dataprep$time)*100,"\n")
 
 
-cat("Percentage of points on land with distance from coastline : \n",
-    length(which(res_coastline$min_distances==0))/length(dataprep$time)*100)
+cat("Percentage of points on land with distance from modified : \n",
+    length(which(res_modified_land$min_distances==0))/length(dataprep$time)*100)
 ```
 
 
@@ -726,9 +732,9 @@ Some points that appear on land on the map don't have distance to shore 0. This 
 If we compute the distance to shore based on the map, as done in res_land, we get more points on the land.
 
 ```{r check original points on land}
-check_plot1=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
+check_plot1=ggplot()+geom_sf(data=land_google_utm$geometry,fill="grey")+
     coord_sf(datum=st_crs(32626))+
-  geom_point(data=dataprep,aes(x,y,col=(DistanceShore==0)),size=0.2)+
+  geom_point(data=dataprep,aes(x,y,col=(DistanceShore<0.05)),size=0.2)+
     scale_color_viridis_d()
 
 ggplotly(check_plot1)
@@ -745,7 +751,7 @@ dataprep[dataprep$DistanceShore==0,c("Depth","time")]
 df=dataprep
 df$DistanceShore=res_land$min_distances
 
-check_plot2=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
+check_plot2=ggplot()+geom_sf(data=land_utm$geometry,fill="grey")+
     coord_sf(datum=st_crs(32626))+
   geom_point(data=df,aes(x,y,col=(DistanceShore==0)),size=0.2)+
     scale_color_viridis_d()
@@ -769,7 +775,7 @@ Let's check the distribution of points near land to choose a minimum value for t
 
 ```{r distribution of points close to the shore}
 
-df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<2 & res_land$min_distances>0  ])
+df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<0.2 & res_land$min_distances>0  ])
 histo=ggplot(df, aes(x =DistanceShore)) +
   geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (km)")
 
@@ -896,10 +902,7 @@ for (id in unique(dataprep$ID)) {
 
 ## Plot empirical velocities and deviation angles through time
 
-```{=tex}
-$9 \%$ of the points are on land.
-If the points are too close to then land (let's say distance to shore < 50m), the covariates AngleShore and Angle Normal are likely to be irrelevant.
-```
+
 
 ```{r plot empirical velocities and deviation angles through time}
 
