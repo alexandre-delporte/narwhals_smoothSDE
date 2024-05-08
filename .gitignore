@@ -1,5 +1,9 @@
 # Cluster tracking files 
-*OAR
+*.err
+*.out
+
+# too large data files
+land_google_utm*
 
 # History files
 .Rhistory
