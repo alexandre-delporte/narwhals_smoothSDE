@@ -26,7 +26,7 @@ library(mgcv)               #tensor splines
 
 
 N_ID=6                      #number of individual tracks per batch
-TMAX=0.5*24                 #duration of each track in hour
+TMAX=1*24                 #duration of each track in hour
 SP_DF=3                     #degree of freedom in tensor splines
 
 

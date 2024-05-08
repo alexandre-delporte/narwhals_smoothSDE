@@ -51,7 +51,8 @@ library(mgcv)
 
 
 #some auxiliary functions
-source("CVM_functions.R")
+par_dir=dirname(getwd())
+source(file.path(par_dir,"CVM_functions.R"))
 ```
 
 ## global variables
@@ -65,7 +66,7 @@ N_ID=6
 TMAX=0.5*24 
 
 #degree of freedom in tensor splines
-SP_DF=3
+SP_DF=4
   
 ```
 
@@ -122,7 +123,8 @@ for (i in 1:N_ID) {
 
 ```{r time steps}
 #time step
-hf=1/60 
+hf=1/120
+
 
 #high frequency time points
 times_hf=seq(0,TMAX,by=hf)
@@ -334,7 +336,7 @@ fomega_spline_basis=function(cov_data,k=1) {
 
 ```{r plot spline smooth omega}
 
-Dshore=seq(from=0.3,to=2,length.out=30)
+Dshore=seq(from=0.3,to=4,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
 grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")
@@ -403,43 +405,12 @@ saveWidget(plot_basis4, file ="spline_basis4_omega_rect.html")
 
 ## Simulation with low measurement errors and high frequency 
 
-### Generate samples
-
-```{r illustrative sample for the paper}
-
-res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],times=seq(0,2*24,by=1/60),land=domain,verbose=FALSE)
-
-data_sim=res$sim
-data_sim$ID=factor(rep(1,length(data_sim$y1)))
-data_shore=res$shore[,c("p1","p2")]
-data_sim=cbind(data_sim,data_shore)
-
-data_sim=data_sim[seq(1,length(data_sim$time),by=5),]
-
-plot_illust_rect=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim,aes(p1,p2),shape=5,size=0.1,col="red")+
-  geom_point(data=data_sim,mapping=aes(y1,y2),size=0.1)+
-  geom_path(data=data_sim,mapping=aes(y1,y2),size=0.1)+
-  geom_point(data = data_sim%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
-
-plot_illust_rect
-
-ggsave(filename="illustrative_sample_rect.png",plot=plot_illust_rect,width=10,height=5)
-```
 
 
+```{r generate batch of hf low errors samples,cache=TRUE}
 
-```{r parallel generate batches of hf low errors samples,cache=TRUE}
 
-#setup parallel backend to use many processors
-cores=detectCores()
-cl <- makeCluster(cores[1]-1) #not to overload your computer
-registerDoParallel(cl)
-
-data_rect_hf_ne <- foreach(k=1:N_BATCH,.packages=c("progress","MASS","sf","foreach","mgcv")) %dopar% {
-  data=foreach (i=1:N_ID,.combine='rbind') %do% {
+data_rect_hf_ne =foreach (i=1:N_ID,.combine='rbind') %do% {
   
     res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
                         log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=domain,verbose=FALSE)
@@ -448,35 +419,12 @@ data_rect_hf_ne <- foreach(k=1:N_BATCH,.packages=c("progress","MASS","sf","forea
     data_sim$ID=factor(rep(i,length(data_sim$y1)))
     data_shore=res$shore[,c("p1","p2")]
     cbind(data_sim,data_shore)
-  }
-  data 
 }
 
-#stop cluster
-stopCluster(cl)
 
 
-
-names(data_rect_hf_ne)=paste("BATCH",1:N_BATCH,sep="")
 ```
 
-### percentage of samples that reached land
-
-```{r percentage of low error samples that reached land}
-count=0
-for (k in 1:length(names(data_rect_hf_ne))) {
-
-  data=data_rect_hf_ne[[paste("BATCH",k,sep="")]]
-  for (id in unique(data$ID)) {
-    sub_data=data[data$ID==id,]
-    if (nrow(sub_data) < n_hf) {
-      count=count+1
-      cat(paste("BATCH",k,sep=""),":",id,"\n",sep=" ")
-    }
-  }
-}
-cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
-```
 
 
 ### plot one batch
@@ -484,10 +432,10 @@ cat(count/(N_BATCH*N_ID)*100,"percent of the samples reached land")
 ```{r plot one batch low error samples}
 
 plot_samples_rect_hf_ne=ggplot()+geom_sf(data=domain$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_rect_hf_ne$BATCH1,aes(p1,p2),shape=5,size=0.1,col="red")+
-  geom_point(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
-  geom_path(data=data_rect_hf_ne$BATCH1,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
-  geom_point(data = data_rect_hf_ne$BATCH1%>% filter(!duplicated(ID)),
+  geom_point(data=data_rect_hf_ne,aes(p1,p2),shape=5,size=0.1,col="red")+
+  geom_point(data=data_rect_hf_ne,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
+  geom_path(data=data_rect_hf_ne,mapping=aes(y1,y2,color=ID,shape=ID),size=0.1)+
+  geom_point(data = data_rect_hf_ne%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 

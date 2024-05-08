@@ -1,0 +1,52 @@
+
+Attaching package: 'plotly'
+
+The following object is masked from 'package:ggplot2':
+
+    last_plot
+
+The following object is masked from 'package:stats':
+
+    filter
+
+The following object is masked from 'package:graphics':
+
+    layout
+
+Linking to GEOS 3.12.1, GDAL 3.6.1, PROJ 9.3.1; sf_use_s2() is TRUE
+Loading required package: nlme
+This is mgcv 1.9-1. For overview type 'help("mgcv-package")'.
+
+Attaching package: 'MASS'
+
+The following object is masked from 'package:plotly':
+
+    select
+
+
+Attaching package: 'smoothSDE'
+
+The following objects are masked _by_ '.GlobalEnv':
+
+    nearest_shore_point, signed_angle
+
+Loading required package: iterators
+Loading required package: parallel
+#######################
+### smoothSDE model ###
+#######################
+> SDE for RACVM model:
+     dV1(t) = -(1/tau) (V1(t) - mu1) dt + omega(V2(t)-mu2)dt+ (2*nu)/sqrt(pi*tau) dW1(t)
+      dV2(t)=-(1/tau) (V1(t) - mu1) dt - omega(V2(t)-mu2)dt+ (2*nu)/sqrt(pi*tau)  dW2(t)
+     dX(t)=V(t) dt 
+     tau=1/beta 
+     nu=sqrt(pi*beta)/sigma/2
+
+> Formulas for model parameters:
+* mu1 ~ fixed
+* mu2 ~ fixed
+* tau ~ s(ID, bs = "re")
+* nu ~ s(ID, bs = "re")
+* omega ~ te(theta, DistanceShore, k = SP_DF, bs = "cs")
+
+./rect_DistanceShore58.sh: line 8: 387497 Killed                  Rscript rect_DistanceShore58.R
