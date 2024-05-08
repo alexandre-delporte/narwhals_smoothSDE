@@ -1,10 +1,11 @@
-#
 # SETUP ------------------------------------
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-source("set_up_rect.R")     #get set up for simulation study
+domain_name="rect"
 par_dir=dirname(getwd())
+set_up_file=paste("set_up_",domain_name,".R",sep="")
+source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(par_dir,"CVM_functions.R"))  #get functions to simulate trajectories
 library(smoothSDE)          #sde models
 library(foreach)            #foreach loop
@@ -29,7 +30,7 @@ data_rect=foreach (i=1:N_ID,.combine='rbind') %do% {
     return (exp(true_log_tau[i]))
   }
   res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
-                        log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=domain,verbose=FALSE)
+                        log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=border,verbose=FALSE)
     
   data_sim=res$sim
   data_sim$ID=factor(rep(i,length(data_sim$y1)))
@@ -154,5 +155,5 @@ true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_ExpShore[2:9],0,0,
 coeffs_df=cbind(coeffs_df,true_df)
 
 
-write.csv(coeffs_df, paste("result_rect_ExpShore",seed,".csv",sep=""), row.names=FALSE)
+write.csv(coeffs_df, paste("result_",domain_name,"_ExpShore",seed,".csv",sep=""), row.names=FALSE)
 

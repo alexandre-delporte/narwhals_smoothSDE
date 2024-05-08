@@ -1,10 +1,11 @@
-#
 # SETUP ------------------------------------
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-source("set_up_fjords.R")     #get set up for simulation study
+domain_name="fjords"
 par_dir=dirname(getwd())
+set_up_file=paste("set_up_",domain_name,".R",sep="")
+source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(par_dir,"CVM_functions.R"))  #get functions to simulate trajectories
 library(smoothSDE)          #sde models
 library(foreach)            #foreach loop
@@ -17,13 +18,9 @@ set.seed(seed)
 
 # Generate samples ---------------
 
-#setup parallel backend to use many processors
-cores=detectCores()
-cl <- makeCluster(cores[1]-1) #not to overload your computer
-registerDoParallel(cl)
 
-data_fjords=foreach (i=1:N_ID,.combine='rbind',.packages=c("mgcv","progress","MASS","sf")) %dopar% {
-  
+data_rect=foreach (i=1:N_ID,.combine='rbind') %do% {
+    
   #constant nu
   fnu_constant=function(cov_data) {
     return (exp(true_log_nu[i]))
@@ -33,8 +30,8 @@ data_fjords=foreach (i=1:N_ID,.combine='rbind',.packages=c("mgcv","progress","MA
     return (exp(true_log_tau[i]))
   }
   res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
-                      log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=land,verbose=FALSE)
-  
+                        log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=border,verbose=FALSE)
+    
   data_sim=res$sim
   data_sim$ID=factor(rep(i,length(data_sim$y1)))
   data_shore=res$shore[,c("p1","p2")]
@@ -42,14 +39,11 @@ data_fjords=foreach (i=1:N_ID,.combine='rbind',.packages=c("mgcv","progress","MA
 }
 
 
-#stop cluster
-stopCluster(cl)
-
 
 # Points that reached land ---------------
 count=0
-for (id in unique(data_fjords$ID)) {
-  sub_data=data_fjords[data_fjords$ID==id,]
+for (id in unique(data_rect$ID)) {
+  sub_data=data_rect[data_rect$ID==id,]
   if (nrow(sub_data) < n_hf) {
     count=count+1
     cat("ID",id,"reached land","\n",sep=" ")
@@ -124,33 +118,33 @@ add_covs=function(data) {
   return(new_data)
 }
 
-data_fjords=add_covs(data_fjords)
+data_rect=add_covs(data_rect)
 
 # Estimate from simulated data ------------------
 
 formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
+                   nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
 par0 <- c(0,0,1,1,0)
 knots=list("omega"=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/5,1/0.2,len=SP_DF)))
-
-crcvm_rect<- SDE$new(formulas = formulas,data = data_fjords,type = "RACVM",
-                     response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
-                     other_data=list("H"=H_hf),knots=knots)
+  
+crcvm_rect<- SDE$new(formulas = formulas,data = data_rect,type = "RACVM",
+               response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
+               other_data=list("H"=H_hf),knots=knots)
 crcvm_rect$fit(method="BFGS")
 
 # Get estimated coefficients --------------
 
 
 coeffs=rbind(crcvm_rect$coeff_re(),crcvm_rect$coeff_fe()) #re and fe coeffs
-
+  
 coeff_names=rownames(coeffs)
 coeff_values=as.numeric(coeffs)
-
+  
 #standard deviation of random effects
 sdev=crcvm_rect$sdev()
 sdev_names=rownames(sdev)
 sdev_values=as.numeric(sdev)
-
+  
 #bind dataframe
 coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c(coeff_values,sdev_values))
 
@@ -160,5 +154,6 @@ true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_ExpShore[2:9],0,0,
 
 coeffs_df=cbind(coeffs_df,true_df)
 
-write.csv(coeffs_df, paste("result_fjords_ExpShore",seed,".csv",sep=""), row.names=FALSE)
+
+write.csv(coeffs_df, paste("result_",domain_name,"_ExpShore",seed,".csv",sep=""), row.names=FALSE)
 
