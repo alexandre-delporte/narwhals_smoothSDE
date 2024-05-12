@@ -61,46 +61,73 @@ cat(paste(length(dataAE[,1]),"positions measured after exposure \n"),file=filena
 allData=rbind(dataBE1,dataAE)
 
 ############################## SOME PREPROCESSING FOR EXPSHORE ####################################
+dataAE=dataAE[dataAE$DistanceShore>0.05,]
 
-#keep points far enough from land
-#dataAE=dataAE[dataAE$DistanceShore>0.03,]
+D_low=0.07
+D_up=0.83
+dataAE[dataAE$DistanceShore> D_up,"ExpShore"]=0
+dataAE[dataAE$DistanceShore< D_low,"ExpShore"]=1/D_low
 
-#put threshold on exposure
-dataAE[dataAE$DistanceShore>2,"ExpShore"]=0
+allData[allData$DistanceShore> D_up,"ExpShore"]=0
+allData[allData$DistanceShore< D_low,"ExpShore"]=1/D_low
+
 
 
 ############################################# SET MEASUREMENT ERROR ###############################################
 
 sigma_obs=0.045
-n_obs=length(allData$time)
+n_obs=length(dataAE$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 
-#######################  RACVM  MODEL WITH tensor splines te of AngleNormal and Distance Shore in omega #######################
-
-#define model
-formulas <- list(mu1=~1,mu2=~1,
-                 tau =~s(AngleNormal,k=6,bs="cs")+s(ID,bs="re"),
-                 nu=~1,omega=~s(AngleNormal,k=4,bs="cs"))
+########### MODEL WITH ONLY ANGLE NORMAL ##################
 par0 <- c(0,0,1,4,0)
-response1<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
-                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H))
 
+#model formula
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~1,
+                 nu=~1,
+                 omega=~s(AngleNormal,k=5,bs="cs")+s(ID,bs="re"))
 
+response1<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
 
 #fit_model
 response1$fit()
 estimates1=as.list(response1$tmb_rep(),what="Est")
 std1=as.list(response1$tmb_rep(),what="Std")
 
+res=response1$get_all_plots(baseline=NULL,model_name="response1",show_CI="pointwise",save=TRUE)
+
+#we see a clear effect of the angle on both omega and tau
+
+#######################  RACVM  MODEL WITH tensor splines te of AngleNormal and Distance Shore in omega #######################
+
+#define model
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~1,
+                 nu=~1,omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=3,bs="cs")+ti(DistanceShore,AngleNormal,k=3,bs="cs"))
+par0 <- c(0,0,1,4,0)
+response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
+                    other_data=list("H"=H))
+
+
+
+#fit_model
+response2$fit()
+estimates2=as.list(response1$tmb_rep(),what="Est")
+std2=as.list(response1$tmb_rep(),what="Std")
+
 
 #plot parameters
-xmin=list("ExpShore"=1/2,"AngleNormal"=-pi)
-xmax=list("ExpShore"=1/0.05,"AngleNormal"=pi)
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi)
+xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi)
+link=list("ExpShore"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore")
 
 
-res=response1$get_all_plots(baseline=NULL,model_name="response1",xmin=xmin,
+res=response2$get_all_plots(baseline=NULL,model_name="response2",xmin=xmin,
               xmax=xmax,show_CI="pointwise",save=TRUE)
 
 
@@ -112,20 +139,20 @@ formulas <- list(mu1=~1,mu2=~1,tau =~1
                  nu=~1,
                  omega=~te(AngleNormal,DistanceShore,k=c(4,4),bs="cs"))
 par0 <- c(0,0,1,4,0)
-response2<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
+response3<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H))
 
 
 
 #fit_model
-response2$fit()
-estimates2=as.list(response2$tmb_rep(),what="Est")
-std2=as.list(response2$tmb_rep(),what="Std")
+response3$fit()
+estimates3=as.list(response3$tmb_rep(),what="Est")
+std3=as.list(response3$tmb_rep(),what="Std")
 
 
 #plot parameters
 
-response2$get_all_plots(baseline=NULL,model_name="response2",xmin=xmin,
+response3$get_all_plots(baseline=NULL,model_name="response3",xmin=xmin,
                         xmax=xmax,show_CI="pointwise",save=TRUE)
 
 #########################  RACVM  MODEL WITH additive splines of  AngleNormal and ExpShore in omega and tau ##############################

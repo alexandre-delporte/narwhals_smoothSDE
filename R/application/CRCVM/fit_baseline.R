@@ -65,11 +65,13 @@ cat(paste(length(dataBE2[,1]),"positions measured before exposure \n"),file=file
 
 #### Preprocess data ----------
 
-#dataBE1=dataBE1[dataBE1$DistanceShore> 0.02,]
-#dataBE2=dataBE2[dataBE2$DistanceShore> 0.02,]
+D_low=0.03
+D_up=0.83
+dataBE1[dataBE1$DistanceShore> D_up,"ExpShore"]=0
+dataBE1[dataBE1$DistanceShore< D_low,"ExpShore"]=1/D_low
 
-#dataBE1[dataBE1$DistanceShore> 3,"ExpShore"]=0
-#dataBE1[dataBE1$DistanceShore> 3,"ExpShore"]=0
+dataBE2[dataBE2$DistanceShore> D_up,"ExpShore"]=0
+dataBE2[dataBE2$DistanceShore< D_low,"ExpShore"]=1/D_low
 
 #### Set measurement errors -----
 
@@ -148,7 +150,7 @@ fomega_splines=function(cov_data) {
 
 
 
-#########################  ANGLE NORMAL IN OMEGA   ##############################
+#########################  ANGLE NORMAL IN OMEGA AND TAU   ##############################
 
 #initial parameters
 par0 <- c(0,0,1,4,0)
@@ -160,7 +162,7 @@ formulas <- list(mu1=~1,mu2=~1,
                  omega=~s(AngleNormal,k=4,bs="cs"))
 
 baseline1<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 #fit_model
 baseline1$fit()
@@ -169,15 +171,18 @@ std1=as.list(baseline1$tmb_rep(),what="Std")
 
 res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",show_CI="pointwise",save=TRUE)
 
+#we see a clear effect of the angle on both omega and tau
 
+#########################  DISTANCE TO SHORE IN OMEGA AND TAU  ##############################
 
-#########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA   ##############################
+#initial parameters
+par0 <- c(0,0,1,4,0)
 
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~s(AngleNormal,k=6,bs="cs")+s(DistanceShore,k=4,bs="cs"),
-                 nu=~1,omega=~te(AngleNormal,DistanceShore,k=c(5,4),bs="cs"))
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(DistanceShore,k=5,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~s(DistanceShore,k=5,bs="cs"))
 
 baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
-                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
                     fixpar=c("mu1","mu2"))
 
 
@@ -189,12 +194,73 @@ std2=as.list(baseline2$tmb_rep(),what="Std")
 
 #plot parameters
 
-xmin=list("DistanceShore"=0.05,"AngleNormal"=-pi)
-xmax=list("DistanceShore"=2,"AngleNormal"=pi)
+xmin=list("DistanceShore"=0.05)
+xmax=list("DistanceShore"=2)
+
+res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",
+                            xmin=xmin,xmax=xmax,show_CI="pointwise",save=TRUE)
+
+#we see a clear effet of the distance on tau, but not on omega
+
+#########################  EXP TO SHORE IN OMEGA AND TAU  ##############################
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ExpShore,k=5,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),omega=~s(ExpShore,k=5,bs="cs"))
+
+baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"))
+
+
+#fit_model
+baseline3$fit()
+estimates3=as.list(baseline3$tmb_rep(),what="Est")
+std3=as.list(baseline3$tmb_rep(),what="Std")
+
+
+
+#plot parameters
+
+xmin=list("ExpShore"=1/D_up)
+xmax=list("DistanceShore"=1/D_low)
 link=list("ExpShore"=(\(x) 1/x))
 xlabel=list("ExpShore"="Distance to shore")
 
-res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",
+res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+#we see a clear effet of the exposure on tau, but again not on omega
+
+#########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA ONLY   ##############################
+
+#initial parameters
+par0 <- c(0,0,1,4.8,0)
+
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
+                 nu=~1,omega=~te(AngleNormal,ExpShore,k=6,bs="cs"))
+
+baseline4<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2","nu","tau"))
+
+
+#fit_model
+baseline4$fit()
+estimates4=as.list(baseline4$tmb_rep(),what="Est")
+std4=as.list(baseline4$tmb_rep(),what="Std")
+
+
+#plot parameters
+
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi)
+xmax=list("DistanceShore"=1/D_low,"AngleNormal"=pi)
+link=list("ExpShore"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore")
+
+res=baseline4$get_all_plots(baseline=NULL,model_name="baseline4",
                             xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 #########################  TE SPLINES ANGLE NORMAL AND EXP SHORE IN OMEGA WITH FIXED COEFFS   ##############################
@@ -227,23 +293,6 @@ xlabel=list("ExpShore"="Distance to shore")
 res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",
                             xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
-#########################  TI SPLINES ANGLE NORMAL AND EXPSHORE IN OMEGA  ##############################
-
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau = ~1,
-                 nu=~1,omega=~te(AngleNormal,ExpShore,k=3,bs="cs"))
-
-baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
-                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(0.04)),
-                    fixpar=c("mu1","mu2"))
-
-#fit_model
-baseline3$fit()
-estimates3=as.list(baseline3$tmb_rep(),what="Est")
-std3=as.list(baseline3$tmb_rep(),what="Std")
-
-
-res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",
-                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 ###########################         AICs VALUES FOR THE BASELINE MODELS        ####################################
