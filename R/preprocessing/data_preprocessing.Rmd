@@ -555,12 +555,12 @@ map
 ```{r save points as geojson in data folder}
 points_sf <- st_as_sf(dataprep[,c("x","y")], coords = c("x","y"))
 st_crs(points_sf)="+init=EPSG:32626 +units=km"
-st_write(points_sf,file.path(narwhal_data_path,"narwhals_positions.shp"))
+st_write(points_sf,file.path(narwhal_data_path,"narwhals_positions.shp"),append=FALSE)
 ```
 
 # Coastline and land data
 
-## Extract coastline and land polygons
+## Extract land polygons to define the border of the domain
 
 ```{r extract coastline and land}
 
@@ -571,10 +571,6 @@ greenland_data_path <- file.path(par_dir,"Data", "Greenland")
 #get land polygons
 land_utm<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 
-
-#scoresby sound google
-land_google_utm<-st_read(file.path(greenland_data_path,"land_google_utm.shp"))
-st_crs(land_google_utm)="+init=EPSG:32626"
 ```
 
 ## Plot coastline and land
@@ -582,22 +578,13 @@ st_crs(land_google_utm)="+init=EPSG:32626"
 ```{r plot coastline and land}
 plot_land=ggplot()+geom_sf(data=land_utm$geometry,fill="grey",col="brown")+
   coord_sf(datum=st_crs(32626))
-
-plot_land_google=ggplot()+geom_sf(data=land_google_utm$geometry,fill="grey",col="blue")+
-  coord_sf(datum=st_crs(32626))
 ```
 
 ```{r display land , fig.cap="Land polygons"}
 ggplotly(plot_land)
 ```
 
-```{r display coastline , fig.cap="Coastline polygons and linestrings"}
-ggplotly(plot_modified_land)
-```
 
-```{r}
-ggplotly(plot_land_google)
-```
 
 ## Compute nearest point on land and coastline for each GPS position
 
@@ -678,6 +665,8 @@ plot(res_land$min_distances-dataprep$DistanceShore)
 summary(res_land$min_distances)
 summary(dataprep$DistanceShore)
 quantile(res_land$min_distance,probs=c(0.05,0.95))
+D_low=quantile(res_land$min_distance,probs=0.05)
+D_up=median(res_land$min_distance)
 ```
 
 
@@ -726,9 +715,9 @@ Some points that appear on land on the map don't have distance to shore 0. This 
 If we compute the distance to shore based on the map, as done in res_land, we get more points on the land.
 
 ```{r check original points on land}
-check_plot1=ggplot()+geom_sf(data=land_google_utm$geometry,fill="grey")+
+check_plot1=ggplot()+geom_sf(data=land_utm$geometry,fill="grey")+
     coord_sf(datum=st_crs(32626))+
-  geom_point(data=dataprep,aes(x,y,col=(DistanceShore<0.05)),size=0.2)+
+  geom_point(data=dataprep,aes(x,y,col=(DistanceShore==0)),size=0.2)+
     scale_color_viridis_d()
 
 ggplotly(check_plot1)
@@ -769,7 +758,7 @@ Let's check the distribution of points near land to choose a minimum value for t
 
 ```{r distribution of points close to the shore}
 
-df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<0.2 & res_land$min_distances>0  ])
+df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances<1 & res_land$min_distances>0  ])
 histo=ggplot(df, aes(x =DistanceShore)) +
   geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (km)")
 
@@ -779,7 +768,6 @@ histo
 
 This seems to be pretty uniformly distributed. It is difficult to assess at which distance the narwhals stay from 
 the shore in reality.
-Let's choose arbitrarily a threshold of 50 metres.
 
 # Third preprocessing step
 
@@ -1197,13 +1185,12 @@ for (id in unique(dataprep$ID)) {
 
 ## Plot each individual track along with nearest shore points
 
-The UTM coordinates for the coastlines are in meters, so that we need to multiply by 1000 when plotting the nearest shore points.
 
 ```{r individual tracks}
 
 for (id in unique(dataprep$ID)) {
   sub_data=dataprep[dataprep$ID==id,]
-  id_track=ggplot()+geom_sf(data=land_utm$geometry,fill=NA)+
+  id_track=ggplot()+geom_sf(data=land_utm$geometry,fill="grey")+
     coord_sf(datum=st_crs(32626))+
   geom_point(data=sub_data,aes(px,py),shape=5,size=0.1,col="red")+
   geom_point(data=sub_data,aes(x,y,col=time),size=0.1)+
@@ -1279,7 +1266,11 @@ pExpShip
 ## Plot shore exposure
 
 ```{r}
-pExpShore=ggplot(dataprep[dataprep$DistanceShore>0.05,],aes(time,ExpShore,col=ID))+ geom_line(color="black")+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
+df=dataprep
+df[df$DistanceShore<D_low,"ExpShore"]=1/D_low
+df[df$DistanceShore>D_up,"ExpShore"]=0
+
+pExpShore=ggplot(df,aes(time,ExpShore,col=ID))+ geom_line(color="black")+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   theme(legend.position="none")+xlab("Time (h)")+ylab("Exposure to shore")
 
 
