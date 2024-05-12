@@ -61,7 +61,7 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
-ggsave(filename=paste("plot_",domain_name,"_",seed,".png",sep=""),plot=plot,width=10,height=5)
+ggsave(filename=paste("plot_",domain_name,seed,".png",sep=""),plot=plot,width=10,height=5)
 
 
 # Add covariates to simulation -----------
