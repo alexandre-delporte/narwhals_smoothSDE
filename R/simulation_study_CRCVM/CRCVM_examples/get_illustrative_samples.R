@@ -177,12 +177,12 @@ SP_DF=3
 
 #sample theta and DistanceShore points in the domain
 theta <- runif(n,-pi,pi);
-DistanceShore <- runif(n,0.1,8);
+DistanceShore <- runif(n,0.2,8);
 samples=data.frame(theta=theta,DistanceShore=DistanceShore)
 
 #define grid of values
 theta_v <- seq(-pi,pi,length=30)
-Dshore_v<- seq(0.1,8,length=30)
+Dshore_v<- seq(0.2,8,length=30)
 pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 
@@ -193,13 +193,13 @@ y <- f+0.1*rnorm(n)
 
 #fit with bivariate splines te
 m1 <- gam(y~te(theta,DistanceShore,k=SP_DF),knots=list(theta=seq(-pi,pi,len=SP_DF),
-                                                       DistanceShore=seq(0.1,8,len=SP_DF)))
+                                                       DistanceShore=seq(0.2,8,len=SP_DF)))
 
 ExpShore=1/DistanceShore
 
 #fit with bivariate splines te
 m2 <- gam(y~te(theta,ExpShore,k=SP_DF),knots=list(theta=seq(-pi,pi,len=SP_DF),
-                                                  ExpShore=seq(1/8,1/0.1,len=SP_DF)))
+                                                  ExpShore=seq(1/8,1/0.2,len=SP_DF)))
 
 
 fomega_splines=function(cov_data) {
@@ -216,7 +216,7 @@ fomega_splines=function(cov_data) {
 
 # Plot the different smooth functions ---------------------------------------
 
-Dshore=seq(from=0.05,to=3,length.out=30)
+Dshore=seq(from=0.05,to=4,length.out=30)
 theta=seq(from=-pi,to=pi,length.out=30)
 grid<- as.data.frame(expand.grid(Dshore,theta))
 colnames(grid)=c("DistanceShore","theta")

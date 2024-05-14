@@ -20,68 +20,74 @@ library(ggplot2)
 
 
 domains=c("rect","circ","fjords")
+times=c(12,24)
 
 for (domain in domains) {
   
-  # Read csv files ----------
-  files_DistanceShore<- list.files(path=domain,pattern = "^result_.+_DistanceShore[0-9]+\\.csv$")
-  files_ExpShore<- list.files(path=domain,pattern = "^result_.+_ExpShore[0-9]+\\.csv$")
+  for (time in times) {
   
-  df_ExpShore=data.frame("coeff_name"=NA,"estimate"=NA,"true"=NA)
-  df_DistanceShore=data.frame("coeff_name"=NA,"estimate"=NA,"true"=NA)
+    # Read csv files ----------
+    pattern_DistanceShore <- sprintf("result_%dh_%s_DistanceShore[1-9][0-9]*", time, domain)
+    pattern_ExpShore <- sprintf("result_%dh_%s_ExpShore[1-9][0-9]*", time, domain)
+    files_DistanceShore<- list.files(path=domain,
+                                   pattern = pattern_DistanceShore)
+    files_ExpShore<- list.files(path=domain,pattern = pattern_ExpShore)
   
-  for (file in files_DistanceShore) {
+    df_ExpShore=data.frame("coeff_name"=NA,"estimate"=NA,"true"=NA)
+    df_DistanceShore=data.frame("coeff_name"=NA,"estimate"=NA,"true"=NA)
+  
+    for (file in files_DistanceShore) {
     
-    df=read.csv(file.path(domain,file))
-    df_DistanceShore=rbind(df_DistanceShore,df)
+      df=read.csv(file.path(domain,file))
+      df_DistanceShore=rbind(df_DistanceShore,df)
     
-  }
-  
-  for (file in files_ExpShore) {
-    
-    df=read.csv(file.path(domain,file))
-    df_ExpShore=rbind(df_ExpShore,df)
-    
-  }
-  
-  # Bias and rmse for DistanceShore splines ------------
-  
-  df_DistanceShore=df_DistanceShore[-1,]
-  
-  N_DistanceShore=length(files_DistanceShore)
-  
-  biais_DistanceShore=c()
-  re_biais_DistanceShore=c()
-  rmse_DistanceShore=c()
-  true_values_DistanceShore=c()
-  
-  #loop over the coefficients
-  for (name in unique(df_DistanceShore$coeff_name)) {
-    
-    #all estimates for this coeff
-    estimates=df_DistanceShore[df_DistanceShore$coeff_name==name,"estimate"]
-    true_value=df_DistanceShore[df_DistanceShore$coeff_name==name,"true"][1]
-    
-    true_values_DistanceShore=c(true_values_DistanceShore,true_value)
-    
-    if (is.na(true_value)) {
-      re_biais_DistanceShore=c(re_biais_DistanceShore,NA)
-      biais_DistanceShore=c(biais_DistanceShore,NA)
-      rmse_DistanceShore=c(rmse_DistanceShore,NA)
     }
-    else {
-      
-      biais_DistanceShore=c(biais_DistanceShore,1/N_DistanceShore*sum(estimates-true_value))
-      rmse_DistanceShore=c(rmse_DistanceShore,sqrt(1/N_DistanceShore*sum((estimates-true_value)^2)))
-      
-      if (true_value==0) {
+  
+    for (file in files_ExpShore) {
+    
+     df=read.csv(file.path(domain,file))
+      df_ExpShore=rbind(df_ExpShore,df)
+    
+    }
+  
+    # Bias and rmse for DistanceShore splines ------------
+  
+    df_DistanceShore=df_DistanceShore[-1,]
+  
+    N_DistanceShore=length(files_DistanceShore)
+  
+    biais_DistanceShore=c()
+    re_biais_DistanceShore=c()
+    rmse_DistanceShore=c()
+    true_values_DistanceShore=c()
+  
+    #loop over the coefficients
+    for (name in unique(df_DistanceShore$coeff_name)) {
+    
+      #all estimates for this coeff
+      estimates=df_DistanceShore[df_DistanceShore$coeff_name==name,"estimate"]
+      true_value=df_DistanceShore[df_DistanceShore$coeff_name==name,"true"][1]
+    
+      true_values_DistanceShore=c(true_values_DistanceShore,true_value)
+    
+      if (is.na(true_value)) {
         re_biais_DistanceShore=c(re_biais_DistanceShore,NA)
+        biais_DistanceShore=c(biais_DistanceShore,NA)
+        rmse_DistanceShore=c(rmse_DistanceShore,NA)
       }
       else {
-        re_biais_DistanceShore=c(re_biais_DistanceShore,100*1/N_DistanceShore*sum((estimates-true_value)/true_value))
+      
+        biais_DistanceShore=c(biais_DistanceShore,1/N_DistanceShore*sum(estimates-true_value))
+        rmse_DistanceShore=c(rmse_DistanceShore,sqrt(1/N_DistanceShore*sum((estimates-true_value)^2)))
+      
+        if (true_value==0) {
+          re_biais_DistanceShore=c(re_biais_DistanceShore,NA)
+        }
+        else {
+          re_biais_DistanceShore=c(re_biais_DistanceShore,100*1/N_DistanceShore*sum((estimates-true_value)/true_value))
+        }
       }
     }
-  }
   
   results_DistanceShore=data.frame("coeff_name"=unique(df_DistanceShore$coeff_name),"true"=true_values_DistanceShore,
                                    "biais"=biais_DistanceShore,"re_biais"=re_biais_DistanceShore,"rmse"=rmse_DistanceShore)
@@ -140,7 +146,7 @@ for (domain in domains) {
     geom_point(data = df_ExpShore, aes(x = coeff_name, y = true), color = "red", size = 1,shape=4)
   
   #round values to 2 digits
-  round_numeric <- function(x,digits=2) {
+  round_numeric <- function(x,digits=3) {
     if (is.numeric(x)) {
       return(round(x, digits = digits))
     } else {
@@ -151,6 +157,7 @@ for (domain in domains) {
   results_ExpShore=as.data.frame(lapply(results_ExpShore, round_numeric))
   results_DistanceShore=as.data.frame(lapply(results_DistanceShore, round_numeric))
   
-  write.csv(results_DistanceShore, paste("result_",domain,"_DistanceShore.csv",sep=""), row.names=FALSE)
-  write.csv(results_ExpShore, paste("result_",domain,"_ExpShore.csv",sep=""), row.names=FALSE)
+  write.csv(results_DistanceShore, paste("result_",time,"h_",domain,"_DistanceShore.csv",sep=""), row.names=FALSE)
+  write.csv(results_ExpShore, paste("result_",time,"h_",domain,"_ExpShore.csv",sep=""), row.names=FALSE)
+  }
 }

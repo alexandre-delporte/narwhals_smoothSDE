@@ -903,7 +903,7 @@ sim_RACVM=function(mu1,mu2,beta,sigma,omega,v0,x0,times,log_sigma_obs=NULL,verbo
   
   #if log_sigma_obs is not null, add noise
   if (!(is.null(log_sigma_obs))) {
-    epsilon=mvrnorm(2,mu =c(0,0), Sigma =diag(exp(log_sigma_obs),2))
+    epsilon=mvrnorm(2,mu =c(0,0), Sigma =diag(exp(log_sigma_obs)^2,2))
     yobs=matrix(c(x0[1]+epsilon[1],x0[2]+epsilon[2]),nrow=2,ncol=1,byrow=TRUE)
   }
   else {
@@ -958,7 +958,7 @@ sim_RACVM=function(mu1,mu2,beta,sigma,omega,v0,x0,times,log_sigma_obs=NULL,verbo
     var_zeta=sigma^2/(2*beta)*(1-exp(-2*delta*beta))
     cov1=sigma^2/(2*C)*(1+exp(-2*delta*beta)-2*exp(-delta*beta)*cos(omega*delta))
     cov2=sigma^2/C*(exp(-delta*beta)*sin(omega*delta)-omega/(2*beta)*(1-exp(-2*delta*beta)))
-    Qi=matrix(c(var_xi,0,cov1,cov2,0,var_xi,cov2,cov1,cov1,cov2,var_zeta,0,cov2,cov1,0,var_zeta),nrow=4,byrow=TRUE)
+    Qi=matrix(c(var_xi,0,cov1,cov2,0,var_xi,-cov2,cov1,cov1,-cov2,var_zeta,0,cov2,cov1,0,var_zeta),nrow=4,byrow=TRUE)
     
     
     #random part
@@ -1246,7 +1246,7 @@ sim_theta_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,ver
   
   #if log_sigma_obs is not null, add noise
   if (!(is.null(log_sigma_obs))) {
-    epsilon=mvrnorm(2,mu =c(0,0), Sigma =diag(exp(log_sigma_obs),2))
+    epsilon=mvrnorm(2,mu =c(0,0), Sigma =diag(exp(log_sigma_obs)^2,2))
     yobs=matrix(c(x0[1]+epsilon[1],x0[2]+epsilon[2]),nrow=2,ncol=1,byrow=TRUE)
   }
   else {
@@ -1333,7 +1333,7 @@ sim_theta_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,ver
     var_zeta=sigma^2*tau/2*(1-exp(-2*delta/tau))
     cov1=sigma^2/(2*C)*(1+exp(-2*delta/tau)-2*exp(-delta/tau)*cos(omega*delta))
     cov2=sigma^2/C*(exp(-delta/tau)*sin(omega*delta)-omega/(2/tau)*(1-exp(-2*delta/tau)))
-    Qi=matrix(c(var_xi,0,cov1,cov2,0,var_xi,cov2,cov1,cov1,cov2,var_zeta,0,cov2,cov1,0,var_zeta),nrow=4,byrow=TRUE)
+    Qi=matrix(c(var_xi,0,cov1,cov2,0,var_xi,-cov2,cov1,cov1,-cov2,var_zeta,0,cov2,cov1,0,var_zeta),nrow=4,byrow=TRUE)
     
     
     #random part
