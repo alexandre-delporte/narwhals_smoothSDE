@@ -9,6 +9,7 @@
 \usepackage{subcaption}
 \usepackage{amssymb}
 \usepackage{amsfonts}
+\usepackage{amsthm}
 \usepackage{bbold}
 \usepackage{float}
 \usepackage[margin=0.8in]{geometry}
@@ -45,6 +46,19 @@
 \newcommand {\Z}{\mathbb{Z}}
 \newcommand {\1}{\mathbb{1}}
 
+%% MATHS
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{proposition}{Proposition}[section]
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+\theoremstyle{remark}
+\newtheorem*{example}{Example}
 
 %CITATIONS APPEARANCE
 \DeclareCiteCommand{\cite}[\mkbibbold]
@@ -288,31 +302,53 @@ In this section, we obtain explicit distributional results about the process $X$
 A more general formulation is considered by \cite{albertsen_generalizing_2018} in which the diffusion matrix is lower triangular matrix with positive diagonal elements whereas and two distinct autocorrelation parameters are considered in both directions allowing for anisotropic movement.
 In this case, \cite{albertsen_generalizing_2018} derives an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}. But again, exact formulas for the process $X$ are not mentioned and the Euler-scheme is used to get approximate transition densities of $X$. Here, we claim that under the hypothesis of isotropic movement, with diagonal diffusion matrix as in equation ~\ref{eq: RACVM equation}, not only the velocity but also the position process have a closed form formula. \\
 
-The transition density of the velocity Ornstein-Uhlenbeck process is  
-\begin{equation}V(t+\Delta) \vert V(t)=v \sim \mathcal{N}\left( (I_2-\exp(-A\Delta))\mu + \exp(-A\Delta)v, \frac{2\nu^2}{\pi}(1-e^{-2\frac{\Delta}{\tau}}) I_2 \right) 
-	\label{eq: transition RACVM velocity}
-\end{equation}
 
-
-where $\exp(-A\Delta)=e^{\frac{-\Delta}{\tau}} \begin{pmatrix} \cos(\omega \Delta) & \sin(\omega \Delta) \\ -\sin(\omega \Delta) & \cos(\omega \Delta) \end{pmatrix}$ is a weighted rotation matrix of angle $-\omega \Delta$.
-Intuitively, the next velocity is a weighted mean of the long term mean velocity $\mu$ and the previous velocity $v(t)$ rotated by an angle $-\omega \Delta$.
-
-
-%stationary distribution, distribution of the norm, distribution of the phase
-This velocity process has stationary distribution $\mathcal{N}\left(\mu,\frac{2\nu^2}{\pi} I_2\right)$ \cite{gurarie_correlated_2017}. After the velocity process has reached stationarity, that is typically for $t \geq 3\tau$, $\vert \vert v(t) \vert \vert$ follows a Rice distribution with mean parameter $\vert \vert \mu \vert \vert$ and variance parameter $\frac{2\nu^2}{\pi}$. In the special case $\mu=(0,0)$, this means that $\E(\vert \vert v(t) \vert \vert)=\nu$ and motivates the interpretation of $\nu$ as the mean velocity norm of the movement.
-
-By integrating the velocity equation over time one gets the following conditional distribution for the location process :
+\begin{proposition}
+	Let $U(t)=\begin{pmatrix} X(t) & V(t) \end{pmatrix}^\top$ for $t \geq 0$. Then the transition density of the Markov process $U$ is given by 
+	\begin{equation}
+		U(t+\Delta) \vert U(t)=u \sim \mathcal{N}\left( T(\Delta) u +B(\Delta)\mu, Q(\Delta)\right) \mbox{ for all } \Delta>0 \mbox{ and } u \in \R^4
+		\label{eq: X V distribution}
+	\end{equation}
+where \begin{equation}
+	T(\Delta)=\begin{pmatrix} I_2 & A^{-1}(I_2-\exp(-A\Delta)) \\
+	0_2 & \exp(-A\Delta) \end{pmatrix} \mbox{ and } B(\Delta)=\begin{pmatrix}
+	\Delta I_2 -A^{-1}(I_2-\exp(-A\Delta))\\
+	I_2-\exp(-A\Delta)\end{pmatrix}
+	\label{eq: link matrices}
+	\end{equation}
+and the covariance block matrix is given by
 \begin{equation}
-	X(t+\Delta) \vert X(t)=x, V(t)=v \sim \mathcal{N}\left(x+\mu \Delta+A^{-1} \left( I_2-\exp(-A\Delta)\right)(v-\mu),Q(\Delta)\right)  
-	\label{eq: transition RACVM location}
+	Q(\Delta)=\begin{pmatrix}
+		q_1(\Delta)I_2 & \Gamma(\Delta) \\
+		\Gamma(\Delta)^\top & q_2(\Delta)I_2
+	\end{pmatrix}
+	\label{eq: covariance matrix}
 \end{equation}
-Here, the exact formula for the covariance matrix $Q(\Delta)$ is the following :
+with 
+\begin{equation}q_1(\Delta)=\frac{\sigma^2}{C}\left( \Delta-2 \frac{\omega \sin(\omega \Delta)-\frac{1}{\tau} \cos(\omega \Delta)}{C_{ij} } \exp\left( -\frac{\Delta}{\tau} \right) +\frac{\tau}{2} \left( \frac{\omega^2-\frac{3}{\tau^2}}{C}-\exp\left( -\frac{2\Delta}{\tau}\right)\right) \right)
+\end{equation}
 
-\[
-Q(\Delta)=\left( \Delta-2 \frac{\omega \sin(\omega \Delta)-\frac{1}{\tau} \cos(\omega \Delta)}{\frac{1}{\tau^2}+\omega^2 } \exp\left( -\frac{\Delta}{\tau} \right) +\frac{\tau}{2} \left( \frac{\omega^2-\frac{3}{\tau^2}}{\frac{1}{\tau^2}+\omega^2}-\exp\left( -\frac{2\Delta}{\tau}\right)\right) \right) I_2
-\]
-The location process is not markovian, but the whole process $\begin{pmatrix}X(t) &V(t) \end{pmatrix}^\top$ is.
-The two components of the location and velocity processes are independent, and one can check that for $\omega=0$, the formulas that are derived here match the ones of the continuous-time correlated random walk model \cite{johnson_continuoustime_2008}. Figure~\ref{fig: sample RACVM} shows one sample of a RCVM along with a sample of a constrained version of a RCVM that is defined in section~\ref{section: CRCVM}. Derivations of the formulas given in this paragraph and the next one are detailed in appendix~\ref{section: detailed RACVM computations}.\\
+\begin{equation}
+	q_2(\Delta)=\frac{2\nu^2}{\pi}\left(1-e^{-\frac{2 \Delta}{\tau}}\right)
+\end{equation}
+\begin{equation}\Gamma(\Delta)=\begin{pmatrix} \gamma_1 & \gamma_2 \\
+	-\gamma_2 & \gamma_1\end{pmatrix}
+\end{equation}
+where
+\begin{equation}\gamma_1=\frac{\sigma^2}{2 C } \times \left( 1+\exp\left( -\frac{2\Delta}{\tau}\right)-2\exp\left( -\frac{\Delta}{\tau}\right) \cos(\omega\Delta)\right)
+\end{equation}
+\begin{equation}\gamma_2=\frac{\sigma^2}{C} \times\left( \exp\left( -\frac{\Delta}{\tau}\right) \sin(\omega \Delta)-\frac{\omega \tau}{2} \left(1-\exp\left( -2 \frac{\Delta}{\tau}\right) \right)\right)
+\end{equation}
+and we denoted $C=\frac{1}{\tau^2}+\omega^2$ and $\sigma=\frac{2\nu}{\sqrt{\pi \tau}}$.
+\label{prop: transition density}
+\end{proposition}
+
+The formulas derived in \cite{johnson_continuoustime_2008} are a corollary of ~\ref{prop: transition density}, obtained with $\omega=0$. The proof of this proposition is detailed in Appendix.
+
+Equation~\ref{eq: covariance matrix} shows that the two components of the location and velocity processes are independent.
+Note that $\exp(-A\Delta)=e^{\frac{-\Delta}{\tau}} \begin{pmatrix} \cos(\omega \Delta) & \sin(\omega \Delta) \\ -\sin(\omega \Delta) & \cos(\omega \Delta) \end{pmatrix}$ is a weighted rotation matrix of angle $-\omega \Delta$.
+Intuitively, ~\ref{eq: X V distribution} means that the next velocity $V(t+\Delta)$ is a weighted mean of the long term mean velocity $\mu$ and the previous velocity $V(t)$ rotated by an angle $-\omega \Delta$.
+ Figure~\ref{fig: sample RACVM} shows one sample of a RCVM along with a sample of a constrained version of a RCVM that is defined in section~\ref{section: CRCVM}.\\
 
 
 %samples with non zero and zero mu
@@ -329,7 +365,7 @@ The two components of the location and velocity processes are independent, and o
 		\includegraphics[scale=0.3]{images/crcvm/illustrative_sample_fjords_standard.png}
 		\caption{}
 	\end{subfigure}
-	\caption{(a) Samples of a RACVM with parameters $\tau=1 h$, $\nu=4$ km/h,$\omega=0.5$ rad/h, $\mu=(0,0)$ km/h and constant time step $h=5$ min. The red cross indicates the starting point of the process. The samples were obtained from the exact transition densities in equations~\ref{eq: transition RACVM velocity} and~\ref{eq: transition RACVM location}. (b) Samples of a constrained RCVM with parameters $\tau=1 h$, $\nu=4$ km/h, and $\omega$ as a smooth function of covariates $\Theta$ and $D^{shore}$ as described in section~\ref{section: CRCVM}. Position are sampled from constant time step $h= 1$ min and then downsampled to $5$ min. The samples were obtained from approximate transition densities  with constant covariates on each time step.}
+	\caption{(a) Samples of a RCVM with parameters $\tau=1 h$, $\nu=4$ km/h,$\omega=0.5$ rad/h, $\mu=(0,0)$ km/h and constant time step $\Delta=5$ min. The red cross indicates the starting point of the process. The samples were obtained from the exact transition density as derived in ~\ref{prop: transition density}. (b) Samples of a constrained RCVM with parameters $\tau=1 h$, $\nu=4$ km/h, and $\omega$ as a smooth function of covariates $\Theta$ and $D^{shore}$ as described in section~\ref{section: CRCVM}. Position are sampled from constant time step $\Delta= 1$ min and then downsampled to $5$ min. The samples were obtained from approximate transition densities  with constant covariates on each time step.}
 	\label{fig: sample RACVM}
 \end{figure}
 
@@ -549,26 +585,12 @@ Again, $b^{(i)}_{\tau,post}$,$b^{(i)}_{\nu,post}$ are individual parameters. The
 
 \subsection{State-space model}
 \label{section: state space model}
-In most applications, it is needed to consider measurement errors through a state-space model as done by \cite{johnson_continuoustime_2008}. This is the approach we use here. In the statistical model~\ref{eq: exact baseline model} for the baseline model, we make the approximation mentioned in \cite{michelot_varying-coefficient_2021} that the parameter $\omega_i$ is constant on each time step $[t_{ij},t_{i,j+1}]$, equal to its value at time $t_{ij}$, that is 
+In most applications, the error between the observation $Y$ and the true position $X$ is not negligible, so that it is needed to consider measurement errors through a state-space model as done by \cite{johnson_continuoustime_2008}. This is the approach we use here. In the statistical model~\ref{eq: exact baseline model} for the baseline model, we make the approximation mentioned in \cite{michelot_varying-coefficient_2021} that the parameter $\omega_i$ is constant on each time step $[t_{ij},t_{i,j+1}]$, equal to its value at time $t_{ij}$, that is 
 \[\forall t \in [t_{ij},t_{i,j+1}], \quad \omega_{i}(t) \simeq \omega(t_{ij})= f_{\omega}(\hat{E}^{shore}_{ij},\hat{\Theta}_{ij})\]
  Denote $\Delta_{ij}=t_{i,j+1}-t_{ij}$, $V_{ij}=V(t_{ij})$, $X_{ij}=X(t_{ij})$, ,$\omega_{ij}=\omega(t_{ij})$, $A_{ij}=\begin{pmatrix} 
 	\frac{1}{\tau_{i}} & -\omega_{ij} \\
 	\omega_{ij} & \frac{1}{\tau_{i}}
 \end{pmatrix}$ and $\alpha_{ij}=\begin{pmatrix} X_{ij,1}  & X_{ij,2} & V_{ij,1} & V_{ij,2}\end{pmatrix}^\top$ where $\log(\tau_i)=\log(\tau_0)+b_{\tau,pre}^{(i)}$ and $\log(\nu_i)=\log(\nu_0)+b_{\nu,pre}^{(i)}$.
-\begin{comment}
-\begin{equation}
-	\forall j \in \{1, \cdots, n_{i,pre}\}, \quad 
-	\left\{ \begin{array}{l}
-		V_{i,j+1}=\exp(-A_{ij}\Delta_{ij})V_{ij}+\zeta_{ij} \\
-		X_{i,j+1}=X_{ij}+A_{ij}^{-1}(I_2-\exp(-A_{ij}\Delta_{ij}))V_{ij}+\xi_{ij}
-	\end{array}\right. \\
-	\label{eq: RACVM autoregressive formula}
-\end{equation}
-
-
-
-where $\zeta_{ij}$ and $\xi_{ij}$ are centered normal random vectors.
-\end{comment}
 
 The state space equations are
 
@@ -577,38 +599,14 @@ The state space equations are
 	\begin{array}{l}
 		Y_{ij}=Z\alpha_{ij}+\varepsilon_{ij} \quad j \in \{1,\cdots,n_i\}\\
 		\varepsilon_{ij} \underset{i.i.d}{\sim} \mathcal{N}(0,\sigma_{obs}) \\
-		\alpha_{i,j+1}=T_{ij} \alpha_{ij} + \eta_{ij}
+		\alpha_{i,j+1}=T_{ij} \alpha_{ij} + \eta_{ij} \\
 		\eta_{ij} \sim \mathcal{N}(0,Q_{ij})
 	\end{array}
 	\right.
 	\label{eq: RACVM state space}
 \end{equation}
-where the link matrices are 
-\[Z=\begin{pmatrix} I_2 & 0_{2,2}\end{pmatrix} \quad  T_{ij}=\begin{pmatrix} I_2 & A_{ij}^{-1}(I_2-\exp(-A_{ij} \Delta_j)) \\ 0_{2,2} & \exp(-A_{ij} \Delta_j) \end{pmatrix}\]
-
-The vector $\eta_{ij}$ with covariance matrix 
-\begin{equation}
-	Q_{ij}=\begin{pmatrix}
-		M_{ij} & L_{ij} \\
-		L_{ij} & N_{ij}
-	\end{pmatrix}
-	\label{eq: state space covariance}
-\end{equation}
-where $M_{ij}$, $N_{ij}$ and $L_{ij}$ are block matrices of size $2 \times 2$ such that 
-\[M_{ij}=\frac{\sigma_i^2}{C_{ij}}\left( \Delta-2 \frac{\omega_{ij} \sin(\omega_{ij} \Delta_{ij})-\frac{1}{\tau_{i}} \cos(\omega_{ij} \Delta_{ij})}{C_{ij} } \exp\left( -\frac{\Delta_{ij}}{\tau_{ij}} \right) +\frac{\tau_{i}}{2} \left( \frac{\omega_{ij}^2-\frac{3}{\tau_{ij}^2}}{C_{ij}}-\exp\left( -\frac{2\Delta_{ij}}{\tau_i}\right)\right) \right)I_2\]
-
-\[N_{ij}=\frac{\sigma_i^2}{2}\left(1-e^{-\frac{2 \Delta_{ij}}{\tau_{i}}}\right)I_2\]
-
-\[L_{ij}=\begin{pmatrix} a & b \\
-	b & a\end{pmatrix}\]
-with
-\[a=\frac{\sigma_i^2}{2 C_{ij}^2 } \times \left( 1+\exp\left( -\frac{2\Delta_{ij}}{\tau_{i}}\right)-2\exp\left( -\frac{\Delta_{ij}}{\tau_{i}}\right)-2\exp\left( -\frac{\Delta_{ij}}{\tau_{i}}\right) \cos(\omega_{ij}\Delta_{ij})\right)\]
-\[b=\frac{\sigma_{i}^2}{2 C_{ij}^2} \times\left( \exp\left( -\frac{\Delta_{ij}}{\tau_{i}}\right) \sin(\omega_{ij} \Delta_{ij})-\frac{\omega_{ij} \tau_{i}}{2} \left(1-\exp\left( -2 \frac{\Delta_{ij}}{\tau_{i}}\right) \right)\right)\]
-and $C_{ij}=\frac{1}{\tau_i^2}+\omega_{ij}^2$, $\sigma_{i}=\frac{2\nu_i}{\sqrt{\pi \tau_i}}$.
-Again, one can check that for $\omega_{ij}=0$, these formulas match the formulas of the state-space derived by \cite{johnson_continuoustime_2008} for the continuous-time correlated random walk model.\\
-
-
-
+where $Z=\begin{pmatrix} I_2 & 0_{2,2}\end{pmatrix}$, the link matrices $T_{ij}$ and $B_{ij}$ are computed according to~\ref{eq: link matrices} and the covariance matrix is computed according to~\ref{eq: covariance matrix}.
+\\
 
 Estimation with $\texttt{smoothSDE}$ relies on this state-space formulation in section~\ref{section: state space model} with the approximation that the parameters are constant on each time step between consecutive observations.
 The complete likelihood is computed from the observations $Y_{ij}$ as a by-product of the Kalman filter algorithm \cite{michelot_varying-coefficient_2021}.
@@ -675,37 +673,25 @@ For each batch of $N=6$ trajectories, we obtain estimates $\widehat{\log(\tau_{p
 	\centering
 	\begin{tabular}{|c|c|c|c|c|}
 		\hline
-		Coefficient  & True value & Absolute biais  & Relative biais ($\%$) & RMSE\\
+		Coefficient  & True value  & Biais & Relative biais ($\%$) & RMSE \\
 		\hline
-		$\log(\tau_{pre})$  & 0& 0.08 &  & 0.16\\
-		
-		$\log(\nu_{pre})$  & 1.38 & -0.07 & $-5.4 $ & 0.10 \\
-		
-		$\omega_0$  &  0.20  & -0.11 & $-58$ & 0.30 \\
-		
-		$\omega_1$  & 7.41 & -0.4 & $-5.4 $ & 1.11 \\
-		
-		$\omega_2$  & -2.78 & -1.87 &  $67.3$ & 4.30\\
-		
-		$\omega_3$  & 4.05 &  0.30 & $7.4$ & 0.96\\
-		
-		$\omega_4$  & 14.34 & 0.53 & $3.71$ &  1.62\\
-		
-		$\omega_5$  & 4.30 & -4.89 & $-113.7$ &  5.32\\
-	
-		$\omega_6$  &  34.38 & -3.07 & $-8.9$ &   3.78\\
-		
-		$\omega_7$  & -0.85 & 1.08 & $-126.4 $ & 1.41\\
-	
-		$\omega_8$  &  8.81 & -3.91 & $-44.4 $ & 5.88\\
-		
-		$\sigma_{\tau,pre}$ & 0.1 & 0.015& $15$ & 0.10\\
-		
-		$\sigma_{\nu,pre}$ & 0.3 & 0.007 & $7 $ & 0.04\\
+		 $\log(\tau_0)$   & 0     & 0.03  &         & 0.11 \\
+		$\log(\nu_0)$     & 1.39  & -0.02 & -1.55     & 0.06 \\
+		$\omega_0$   & 0     & -0.02 &    & 0.22 \\
+		$\omega_1$ & 8.03  & -1.29 & -16.05    & 1.64 \\
+		$\omega_2$ & -3.14 & 1.55  & -49.39    & 4.13 \\
+		$\omega_3$ & 5.08  & 0.21  & 4.05      & 1.23 \\
+		$\omega_4$ & 16.8  & -1.86 & -11.08    & 2.32 \\
+		$\omega_5$ & 5.03  & -6.03 & -119.78   & 6.39 \\
+		$\omega_6$ & 22.52 & -2.83 & -12.56    & 3.27 \\
+		$\omega_7$ & 2.2   & -0.14 & -6.21     & 0.93 \\
+		$\omega_8$ & 6.17  & -4.57 & -74.09    & 6.14 \\
+		$\sigma_{\tau,pre}$  & 0.1   & 0.02  & 21.91     & 0.11 \\
+		$\sigma_{\nu,pre}$    & 0.1   & 0.02  & 18.53     & 0.05 \\
 		\hline
 	\end{tabular}
-	\caption{Measures of estimation performance in the rectangular domain}
-	\label{table: estimation performance rect}
+	\caption{Measures of estimation performance in the fjords for the first $12$h-long trajectories.}
+\label{table: estimation performance fjords 12h}
 \end{table}
 
 
@@ -713,25 +699,25 @@ For each batch of $N=6$ trajectories, we obtain estimates $\widehat{\log(\tau_{p
 	\centering
 	\begin{tabular}{|c|c|c|c|c|}
 		\hline
-		Coefficient  & True value  & Absolute biais & Relative biais ($\%$)& RMSE \\
+		Coefficient   & True value  & Biais & Relative biais ($\%$) & RMSE \\
 		\hline
-		$\log(\tau_{pre})$   & 0     & -0.16 &         & 0.2  \\
-		$\log(\nu_{pre}$)     & 1.39  & -0.02 & -1.77     & 0.07 \\
-		$\omega_0$   & 0.06  & -0.09 & -148.81   & 0.32 \\
-		$\omega_1$ & 11.04 & -1.87 & -16.94    & 2.66 \\
-		$\omega_2$ & -3.37 & 1.69  & -50.04    & 2.73 \\
-		$\omega_3$ & 7.64  & -2.01 & -26.31    & 2.41 \\
-		$\omega_4$ & 23.24 & -2.47 & -10.63    & 4.95 \\
-		$\omega_5$ & 7.37  & 1.66  & 22.5      & 5.84 \\
-		$\omega_6$ & 41.1  & -4.82 & -11.72    & 5.23 \\
-		$\omega_7$ & 2.02  & -0.03 & -1.35     & 1.71 \\
-		$\omega_8$ & 10.39 & -1.24 & -11.89    & 2.26 \\
-		$\sigma_{\tau,pre}$  & 0.1   & -0.03 & -34.31    & 0.07 \\
-		$\sigma_{\nu,pre}$   & 0.1   & -0.06 & -62.63    & 0.07 \\
+		$\log(\tau_0)$   & 0     & 0.03  &         & 0.09 \\
+		$\log(\nu_0)$  & 1.39  & -0.02 & -1.69     & 0.05 \\
+		$\omega_0$     & 0     & -0.02 &   & 0.13 \\
+		$\omega_1$ & 8.03  & -0.97 & -12.1     & 1.25 \\
+		$\omega_2$ & -3.14 & -0.71 & 22.71     & 2.64 \\
+		$\omega_3$ & 5.08  & 0.35  & 6.84      & 1.01 \\
+		$\omega_4$ & 16.8  & -1.16 & -6.93     & 1.66 \\
+		$\omega_5$ & 5.03  & -6.22 & -123.63   & 6.41 \\
+		$\omega_6$ & 22.52 & -2.04 & -9.06     & 2.35 \\
+		$\omega_7$ & 2.2   & 0.01  & 0.65      & 0.64 \\
+		$\omega_8$ & 6.17  & -2.61 & -42.31    & 3.54 \\
+		$\sigma_{\tau,pre}$   & 0.1   & 0.01  & 13.05     & 0.08 \\
+		$\sigma_{\nu,pre}$    & 0.1   & 0.03  & 29.72     & 0.04 \\
 		\hline
 	\end{tabular}
-	\caption{Measures of estimation performance in the Scoresby Sound domain}
-		\label{table: estimation performance fjords}
+	\caption{Measures of estimation performance in the fjords for the $24$h-long trajectories.}
+\label{table: estimation performance fjords 24h}
 \end{table}
 
 
@@ -1058,47 +1044,101 @@ Figure~\ref{fig: trials and intertrials distributions} shows how the exposure pe
 \end{table}
 
 
-\section{Detailed computations of the integrated rotational Ornstein-Uhlenbeck model}
-\label{section: detailed RACVM computations}
+\section{Proof of proposition~\ref{prop: transition density}}
+\label{section: transition density proof}
 
-\subsection{Velocity process}
-
-\subsubsection{Solution of the SDE}
-
+\begin{proof}
+The velocity process is an Ornstein-Uhlenbeck process. For $t \geq 0$ and $\Delta >0$,
 \begin{equation}
-	v(t)=\exp(-At) v(0)+ (I_2-\exp(-At))\mu +\frac{2\nu}{\sqrt{\pi \tau}}\int_{0}^{t} \exp(A(s-t)) dW(s)
+	V(t+\Delta)=\exp(-A\Delta) V(t)+ (I_2-\exp(-A\Delta))\mu +\frac{2\nu}{\sqrt{\pi \tau}}\int_{t}^{t+\Delta} \exp(A(s-(t+\Delta))) dW(s)
 	\label{eq: RACVM solution}
 \end{equation}
-In the sequel, we shall use the notation 
-\[\zeta(0,t) =\frac{2\nu}{\sqrt{\pi \tau}}\int_{0}^{t} \exp(A(s-t)) dW(s)\] 
 
-Replacing $\exp(At)$ by its expression gives more explicitly
+It has gaussian transition density with mean 
 \begin{equation}
-	v_1(t)=e^{-\frac{t}{\tau}} \left(\cos(\omega t)v_1(0)+\sin(\omega t)v_2(0)\right)+(1-e^{-\frac{t}{\tau}}\cos(\omega t))\mu_1-e^{-\frac{t}{\tau}} \sin(\omega t) \mu_2 +\zeta_1(0,t)
-	\label{eq: first random component RACVM}
+	\E(V(t+\Delta \vert V(t)))=\exp(-A\Delta) V(t)+ (I_2-\exp(-A\Delta))\mu 
 \end{equation}
-
-
-\begin{equation}
-	v_2(t)=e^{-\frac{t}{\tau}} \left(-\sin(\omega t)v_1(0)+\cos(\omega t)v_2(0)\right)+e^{-\frac{t}{\tau}} \sin(\omega t) \mu_1+(1-e^{-\frac{t}{\tau}}\cos(\omega t))\mu_2 +\zeta_2(0,t)
-	\label{eq: second random component RACVM}
-\end{equation}
-where \begin{align*}
-	\zeta_1(0,t)&=\frac{2\nu}{\sqrt{\pi \tau}} \int_0^t e^{\frac{s-t}{\tau}} \cos(\omega(s-t)) dW_1(s) -\frac{2\nu}{\sqrt{\pi \tau}} \int_0^t e^{\frac{s-t}{\tau}} \sin(\omega(s-t)) dW_2(s) \\
-	\zeta_2(0,t)&=\frac{2\nu}{\sqrt{\pi \tau}} \int_0^t e^{\frac{s-t}{\tau}} \sin(\omega(s-t)) dW_1(s) +\frac{2\nu}{\sqrt{\pi \tau}} \int_0^t e^{\frac{s-t}{\tau}} \cos(\omega(s-t)) dW_2(s)
+and covariance matrix 
+\begin{align*}Var(V(t+\Delta) \vert V(t))&=\frac{4\nu^2}{\pi \tau} \int_{t}^{t+\Delta} \exp(A(s-(t+\Delta))) \exp(A(s-(t+\Delta)))^{\top}\\
+	&=\frac{4\nu^2}{\pi \tau} \int_{0}^{\Delta} \exp(-Au) \exp(-Au)^{\top} du 
 \end{align*}
-\subsubsection{Autoregressive equation}
+Since $\exp(-Au)=\exp(-\frac{u}{\tau}) R_{-\omega u}$, the matrix product  $\exp(-Au) \exp(-Au)^{\top}$ is simply $\exp(-\frac{2u}{\tau}) I_2$. We deduce that the two components of the velocity are independent and have the same variance, written $q_2(\Delta)$ to follow the notations in~\ref{prop: transition density}. The variance is 
+\begin{equation}
+	q_2(\Delta)=\frac{2\nu^2}{\pi}\left(1-\exp\left(-\frac{2\Delta}{\tau}\right)\right)
+\end{equation}
+These results are found in \cite{gurarie_correlated_2017}.
+In the sequel, we shall use the notation 
+\[\zeta(t,s) =\frac{2\nu}{\sqrt{\pi \tau}}\int_{t}^{s} \exp(A(u-s)) dW(u)\] 
 
-For $t \geq 0$ and $\Delta >0$, 
 
-\[v(t+\Delta) \vert v(t) \sim \mathcal{N}\left( \mu + \exp(-A\Delta)(v(t)-\mu), \frac{2\nu^2}{\pi}(1-e^{-2\frac{\Delta}{\tau}}) I_2 \right) \]
+\begin{align*}
+	X(t+\Delta)&=X(t)+\int_t^{t+\Delta} V(s) ds \mbox{ where } V(s)=\mu+\exp(-A(s-t))(V(t)-\mu)+\zeta(t,s) \\
+	&= X(t)+\mu \Delta+\int_t^{t+\Delta} \exp(-A(s-t))(X(t)-\mu) ds +\int_t^{t+\Delta} \zeta(t,s) ds \\
+	&= X(t)+\mu \Delta +\int_0^{\Delta} \exp(-As)(X(t)-\mu) ds +\int_t^{t+\Delta} \zeta(t,s) ds \\
+	&=X(t)+\mu \Delta + (A^{-1}(V(t)-\mu)-A^{-1}\exp(-A\Delta)(X(t)-\mu))+\int_t^{t+\Delta} \zeta(t,s) ds \\
+\end{align*}
+Thus, 
+\begin{equation}
+	X(t+\Delta)=X(t)+\mu \Delta+A^{-1} \left( I_2-\exp(-A\Delta)\right)(V(t)-\mu) +\xi(t,t+\Delta) 
+\end{equation}
+where $ \xi(t,t+\Delta)=\int_t^{t+\Delta} \zeta(t,s)ds$.
+The location process is also gaussian with mean 
+\begin{equation}
+	\E(X(t+\Delta) \vert V(t),X(t)) =X(t)+\mu \Delta+A^{-1} \left( I_2-\exp(-A\Delta)\right)(V(t)-\mu)
+\end{equation}
+To get an expression of the covariance matrix, first rewrite
 
-Intuitively, the next velocity has a mean that is the sum of the long term mean velocity $\mu$ and the deviation of the previous velocity from this long term mean rotated by an angle $\omega \Delta$.
-\subsubsection{Stationary distribution}
+\begin{align*}
+	\xi(t,t+\Delta)&=\int_t^{t+÷\Delta} \frac{2 \nu}{\sqrt{\pi \tau}} \left( \int_t^s \exp(-A((u-s))dW(u) \right) ds \\
+	&=\frac{2\nu}{\sqrt{\pi\tau}} \int_t^{t+\Delta} \left( \int_u^{t+\Delta} \exp(A(u-s)) ds \right) dW(u)  \\
+	&= \frac{2\nu}{\sqrt{\pi \tau}} \int_t^{t+\Delta} (A^{-1}-A^{-1}\exp(A(u-t-\Delta))) dW(u) \\
+	&= \frac{2\nu}{\sqrt{\pi \tau}} \int_t^{t+\Delta} A^{-1}(I_2-\exp(A(u-t-\Delta))) dW(u)
+\end{align*}
+
+Then use Ito's isometry
+\begin{align*}
+	Var(X(t+\Delta)\vert X(t),V(t))&=\frac{4 \nu^2}{\pi \tau} \int_{t}^{t+\Delta} A^{-1} (I_2-\exp(A(u-t-\Delta)))(I_2-\exp(A(u-t-\Delta)))^\top A^{-\top} du \\
+	&=\frac{4 \nu^2}{\pi \tau} \int_{0}^{\Delta} A^{-1} (I_2-\exp(-Ar))(I_2-\exp(-Ar))^\top A^{-\top} dr
+\end{align*}
+Now this integral can be computed explicitly since 
+\[A^{-1} (I_2-\exp(-Ar))(I_2-\exp(-Ar))^\top A^{-\top}=\frac{1}{C} \begin{pmatrix}  f(r) & 0 \\ 0 & f(r)\end{pmatrix}  \]
+where $f(r)=1-2\exp\left( -\frac{r}{\tau}\right)\cos(\omega r)+\exp\left(\frac{-2r}{\tau}\right)$ and $C=\frac{1}{\tau^2}+\omega^2$.
+We obtain that $X_1(t+\Delta)$ and $X_2(t+\Delta)$ are independent and have the same variance, denoted $q_1(\Delta)$.
+Writing $\sigma=\frac{2\nu}{\sqrt{\pi \tau}}$, the variance is
+\begin{align*}q_1(\Delta)=\frac{\sigma^2}{C} \left( \Delta-2 \frac{\omega \sin(\omega \Delta)-\frac{1}{\tau} \cos(\omega \Delta)}{\frac{1}{\tau^2}+\omega^2 } \exp\left( -\frac{\Delta}{\tau} \right) +\frac{\tau}{2} \left( \frac{\omega^2-\frac{3}{\tau^2}}{\frac{1}{\tau^2}+\omega^2}-\exp\left( -\frac{2\Delta}{\tau}\right)\right) \right)
+\end{align*}
+
+Now there is still to compute the covariance between the processes $X$ and $V$ to get the full covariance matrix of $U$. With the same notation as in~\ref{prop: transition density}
+\begin{align*}
+	\Gamma(\Delta)&=\E\left(\left(\frac{2\nu}{\sqrt{\pi \tau}} \int_t^{t+\Delta} A^{-1}(I_2-\exp(A(u-t-\Delta))) dW(u)\right) \left(\frac{2\nu}{\sqrt{\pi \tau}}\int_{t}^{t+\Delta} \exp(A(s-(t+\Delta))) dW(s)\right)^\top\right) \\
+	&= \frac{4\nu^2}{\pi \tau}\int_t^{t+\Delta} A^{-1}(I_2-\exp(A(u-(t+\Delta)))) \exp(A(u-(t+\Delta)))^\top du \\
+	&=\frac{4\nu^2}{\pi \tau}\int_0^{\Delta} A^{-1}(I_2-\exp(-Ar)) \exp(-Ar)^\top dr 
+\end{align*}
+Then, 
+\[A^{-1}(I_2-\exp(-Ar)) \exp(-Ar)^\top=\frac{1}{C}\exp\left(-\frac{r}{\tau} \right) \begin{pmatrix} g(r) & h(r) \\ -h(r) & g(r) \end{pmatrix}\]
+where $g(r)=\frac{1}{\tau}\left(\cos(\omega r)+\exp\left( -\frac{r}{\tau} \right)\right) -\omega \sin(\omega r)$ and $h(r)=-\frac{1}{\tau}\sin(\omega r)+\omega\left(\cos(\omega r)-\exp\left( -\frac{r}{ \tau}\right)\right)$.
+Eventually we get
+\[
+\gamma_1(\Delta)=\frac{\sigma^2}{2C}\left( 1+\exp\left( -\frac{2\Delta}{\tau}\right)-2\exp\left( -\frac{\Delta}{\tau}\right)-2\exp\left( -\frac{\Delta}{\tau}\right) \cos(\omega \Delta)\right)
+\]
+\[\gamma_2(\Delta)=\frac{\sigma^2}{C}\left( \exp\left( -\frac{\Delta}{\tau}\right) \sin(\omega \Delta)-\frac{\omega \tau}{2} \left(1-\exp\left( -2 \frac{\Delta}{\tau}\right) \right)\right)\]
+
+In the specific case $\omega=0$, we obtain $C=\frac{1}{\tau^2}$ and the variance of the location process $X$ becomes 
+\[q_1(\Delta)=\sigma^2 \tau^2\left( \Delta +\tau\exp\left( -\frac{\Delta}{\tau}\right)+\frac{\tau}{2}\left( -3 -\exp\left( -\frac{2\Delta}{\tau}\right) \right)\right)
+\]
+Writing $\beta=\frac{1}{\tau}$ and reorganizing the terms, we obtain
+\begin{equation}q_1(\Delta)=\frac{\sigma^2}{\beta^2}\left(\Delta -2 \frac{1-\exp(-\beta \Delta)}{\beta}+\frac{1-e^{-2\beta \Delta}}{2\beta}\right)
+\end{equation}
+This result match equation $(6)$ in \cite{johnson_continuoustime_2008}. Similarly, in the case $\omega=0$, we get $\gamma_2=0$ and the expression for $\gamma_1$ match equation $(7)$ in \cite{johnson_continuoustime_2008}.
+
+\end{proof}
+
+\section{More results about the standard RACVM}
+\subsection{Stationary distribution}
 
 If $v(0) \sim \mathcal{N}\left(\mu,\frac{2\nu^2}{\pi} I_2\right)$ then for all $t \geq 0$, $v(t) \sim \mathcal{N}\left(\mu,\frac{2\nu^2}{\pi} I_2\right)$
 
-\subsubsection{Distribution of the velocity norm and phase}
+\subsection{Distribution of the velocity norm and phase}
  The order of magnitude of the parameter $\nu$ is similar to the overall mean empirical velocity norm. The distribution of the phase angle $\Phi$ of the velocity is derived in \cite{pawula_distribution_1982}.
 When $\mu=0$, this distribution is uniform over $[-\pi,\pi]$. Hence, taking a look at the histograms of the phase angle of the data can help to assess whether a non zero mean velocity is necessary in the model or not.
 
@@ -1140,7 +1180,7 @@ Here, $L_{\frac{1}{2}}(x)=e^{\frac{x}{2}} \left( (1-x) I_0\left( -\frac{x}{2}\ri
 
 In the case $\mu=(0,0)$, the mean velocity norm is simply 
 \[\E(\vert \vert v(t) \vert \vert)=\nu L_{\frac{1}{2}}(0)=\nu I_{0}(0)=\nu\]
-
+This result can be used to choose initial value of the parameter $\nu$ based on the mean observed empirical velocity.
 
 Then, in the plane, $v(t)$ can be thought of as a complex random variable $v(t)=v_1(t)+iv_2(t)$ that has complex normal distribution with mean $\mu_1+i\mu_2$, variance $\E\left((v(t)-\E(v(t)))\overline{(v(t)-\E(v(t)))}\right)=\frac{4\nu^
 	2}{\pi}$ and pseudo-variance $\E\left((v(t)-\E(v(t)))^2\right)=0$. Thus, $v(t)$ has a circular symmetric normal distribution with mean $\mu_1+i\mu_2=\vert \vert \mu \vert \vert e^{i\theta}$ where $\theta=\arctan(\mu_2,\mu_1) \in [-\pi, \pi]$ and variance $\frac{\sigma^2}{\beta}$.
@@ -1152,7 +1192,8 @@ where $\beta=\frac{1}{\tau}$, $\sigma=\frac{2\nu}{\sqrt{\pi \tau}}$ and $\erf$ i
 When $\mu=0$, this simplifies to a uniform distribution over $[-\pi,\pi]$.\\
 %plot of the function for non zero mu
 
-\subsubsection{Velocity autocovariance function}
+
+\subsection{Velocity autocovariance function}
 
 Suppose that $v(0)$ has the stationary distribution.The autocovariance function is the expected dot product of the velocity vectors over different lags.
 
@@ -1165,118 +1206,6 @@ Therefore, the velocity autocovariance function is
 	\label{eq: RACVM autocovariance function}
 \end{equation}
 
-\subsection{Location process} \label{RACVM location process}
-For $t \geq 0$ and $\Delta >0$,
-
-\begin{align*}
-	x(t+\Delta)&=x(t)+\int_t^{t+\Delta} v(s) ds \mbox{ where } v(s)=\mu+\exp(-A(s-t))(v(t)-\mu)+\zeta(t,s) \\
-	&= x(t)+\mu \Delta+\int_t^{t+\Delta} \exp(-A(s-t))(v(t)-\mu) ds +\int_t^{t+\Delta} \zeta(t,s) ds \\
-	&= x(t)+\mu \Delta +\int_0^{\Delta} \exp(-As)(v(t)-\mu) ds +\int_t^{t+\Delta} \zeta(t,s) ds \\
-	&=x(t)+\mu \Delta + (A^{-1}(v(t)-\mu)-A^{-1}\exp(-A\Delta)(v(t)-\mu))+\int_t^{t+\Delta} \zeta(t,s) ds \\
-\end{align*}
-Thus, 
-\begin{equation}
-	x(t+\Delta)=x(t)+\mu \Delta+A^{-1} \left( I_2-\exp(-A\Delta)\right)(v(t)-\mu) +\xi(t,t+\Delta) \\
-	\mbox{ where } \xi(t,t+\Delta)=\int_t^{t+\Delta} \zeta(t,s)ds
-\end{equation}
-Note that when $\Delta \rightarrow 0$, the deterministic part tends to $x(t)+\Delta v(t)$ as one would expect frome the Euler Maruyama scheme.
-It is known that $\xi$ is normally distributed with mean zero. We still have to compute its covariance matrix.
-
-\begin{align*}
-	\int_t^{t+\Delta} \zeta(t,s) ds &=\int_t^{t+÷\Delta} \frac{2 \nu}{\sqrt{\pi \tau}} \left( \int_t^s \exp(-A((u-s))dW(u) \right) ds \\
-	&=\frac{2\nu}{\sqrt{\pi\tau}} \int_t^{t+\Delta} \left( \int_u^{t+\Delta} \exp(A(u-s)) ds \right) dW(u)  \\
-	&= \frac{2\nu}{\sqrt{\pi \tau}} \int_t^{t+\Delta} (A^{-1}-A^{-1}\exp(A(u-t-\Delta))) dW(u) \\
-	&= \frac{2\nu}{\sqrt{\pi \tau}} \int_t^{t+\Delta} A^{-1}(I_2-\exp(A(u-t-\Delta))) dW(u)
-\end{align*}
-From this formula we deduce an expression for both components $\xi_1(t,t+\Delta)$ and $\xi_2(t,t+\Delta)$ of the gaussian vector.
-\begin{align*}
-	\begin{pmatrix}
-		\xi_1(t,t+\Delta) \\ \xi_2(t,t+\Delta) 
-	\end{pmatrix}
-	&=\frac{2\nu}{\sqrt{\pi \tau}} \int_t^{t+\Delta} \frac{1}{\frac{1}{\tau^2}+\omega^2} 
-	\begin{pmatrix}
-		\frac{1}{\tau} & \omega \\ -\omega & \frac{1}{\tau}
-	\end{pmatrix} \times \\
-	& \left[ \begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}-\exp\left( -\frac{t+\Delta -u}{\tau}\right) 
-	\begin{pmatrix} \cos(\omega(t+\Delta-u)) & \sin(\omega(t+\Delta-u)) \\
-		-\sin(\omega(t+\Delta-u)) & \cos(\omega(t+\delta-u)) 
-	\end{pmatrix} \right]
-	\begin{pmatrix}
-		dW_1(u) \\ dW_2(u)
-	\end{pmatrix}\\
-	&= \frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)} \int_t ^{t+\Delta} \begin{pmatrix} \frac{1}{\tau} & \omega \\ -\omega & \frac{1}{\tau} \end{pmatrix} \times \\
-	&\begin{pmatrix}  1-\exp\left(-\frac{(
-			t+\Delta-u}{\tau} \right) \cos(\omega(t+\Delta-u)) & -\exp\left( -\frac{t+\Delta-u}{\tau}]\right) \sin(\omega(t+\Delta-u)) \\
-		\exp \left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u)) & 1-\exp\left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\end{pmatrix}
-	\times \begin{pmatrix} 
-		dW_1(u) \\ dW_2(u)
-	\end{pmatrix} \\
-	&= \frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)} \int_t ^{t+\Delta} \begin{pmatrix} \frac{1}{\tau} & \omega \\ -\omega & \frac{1}{\tau} \end{pmatrix} \times \\
-	& \begin{pmatrix} \left(1-\exp\left( -\frac{t+\Delta-u}{\tau}\right)\cos(\omega(t+\Delta-u))\right) dW_1(u)-\exp\left(  -\frac{t+\Delta-u}{\tau} \right) \sin(\omega(t+\Delta-u))dW_2(u) \\
-		\exp\left(  -\frac{t+\Delta-u}{\tau} \right) \sin(\omega(t+\Delta-u))dW_1(u)+\left(1- \exp\left( -\frac{t+\Delta-u}{\tau}\right)\cos(\omega(t+\Delta-u))\right)dW_2(u)
-	\end{pmatrix}
-\end{align*}
-
-Eventually, 
-\begin{align*}
-	\xi_1(t,t+\Delta)&=\frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)} \times \frac{1}{\tau} \times \Bigg( \textcolor{red}{\int_t^{t+\Delta} \left( 1-\exp\left(-\frac{t+\Delta-u}{\tau}\right)\cos(\omega(t+\Delta-u))\right)dW_1(u)}\\
-	&-\textcolor{blue}{\int_t^{t+\Delta} \exp\left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))dW_2(u)}\Bigg) \\
-	&+\frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)}  \times \omega \Bigg( \textcolor{red}{\int_t^{t+\Delta} \exp\left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))dW_1(u)}+ \\
-	& \textcolor{blue}{\int_t^{t+\Delta} \left( 1-\exp\left(-\frac{t+\Delta-u}{\tau}\right)\cos(\omega(t+\Delta-u))\right)dW_2(u)}\Bigg)
-\end{align*}
-
-\begin{align*}
-	\xi_1(t,t+\Delta)&=\frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)}  \times  \Bigg( \textcolor{red}{\int_t^{t+\Delta} \bigg( \frac{1}{\tau} \left(1-\exp\left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\right)}  \\
-	& \textcolor{red}{+\omega \exp \left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))\bigg)dW_1(u)} \\
-	&\textcolor{blue}{+\int_t^{t+\Delta} \bigg( \omega \left(1-\exp\left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta_u))\right)} \\
-	&\textcolor{blue}{-\frac{1}{\tau} \exp\left(-\frac{t+\Delta-u}{\tau} \right) \sin(\omega(t+\Delta-u)) \bigg) dW_2(u)} \Bigg)
-\end{align*}
-
-Similarly, 
-\begin{align*}
-	\xi_2(t,t+\Delta)&=\frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)}  \times \Bigg( \textcolor{red}{\int_t^{t+\Delta} \bigg( \frac{1}{\tau} \exp\left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))} \\
-	&\textcolor{red}{-\omega \left( 1-\exp \left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\right) \bigg)dW_1(u)} \\
-	&  \textcolor{blue}{+\int_t^{t+\Delta} \bigg( \omega \exp\left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta_u))} \\
-	&\textcolor{blue}{+\frac{1}{\tau} \left(1-\exp\left(-\frac{t+\Delta-u}{\tau} \right) \cos(\omega(t+\Delta-u)) \right) \bigg) dW_2(u)} \Bigg)
-\end{align*}
-
-Denote 
-\begin{align*}
-	& \textcolor{red}{X_1=\int_t^{t+\Delta} \left( \frac{1}{\tau} \left(1-\exp\left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\right) +\omega \exp \left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))\right)dW_1(u)} \\ 
-	&\textcolor{red}{Y_1=\int_t^{t+\Delta} \left( \frac{1}{\tau} \exp\left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u)) -\omega \left( 1-\exp \left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\right) \right)dW_1(u)} \\
-	&\textcolor{blue}{X_2=\int_t^{t+\Delta} \left( \omega \left(1-\exp\left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\right)-\frac{1}{\tau} \exp\left(-\frac{t+\Delta-u}{\tau} \right) \sin(\omega(t+\Delta-u)) \right) dW_2(u)} \\
-	&\textcolor{blue}{Y_2=\int_t^{t+\Delta} \left( \omega \exp\left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))+\frac{1}{\tau} \left(1-\exp\left(-\frac{t+\Delta-u}{\tau} \right) \cos(\omega(t+\Delta-u)) \right) \right) dW_2(u)} 
-\end{align*}
-so that both $X_1$,$Y_1$ and $X_2$
-,$Y_2$ are independent and 
-\[\xi_1(t,t+\Delta)=\frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)}  \times (X_1+Y_1) \quad \xi_2(t,t+\Delta)=\frac{2\nu}{\sqrt{\pi \tau} \times \left( \frac{1}{\tau^2}+\omega^2\right)}  \times (X_2+Y_2)\]
-\[Var(\xi_1(t,t+\Delta))=\frac{4\nu^2}{\pi \tau \times \left( \frac{1}{\tau^2}+\omega^2\right)^2} (Var(X_1)+Var(Y_1)) \quad Var(\xi_1(t,t+\Delta))=\frac{4\nu^2}{\pi \tau \times \left( \frac{1}{\tau^2}+\omega^2\right)^2} (Var(X_2)+Var(Y_2)) \]
-
-Itô's isometry yields
-\begin{align*}
-	Var(X_1)&=\int_t^{t+\Delta} \left( \frac{1}{\tau} \left(1-\exp\left( -\frac{t+\Delta-u}{\tau}\right) \cos(\omega(t+\Delta-u))\right) +\omega \exp \left( -\frac{t+\Delta-u}{\tau}\right) \sin(\omega(t+\Delta-u))\right)^2du \\
-	&= \int_0^{\Delta} \left( \frac{1}{\tau} \left(1-\exp\left( -\frac{u}{\tau}\right) \cos(\omega u)\right) +\omega \exp \left( -\frac{u}{\tau}\right) \sin(\omega u)\right)^2du 
-\end{align*}
-Similarly, 
-\[
-Var(Y_1)=\int_0^{\Delta} \left( \frac{1}{\tau} \exp\left( -\frac{u}{\tau}\right) \sin(\omega u) -\omega \left( 1-\exp \left( -\frac{u}{\tau}\right) \cos(\omega u)\right) \right)^2 du
-\]
-Hence,
-\begin{align*}
-	Var(\xi_1(t,t+\Delta))&=\frac{4\nu^2}{\pi \tau \times \left( \frac{1}{\tau^2}+\omega^2\right)^2} \Bigg( \int_0^{\Delta} \left( \frac{1}{\tau} \left(1-\exp\left( -\frac{u}{\tau}\right) \cos(\omega u)\right) +\omega \exp \left( -\frac{u}{\tau}\right) \sin(\omega u)\right)^2+ \\
-	& \left( \frac{1}{\tau} \exp\left( -\frac{u}{\tau}\right) \sin(\omega u) -\omega \left( 1-\exp \left( -\frac{u}{\tau}\right) \cos(\omega u)\right) \right)^2 du\Bigg)
-\end{align*}
-
-It is possible to see that the formula is exactly the same for $\xi_2(t,t+\Delta)$.
-
-The time integral can be calculated explicitly to obtain
-\begin{align*}
-	Var(\xi_1(t,t+\Delta))&=Var(\xi_2(t,t+\Delta))=\frac{4\nu^2}{\pi \tau \times \left( \frac{1}{\tau^2}+\omega^2\right)} \times \\
-	& \left( \Delta-2 \frac{\omega \sin(\omega \Delta)-\frac{1}{\tau} \cos(\omega \Delta)}{\frac{1}{\tau^2}+\omega^2 } \exp\left( -\frac{\Delta}{\tau} \right) +\frac{\tau}{2} \left( \frac{\omega^2-\frac{3}{\tau^2}}{\frac{1}{\tau^2}+\omega^2}-\exp\left( -\frac{2\Delta}{\tau}\right)\right) \right)
-\end{align*}
-It is easy to check that when $\omega=0$, the formula match the one for the basic correlated velocity model the hidden state. \\
-With similar calculations, it can be shown that
-\[Cov(\xi_1(t,t+\Delta), \xi_2(t,t+\Delta)=0\]
 
 \subsection{State space model}
 With the same notation as before, for $j \in \{1,\cdots,,n\}$, denote $\alpha_j=\begin{pmatrix} x_{1j} & x_{2j} & v_{1j}-\mu_1 & v_{2j}-\mu_2 \end{pmatrix}^\top$.
