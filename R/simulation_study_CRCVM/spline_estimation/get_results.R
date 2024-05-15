@@ -85,7 +85,7 @@ for (domain in domains) {
           geom_density(alpha=.2, fill="#FF6666") +geom_vline(aes(xintercept=true_value),
                     color="blue", linetype="dashed", size=1)
       
-        ggsave(filename=paste(paste("histo",name,domain,time,cov),".png",sep=""),plot=histo,width=10,height=5)
+        ggsave(filename=paste(paste("histo",name,domain,time,cov,sep="_"),".png",sep=""),plot=histo,width=10,height=5)
       }
   
       results=data.frame("coeff_name"=unique(est_df$coeff_name),"true"=true_values,
