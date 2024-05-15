@@ -1,3 +1,7 @@
+#
+/R/simulation_study_CRCVM/*.csv
+/R/simulation_study_CRCVM/*.png
+
 
 # Cluster tracking files 
 *.err
