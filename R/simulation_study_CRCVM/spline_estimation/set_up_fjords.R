@@ -151,7 +151,7 @@ fig
 ExpShore=1/DistanceShore
 
 #fit with bivariate splines te of ExpShore
-knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/7,1/0.1,len=SP_DF))
+knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/5,1/0.5,len=SP_DF))
 m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=knots_ExpShore)
 
 
