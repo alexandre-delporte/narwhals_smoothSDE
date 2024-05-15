@@ -20,7 +20,7 @@ domain_name="rect"
 par_dir=dirname(getwd())
 set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
-source(file.path(par_dir,"CVM_functions.R"))  #get functions to simulate trajectories
+source(file.path(dirname(par_dir),"CVM_functions.R"))  #get functions to simulate trajectories
 library(smoothSDE)          #sde models
 library(foreach)            #foreach loop
 library(doParallel)         #parallel computing
@@ -57,7 +57,7 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
 # Points that reached land ---------------
 count=0
 for (id in unique(data$ID)) {
-  sub_data=data_rect[data$ID==id,]
+  sub_data=data[data$ID==id,]
   if (nrow(sub_data) < n_hf) {
     count=count+1
     cat("ID",id,"reached land","\n",sep=" ")

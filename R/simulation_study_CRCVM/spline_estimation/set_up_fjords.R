@@ -26,7 +26,7 @@ library(smoothSDE)          #to compute nearest shore point
 
 N_ID=6                      #number of individual tracks per batch
 TMAX=1*24                 #duration of each track in hour
-SP_DF=3                     #degree of freedom in tensor splines
+SP_DF=3                 #degree of freedom in tensor splines
 
 
 # Land polygons --------------------
@@ -93,7 +93,7 @@ true_log_nu=nu_re+log(4)
 
 # Defintion of smooth parameter omega ----------
 
-fomega=function(cov_data,D0=0.3,omega0=60*pi/2,lambda=2,kappa=0.2) {
+fomega=function(cov_data,D0=0.4,omega0=40*pi/2,lambda=2,kappa=0.2) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -114,13 +114,13 @@ n <- 100000                           #number of observations
 
 
 theta <- runif(n,-pi,pi)            #sample theta
-DistanceShore <- runif(n,0.3,7)     #sample DistanceShore
+DistanceShore <- runif(n,0.5,5)     #sample DistanceShore
 
 samples=data.frame(theta=theta,DistanceShore=DistanceShore)  
 
 #define grid of values
 theta_v <- seq(-pi,pi,length=30)
-Dshore_v<- seq(0.3,7,length=30)
+Dshore_v<- seq(0.1,7,length=30)
 pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 # true values of the function over this grid
@@ -136,7 +136,7 @@ title("truth")
 
 
 #fit with bivariate splines te fo DistanceShore
-knots_DistanceShore=list(theta=seq(-pi,pi,len=SP_DF),DistanceShore=seq(0.3,7,len=SP_DF))
+knots_DistanceShore=list(theta=seq(-pi,pi,len=SP_DF),DistanceShore=seq(0.5,5,len=SP_DF))
 m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs="cs"),knots=knots_DistanceShore)
 
 #visualize
@@ -151,7 +151,7 @@ fig
 ExpShore=1/DistanceShore
 
 #fit with bivariate splines te of ExpShore
-knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/7,1/0.3,len=SP_DF))
+knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/7,1/0.1,len=SP_DF))
 m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=knots_ExpShore)
 
 
