@@ -1,6 +1,12 @@
-#
-/R/simulation_study_CRCVM/*.csv
-/R/simulation_study_CRCVM/*.png
+#ignore resultrs of simulation study, only keep teh code to reproduce the results
+/R/simulation_study_CRCVM/spline_estimation*.csv
+/R/simulation_study_CRCVM/spline_estimation*.png
+/R/simulation_study_CRCVM/spline_estimation/fjords/*.csv
+/R/simulation_study_CRCVM/spline_estimation/fjords/*.png
+/R/simulation_study_CRCVM/spline_estimation/rect/*.csv
+/R/simulation_study_CRCVM/spline_estimation/rect/*.png
+/R/simulation_study_CRCVM/spline_estimation/circ/*.csv
+/R/simulation_study_CRCVM/spline_estimation/circ/*.png
 
 
 # Cluster tracking files 
