@@ -58,7 +58,7 @@ allData[allData$DistanceShore< D_low,"ExpShore"]=1/D_low
 # MODEL WITH ANGLENORMAL IN OMEGA  -----------------------------
 
 #initial parameters
-par0 <- c(0,0,0.5,4,0)
+par0 <- c(0,0,1,4.5,0)
 
 #measurement error
 sigma_obs=0.05
@@ -68,10 +68,10 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #model formula
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                 omega=~s(AngleNormal,k=4,bs="cs")+s(ID,bs="re"))
+                 omega=~s(AngleNormal,k=4,bs="cs"))
 
 model1<- SDE$new(formulas = formulas,data = allData,type = "RACVM",response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 #fit_model
 model1$fit()
@@ -88,15 +88,15 @@ res=model1$get_all_plots(baseline=NULL,model_name="model1",show_CI="pointwise",s
 par0 <- c(0,0,1,4,0)
 
 #measurement error
-sigma_obs=0.05
+sigma_obs=0.04
 
 #define model
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                 omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(DistanceShore,AngleNormal,k=c(3,4),bs="cs")+s(ID,bs="re"))
+                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(DistanceShore,AngleNormal,k=c(5,5),bs="cs"))
 
 model2<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("log_sigma_obs0"=log(sigma_obs)))
+                    other_data=list("H"=H))
 
 
 

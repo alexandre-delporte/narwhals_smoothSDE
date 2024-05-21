@@ -20,7 +20,7 @@ library(ggplot2)
 
 
 domains=c("fjords")
-times=c(12,24)
+times=c(12)
 covs=c("DistanceShore")
 
 for (domain in domains) {

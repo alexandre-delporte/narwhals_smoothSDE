@@ -64,9 +64,8 @@ dataAE[dataAE$DistanceShore< D_low,"ExpShore"]=1/D_low
 n_obs=length(dataAE$time)
 
 
-
 ########### MODEL WITH ONLY ANGLE NORMAL ##################
-par0 <- c(0,0,1,4,0)
+par0 <- c(0,0,1,4.5,0)
 
 sigma_obs=0.05
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
@@ -75,10 +74,10 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 formulas <- list(mu1=~1,mu2=~1,
                  tau =~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),
-                 omega=~s(AngleNormal,k=4,bs="cs"))
+                 omega=~s(AngleNormal,k=5,bs="cs")+s(ID,bs="re"))
 
 response1<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),fixpar=c("mu1","mu2"))
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 #fit_model
 response1$fit()
@@ -98,19 +97,23 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #model formula
 formulas <- list(mu1=~1,mu2=~1,
-                 tau =~s(ExpShip,k=3,bs="tp")+s(ID,bs="re"),
-                 nu=~s(ExpShip,k=3,bs="tp")+s(ID,bs="re"),
+                 tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
                  omega=~s(AngleNormal,k=4,bs="cs"))
 
-response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
-                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
-                    fixpar=c("mu1","mu2"),map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,3))),coeff_fe=factor(rep(NA,5))))
+response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,3))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c(6,NA,7,NA,NA))))
 
 new_coeff_re=c(rep(0,2),baseline1$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline1$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
               baseline1$coeff_re()[paste("omega.s(AngleNormal).",1:3,sep=""),1])
 
 response2$update_coeff_re(new_coeff_re)
 response2$update_coeff_fe(baseline1$coeff_fe()[,1])
+
+new_lambda=c(1,baseline1$lambda()["tau.s(ID)",1],1,baseline1$lambda()["nu.s(ID)",1],baseline1$lambda()["omega.s(AngleNormal)",1])
+response2$update_lambda(new_lambda)
 
 
 #fit_model
@@ -128,7 +131,7 @@ link=list("ExpShip"=(\(x) 1/x))
 xlabel=list("ExpShip"="Distance to ship")
 
 res=response2$get_all_plots(baseline=baseline1,model_name="response2",xmin=xmin,
-                            xmax=xmax,link=link,xlabel=xlabel,show_CI="none",save=TRUE)
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 ####### FULL MODEL WITH FIXED BASELINE SPLINE COEFFS
 

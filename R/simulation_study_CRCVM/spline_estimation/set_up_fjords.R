@@ -25,7 +25,7 @@ library(smoothSDE)          #to compute nearest shore point
 
 #https://stats.stackexchange.com/questions/37647/what-is-the-minimum-recommended-number-of-groups-for-a-random-effects-factor
 #It is recommended to have around 10 groups to get good estimates of the random effect variance
-N_ID=10                      #number of individual tracks per batch
+N_ID=12                      #number of individual tracks per batch
 TMAX=12                 #duration of each track in hour
 SP_DF=3                 #degree of freedom in tensor splines
 
@@ -57,7 +57,7 @@ colnames(x0)=c("x1","x2")
 i=1
 while (i<=N_ID) {
   #choose location uniformly in the map
-  x=c(runif(1,min=430,max=500),runif(1,min=7760,max=7900))
+  x=c(runif(1,min=430,max=510),runif(1,min=7760,max=7900))
   p=nearest_shore_point(st_point(x),border)
   Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
   #keep it as initial position if it is at least 50 metres away from the shore
@@ -94,7 +94,7 @@ true_log_nu=nu_re+log(4)
 
 # Defintion of smooth parameter omega ----------
 
-fomega=function(cov_data,D0=0.35,omega0=40*pi/2,lambda=2,kappa=0.2) {
+fomega=function(cov_data,D0=0.4,omega0=40*pi/2,lambda=2,kappa=0.2) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){

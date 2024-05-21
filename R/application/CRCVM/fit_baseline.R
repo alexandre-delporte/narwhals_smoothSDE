@@ -72,6 +72,34 @@ dataBE1[dataBE1$DistanceShore< D_low,"ExpShore"]=1/D_low
 dataBE2[dataBE2$DistanceShore> D_up,"ExpShore"]=0
 dataBE2[dataBE2$DistanceShore< D_low,"ExpShore"]=1/D_low
 
+dataBE1$indicator <- ifelse(dataBE1$DistanceShore < 1, 1, 0)
+dataBE2$indicator <- ifelse(dataBE2$DistanceShore < 1, 1, 0)
+
+#### CONSTANT PARAMETERS  -----------------------------------------  
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+
+# Measurement error
+sigma_obs=0.035
+n_obs=length(dataBE2$time)
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
+
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~1,
+                 nu=~1,
+                 omega=~1)
+
+baseline0<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
+
+#fit_model
+baseline0$fit()
+estimates_bas0=as.list(baseline0$tmb_rep(),what="Est")
+std_bas0=as.list(baseline0$tmb_rep(),what="Std")
 
 #### ANGLE NORMAL IN OMEGA  -----------------------------------------  
 
@@ -130,6 +158,7 @@ baseline2$fit()
 estimates_bas2=as.list(baseline2$tmb_rep(),what="Est")
 std_bas2=as.list(baseline2$tmb_rep(),what="Std")
 
+
 ###  EXP SHORE AND ANGLE NORMAL IN OMEGA  -----------------------
 
 #initial parameters
@@ -167,6 +196,36 @@ xlabel=list("ExpShore"="Distance to shore")
 
 res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",
                             xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+##########  ANGLE NORMAL IN OMEGA WITH DISTANCESHORE THRESHOLD
+
+
+#initial parameters
+par0 <- c(0,0,1,4.5,0)
+
+# Measurement error
+sigma_obs=0.035
+n_obs=length(dataBE2$time)
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
+
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),
+                 omega=~s(AngleNormal,by=indicator,k=4,bs="cs"))
+
+baseline4<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
+
+#fit_model
+baseline4$fit()
+estimates_bas4=as.list(baseline4$tmb_rep(),what="Est")
+std_bas4=as.list(baseline4$tmb_rep(),what="Std")
+
+res=baseline4$get_all_plots(baseline=NULL,model_name="baseline4",show_CI="pointwise",save=TRUE)
 
 
 ###  AICs VALUES FOR THE BASELINE MODELS-------------------------------
