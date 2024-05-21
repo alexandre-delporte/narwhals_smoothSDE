@@ -104,6 +104,32 @@ res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",show_CI="pointw
 #we see a slight effect of the angle on omega
 
 
+###  DISTANCE SHORE AND ANGLE NORMAL IN OMEGA  -----------------------
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+
+# Measurement error
+sigma_obs=0.05
+n_obs=length(dataBE2$time)
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
+                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(DistanceShore,AngleNormal,k=c(5,5),bs="cs")+s(ID,bs="re"))
+
+baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                    fixpar=c("mu1","mu2"))
+
+#initialize coefficients based on estimates of model3 with all the data
+init_coeff_re=model2$coeff_re()
+baseline2$update_coeff_re(init_coeff_re)
+
+#fit_model
+baseline2$fit()
+estimates_bas2=as.list(baseline2$tmb_rep(),what="Est")
+std_bas2=as.list(baseline2$tmb_rep(),what="Std")
+
 ###  EXP SHORE AND ANGLE NORMAL IN OMEGA  -----------------------
 
 #initial parameters
@@ -117,18 +143,18 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
                    omega=~ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,AngleNormal,k=c(5,5),bs="cs")+s(ID,bs="re"))
 
-baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
                     fixpar=c("mu1","mu2"))
 
 #initialize coefficients based on estimates of model3 with all the data
 init_coeff_re=model3$coeff_re()
-baseline2$update_coeff_re(init_coeff_re)
+baseline3$update_coeff_re(init_coeff_re)
 
 #fit_model
-baseline2$fit()
-estimates_bas2=as.list(baseline2$tmb_rep(),what="Est")
-std_bas2=as.list(baseline2$tmb_rep(),what="Std")
+baseline3$fit()
+estimates_bas3=as.list(baseline3$tmb_rep(),what="Est")
+std_bas3=as.list(baseline3$tmb_rep(),what="Std")
 
 
 
@@ -139,7 +165,7 @@ xmax=list("ExpShore"=1/D_low)
 link=list("ExpShore"=(\(x) 1/x))
 xlabel=list("ExpShore"="Distance to shore")
 
-res=baseline2$get_all_plots(baseline=NULL,model_name="baseline2",
+res=baseline3$get_all_plots(baseline=NULL,model_name="baseline3",
                             xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 

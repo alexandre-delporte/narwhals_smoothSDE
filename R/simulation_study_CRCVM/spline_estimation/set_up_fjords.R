@@ -23,9 +23,10 @@ library(sf)                 #geometry for constraints
 library(mgcv)               #tensor splines
 library(smoothSDE)          #to compute nearest shore point
 
-
-N_ID=6                      #number of individual tracks per batch
-TMAX=1*24                 #duration of each track in hour
+#https://stats.stackexchange.com/questions/37647/what-is-the-minimum-recommended-number-of-groups-for-a-random-effects-factor
+#It is recommended to have around 10 groups to get good estimates of the random effect variance
+N_ID=10                      #number of individual tracks per batch
+TMAX=12                 #duration of each track in hour
 SP_DF=3                 #degree of freedom in tensor splines
 
 
@@ -84,8 +85,8 @@ H_hf=array(rep(sigma_obs^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 # Definition of parameters tau and nu ----------------
 sigma_tau=0.2
 sigma_nu=0.1
-tau_re=rnorm(6,mean=0,sd=sigma_tau)
-nu_re=rnorm(6,mean=0,sd=sigma_nu)
+tau_re=rnorm(N_ID,mean=0,sd=sigma_tau)
+nu_re=rnorm(N_ID,mean=0,sd=sigma_nu)
 true_log_tau=tau_re+log(1)
 true_log_nu=nu_re+log(4)
 
@@ -93,7 +94,7 @@ true_log_nu=nu_re+log(4)
 
 # Defintion of smooth parameter omega ----------
 
-fomega=function(cov_data,D0=0.4,omega0=40*pi/2,lambda=2,kappa=0.2) {
+fomega=function(cov_data,D0=0.35,omega0=40*pi/2,lambda=2,kappa=0.2) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){

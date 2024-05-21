@@ -53,6 +53,10 @@ for (id in unique(data$ID)) {
 
 cat(count/N_ID*100,"percent of the samples reached land")
 
+if (count>0) {
+  stop("Stop : at least one trajectory reached the shore.")
+}
+
 # Save plot of the trajectories ------------
 
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+

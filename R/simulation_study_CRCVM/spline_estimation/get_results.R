@@ -39,6 +39,8 @@ for (domain in domains) {
       
       for (file in files) {
         df=read.csv(file.path(domain,file))
+        
+        
         est_df=rbind(est_df,df)
       }
   
@@ -60,7 +62,7 @@ for (domain in domains) {
         estimates=est_df[est_df$coeff_name==name,"estimate"]
         true_value=est_df[est_df$coeff_name==name,"true"][1]
     
-        true_valuese=c(true_values,true_value)
+        true_values=c(true_values,true_value)
     
         if (is.na(true_value)) {
           re_biais=c(re_biais,NA)
@@ -85,7 +87,8 @@ for (domain in domains) {
           geom_density(alpha=.2, fill="#FF6666") +geom_vline(aes(xintercept=true_value),
                     color="blue", linetype="dashed", size=1)
       
-        ggsave(filename=paste(paste("histo",name,domain,time,cov,sep="_"),".png",sep=""),plot=histo,width=10,height=5)
+        ggsave(filename=paste(paste("histo",name,domain,time,cov,sep="_"),".png",sep=""),
+               plot=histo,path=file.path(domain),width=10,height=5)
       }
   
       results=data.frame("coeff_name"=unique(est_df$coeff_name),"true"=true_values,

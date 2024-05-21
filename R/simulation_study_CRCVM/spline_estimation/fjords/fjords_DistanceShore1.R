@@ -53,6 +53,10 @@ for (id in unique(data$ID)) {
 
 cat(count/N_ID*100,"percent of the samples reached land")
 
+if (count>0) {
+  stop("Stop : at least one trajectory reached the shore.")
+}
+
 # Save plot of the trajectories ------------
 
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
@@ -206,3 +210,4 @@ true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
 coeffs_df=cbind(coeffs_df,true_df)
 
 write.csv(coeffs_df,paste("result_",TMAX,"h_",domain_name,"_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
+
