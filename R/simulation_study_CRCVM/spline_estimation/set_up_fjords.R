@@ -1,4 +1,4 @@
-# HEADER --------------------------------------------
+# HEADER ----------------------------------
 #
 # Author:     Alexandre Delporte
 # Copyright     Copyright 2024 - Alexandre Delporte
@@ -60,7 +60,7 @@ while (i<=N_ID) {
   p=nearest_shore_point(st_point(x),border)
   Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
   #keep it as initial position if it is at least 50 metres away from the shore
-  if (Dshore>1) {
+  if (Dshore>4) {
     x0[i,]=x
     i=i+1
   }
@@ -82,7 +82,7 @@ H_hf=array(rep(sigma_obs^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
 
 
 # Definition of parameters tau and nu ----------------
-sigma_tau=0.1
+sigma_tau=0.2
 sigma_nu=0.1
 tau_re=rnorm(6,mean=0,sd=sigma_tau)
 nu_re=rnorm(6,mean=0,sd=sigma_nu)

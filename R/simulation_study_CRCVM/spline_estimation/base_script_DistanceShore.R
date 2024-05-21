@@ -155,6 +155,8 @@ knots=list("omega"=knots_DistanceShore)
 crcvm_short<- SDE$new(formulas = formulas,data = data[data$time<TMAX/2,],type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H_hf[,,1:(N_ID*n_hf/2)]),knots=knots)
+
+#fit
 crcvm_short$fit(method="BFGS")
 
 # Get estimated coefficients --------------
@@ -175,7 +177,7 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,NA,NA))
+                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,m1$sp))
 
 coeffs_df=cbind(coeffs_df,true_df)
 
@@ -191,6 +193,8 @@ par0 <- c(0,0,1,1,0)
 crcvm_long<- SDE$new(formulas = formulas,data = data,type = "RACVM",
                     response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                     other_data=list("H"=H_hf),knots=knots)
+
+#fit
 crcvm_long$fit(method="BFGS")
 
 # Get estimated coefficients --------------
@@ -211,7 +215,7 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,NA,NA))
+                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,m1$sp))
 
 coeffs_df=cbind(coeffs_df,true_df)
 

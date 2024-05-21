@@ -16,7 +16,7 @@
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-seeds=1:200
+seeds=1:100
 script_ExpShore<-readLines("base_script_ExpShore.R")
 script_DistanceShore<-readLines("base_script_DistanceShore.R")
 

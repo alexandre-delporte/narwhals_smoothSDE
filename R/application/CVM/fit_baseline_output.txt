@@ -5,15 +5,15 @@ Extracting all trajectories before exposure and 12 hours after tagging ...
 1558 positions measured before exposure 
 
 BASELINE AICs VALUES WITH LOCATIONS OF FIRST DAY REMOVED TO AVOID TAGGING EFFECT
-without random effects : -4679.48903277552
-with random effects on tau, nu, mu : -4735.86068911818
-with random effects on nu, mu : -4724.82574664031
-with random effect on nu and mu=0: -4701.00276988822
-RACVM with random effects on mu and nu -4733.98786279772 
+without random effects : -4679.48903277568
+with random effects on tau, nu, mu : -4735.8606891187
+with random effects on nu, mu : -4724.82574664064
+with random effect on nu and mu=0: -4701.00276988864
+RACVM with random effects on mu and nu -4733.85521010309 
 
 BASELINE AICs VALUES WITH LOCATIONS OF FIRST 12h REMOVED TO AVOID TAGGING EFFECT
-without random effects : -8458.84939375664
-with random effects on tau, nu, mu : -8571.57488262871
-with random effects on nu, mu : -8557.98513929957
-with random effect on nu and mu=0: -8525.39502965839
-RACVM with random effects on mu and nu -8567.02395549836
+without random effects : -8458.84939375641
+with random effects on tau, nu, mu : -8571.57488262777
+with random effects on nu, mu : -8557.98513929799
+with random effect on nu and mu=0: -8525.39502965687
+RACVM with random effects on mu and nu -8567.05475454218

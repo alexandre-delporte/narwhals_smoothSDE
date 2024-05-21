@@ -1,6 +1,18 @@
-
-
-
+# HEADER --------------------------------------------
+#
+# Author:     Alexandre Delporte
+# Copyright     Copyright 2024 - Alexandre Delporte
+# Email:      alexandre.delporte@univ-grenoble-alpes.fr
+#
+# Date:     2024-05-17
+#
+# Script Name:    ~/Documents/Research/Projects/narwhals_smoothSDE/R/application/CRCVM/fit_response.R
+#
+# Script Description: Fit response CRCVM models
+#
+#
+# SETUP ------------------------------------
+cat("\014")                 # Clears the console
 
 #SEED FOR REPRODUCTIBILITY
 set.seed(42)
@@ -32,23 +44,6 @@ par_dir=dirname(dirname(dirname(getwd()))) #parent directory
 narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")  
 
 
-# DATA BEFORE EXPOSURE
-
-dataBE1=read.csv(file.path(narwhal_data_path,"DataBE1.csv"), header = TRUE,dec = ".")
-
-cat("Extracting trajectories before exposure and 1 day after tagging... ",file=filename,sep="\n",append=TRUE)
-
-cat(paste(length(dataBE1[,1]),"positions measured before exposure \n"),file=filename,sep="\n",append=TRUE)
-
-dataBE2=read.csv(file.path(narwhal_data_path,"DataBE2.csv"), header = TRUE,dec = ".")
-
-
-
-cat("Extracting trajectories before exposure and 12h after tagging... ",file=filename,sep="\n",append=TRUE)
-
-cat(paste(length(dataBE2[,1]),"positions measured before exposure \n"),file=filename,sep="\n",append=TRUE)
-
-
 # DATA AFTER EXPOSURE
 
 dataAE=read.csv(file.path(narwhal_data_path,"DataAE.csv"), header = TRUE,dec = ".")
@@ -58,39 +53,32 @@ cat("Extracting trajectories after exposure.. ",file=filename,sep="\n",append=TR
 
 cat(paste(length(dataAE[,1]),"positions measured after exposure \n"),file=filename,sep="\n",append=TRUE)
 
-allData=rbind(dataBE1,dataAE)
 
 ############################## SOME PREPROCESSING FOR EXPSHORE ####################################
-dataAE=dataAE[dataAE$DistanceShore>0.05,]
 
 D_low=0.07
-D_up=0.83
+D_up=3
 dataAE[dataAE$DistanceShore> D_up,"ExpShore"]=0
 dataAE[dataAE$DistanceShore< D_low,"ExpShore"]=1/D_low
 
-allData[allData$DistanceShore> D_up,"ExpShore"]=0
-allData[allData$DistanceShore< D_low,"ExpShore"]=1/D_low
-
-
-
-############################################# SET MEASUREMENT ERROR ###############################################
-
-sigma_obs=0.045
 n_obs=length(dataAE$time)
-H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
 
 
 ########### MODEL WITH ONLY ANGLE NORMAL ##################
 par0 <- c(0,0,1,4,0)
 
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
 #model formula
 formulas <- list(mu1=~1,mu2=~1,
-                 tau =~1,
-                 nu=~1,
-                 omega=~s(AngleNormal,k=5,bs="cs")+s(ID,bs="re"))
+                 tau =~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),
+                 omega=~s(AngleNormal,k=4,bs="cs"))
 
 response1<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"))
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),fixpar=c("mu1","mu2"))
 
 #fit_model
 response1$fit()
@@ -101,98 +89,65 @@ res=response1$get_all_plots(baseline=NULL,model_name="response1",show_CI="pointw
 
 #we see a clear effect of the angle on both omega and tau
 
-#######################  RACVM  MODEL WITH tensor splines te of AngleNormal and Distance Shore in omega #######################
+############## MODEL WITH FIXED SPLINE OF ANGLE NORMAL AND TAU AND NU INTERCEPTS ##################
 
-#define model
-formulas <- list(mu1=~1,mu2=~1,
-                 tau =~1,
-                 nu=~1,omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=3,bs="cs")+ti(DistanceShore,AngleNormal,k=3,bs="cs"))
 par0 <- c(0,0,1,4,0)
-response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
-                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H))
 
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~s(ExpShip,k=3,bs="tp")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="tp")+s(ID,bs="re"),
+                 omega=~s(AngleNormal,k=4,bs="cs"))
+
+response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                    fixpar=c("mu1","mu2"),map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,3))),coeff_fe=factor(rep(NA,5))))
+
+new_coeff_re=c(rep(0,2),baseline1$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline1$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+              baseline1$coeff_re()[paste("omega.s(AngleNormal).",1:3,sep=""),1])
+
+response2$update_coeff_re(new_coeff_re)
+response2$update_coeff_fe(baseline1$coeff_fe()[,1])
 
 
 #fit_model
 response2$fit()
-estimates2=as.list(response1$tmb_rep(),what="Est")
-std2=as.list(response1$tmb_rep(),what="Std")
+estimates_res2=as.list(response2$tmb_rep(),what="Est")
+std_res2=as.list(response2$tmb_rep(),what="Std")
 
 
 #plot parameters
-xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi)
-xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi)
-link=list("ExpShore"=(\(x) 1/x))
-xlabel=list("ExpShore"="Distance to shore")
 
+#plot parameters
+xmin=list("AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShip"="Distance to ship")
 
-res=response2$get_all_plots(baseline=NULL,model_name="response2",xmin=xmin,
-              xmax=xmax,show_CI="pointwise",save=TRUE)
+res=response2$get_all_plots(baseline=baseline1,model_name="response2",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="none",save=TRUE)
 
-
-
-#########################  RACVM  MODEL WITH tensor splines of  AngleNormal, Distance shore in omega ##############################
+####### FULL MODEL WITH FIXED BASELINE SPLINE COEFFS
 
 #define model
-formulas <- list(mu1=~1,mu2=~1,tau =~1
-                 nu=~1,
-                 omega=~te(AngleNormal,DistanceShore,k=c(4,4),bs="cs"))
+formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 omega=~ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,AngleNormal,k=5,bs="cs")+s(ID,bs="re"))
 par0 <- c(0,0,1,4,0)
-response3<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
-                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H))
+response4<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,24),rep(NA,6))),coeff_fe=factor(rep(NA,5))))
 
 
+new_coeff_re=c(rep(0,2),baseline2$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline2$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+               baseline2$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],baseline2$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+          baseline2$coeff_re()[paste("omega.ti(ExpShore,AngleNormal).",1:16,sep=""),1],baseline2$coeff_re()[paste("omega.s(ID).",1:6,sep=""),1])
 
-#fit_model
-response3$fit()
-estimates3=as.list(response3$tmb_rep(),what="Est")
-std3=as.list(response3$tmb_rep(),what="Std")
-
-
-#plot parameters
-
-response3$get_all_plots(baseline=NULL,model_name="response3",xmin=xmin,
-                        xmax=xmax,show_CI="pointwise",save=TRUE)
-
-#########################  RACVM  MODEL WITH additive splines of  AngleNormal and ExpShore in omega and tau ##############################
-
-#define model
-formulas <- list(mu1=~1,mu2=~1,tau =~1,
-                 nu=~s(ExpShip,k=10,bs="cs"),
-                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=5,bs="cs"))
-par0 <- c(0,0,1,4,0)
-response3<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM1",
-                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H))
-
-
-
-#fit_model
-response3$fit()
-estimates3=as.list(response3$tmb_rep(),what="Est")
-std3=as.list(response3$tmb_rep(),what="Std")
-
-#plot parameters
-xmin=list("ExpShore"=1/0.5,"AngleNormal"=-pi+pi/20,"ExpShip"=1/80)
-xmax=list("ExpShore"=1/0.05,"AngleNormal"=pi-pi/20,"ExpShip"=1/0.5)
-link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
-xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
-
-response3$get_all_plots(baseline=NULL,model_name="response3",xmin=xmin,
-              xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
-
-
-
-#########################  RACVM  MODEL WITH additive splines of  AngleNormal and ExpShore in omega and tau ##############################
-
-#define model
-formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpŜhip,k=10,bs="cs"),
-                 nu=~s(ExpŜhip,k=10,bs="cs")+s(ID,bs="re"),
-                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=5,bs="cs"))
-par0 <- c(0,0,1,1,0)
-response4<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM1",
-                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H))
-
+response4$update_coeff_re(new_coeff_re)
+response4$update_coeff_fe(baseline2$coeff_fe()[,1])
 
 
 #fit_model
@@ -201,10 +156,13 @@ estimates4=as.list(response4$tmb_rep(),what="Est")
 std4=as.list(response4$tmb_rep(),what="Std")
 
 #plot parameters
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
 
-
-response4$get_all_plots(baseline=NULL,model_name="response4",xmin=xmin,
-                        xmax=xmax,link=link,xlabel=xlabel,npost=1000,level=0.95)
+response4$get_all_plots(baseline=baseline2,model_name="response4",xmin=xmin,
+                        xmax=xmax,link=link,xlabel=xlabel,show_CI="none",save=TRUE)
 
 
 #############################      RESPONSE AIC VALUES    #####################################################

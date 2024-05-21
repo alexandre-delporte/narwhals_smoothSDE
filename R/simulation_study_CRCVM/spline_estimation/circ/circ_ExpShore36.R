@@ -141,6 +141,8 @@ knots=list("omega"=knots_ExpShore)
 crcvm_short<- SDE$new(formulas = formulas,data = data[data$time<TMAX/2,],type = "RACVM",
                response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                other_data=list("H"=H_hf[,,1:(N_ID*n_hf/2)]),knots=knots)
+
+#fit
 crcvm_short$fit(method="BFGS")
 
 # Get estimated coefficients --------------
@@ -178,6 +180,8 @@ knots=list("omega"=knots_ExpShore)
 crcvm_long<- SDE$new(formulas = formulas,data = data,type = "RACVM",
                       response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
                       other_data=list("H"=H_hf),knots=knots)
+
+#fit
 crcvm_long$fit(method="BFGS")
 
 # Get estimated coefficients --------------

@@ -1,9 +1,3 @@
-Extracting trajectories before exposure and 1 day after tagging... 
-935 positions measured before exposure 
-
-Extracting trajectories before exposure and 12h after tagging... 
-1558 positions measured before exposure 
-
 Extracting trajectories after exposure.. 
 3257 positions measured after exposure 
 
