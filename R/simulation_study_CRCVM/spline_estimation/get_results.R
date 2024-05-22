@@ -8,7 +8,8 @@
 #
 # Script Name:    get_results.R
 #
-# Script Description: Compute biais,rmse and histograms from the results in the .csv files in the domains
+# Script Description: 
+# Compute biais,rmse and histograms from the results in the .csv files in the domains
 # subdirectories
 #
 #
@@ -53,6 +54,7 @@ for (domain in domains) {
       biais=c()
       re_biais=c()
       rmse=c()
+      mean=c()
       true_values=c()
   
       #loop over the coefficient names
@@ -73,6 +75,7 @@ for (domain in domains) {
       
           biais=c(biais,1/N*sum(estimates-true_value))
           rmse=c(rmse,sqrt(1/N*sum((estimates-true_value)^2)))
+          mean=c(mean,1/N*sum(estimates))
       
           if (true_value==0) {
             re_biais=c(re_biais,NA)
@@ -91,14 +94,14 @@ for (domain in domains) {
                plot=histo,path=file.path(domain),width=10,height=5)
       }
   
-      results=data.frame("coeff_name"=unique(est_df$coeff_name),"true"=true_values,
+      results=data.frame("coeff_name"=unique(est_df$coeff_name),"true"=true_values,"mean"=mean,
                                    "biais"=biais,"re_biais"=re_biais,"rmse"=rmse)
   
   
       p=ggplot()+geom_violin(data=est_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
         xlab(" ")+labs(fill = "Estimated coefficients")+
         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-        geom_point(data = df_DistanceShore, aes(x = coeff_name, y = true), color = "red", size = 1,shape=4)
+        geom_point(data = est_df, aes(x = coeff_name, y = true), color = "red", size = 1,shape=4)
   
   
       #round values to 2 digits
@@ -112,7 +115,7 @@ for (domain in domains) {
   
       results=as.data.frame(lapply(results, round_numeric))
   
-      write.csv(results_DistanceShore, paste(paste("result_",domain,cov,time,sep="_"),".csv",sep=""), row.names=FALSE)
+      write.csv(results, paste(paste("result_",domain,cov,time,sep="_"),".csv",sep=""), row.names=FALSE)
       }
   }
 }

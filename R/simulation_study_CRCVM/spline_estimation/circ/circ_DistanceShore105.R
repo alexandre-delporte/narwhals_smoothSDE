@@ -53,6 +53,10 @@ for (id in unique(data$ID)) {
 
 cat(count/N_ID*100,"percent of the samples reached land")
 
+if (count>0) {
+  stop("Stop : at least one trajectory reached the shore.")
+}
+
 # Save plot of the trajectories ------------
 
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
@@ -163,7 +167,7 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,NA,NA))
+                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,m1$sp))
 
 coeffs_df=cbind(coeffs_df,true_df)
 
@@ -201,7 +205,7 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,NA,NA))
+                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,m1$sp))
 
 coeffs_df=cbind(coeffs_df,true_df)
 
