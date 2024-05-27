@@ -14,7 +14,7 @@
 #
 # SETUP ------------------------------------
 
-set.seed(42)                #seed for reproducibility
+set.seed(42)                #seed for reproductibility
 
 
 library(ggplot2)            #plots
@@ -25,9 +25,17 @@ library(smoothSDE)          #to compute nearest shore point
 
 #https://stats.stackexchange.com/questions/37647/what-is-the-minimum-recommended-number-of-groups-for-a-random-effects-factor
 #It is recommended to have around 10 groups to get good estimates of the random effect variance
-N_ID=12                      #number of individual tracks per batch
-TMAX=12                 #duration of each track in hour
-SP_DF=3                 #degree of freedom in tensor splines
+N_ID=18                      #number of individual tracks per batch
+TMAX=12                      #duration of each track in hour
+SP_DF=3                      #degree of freedom in tensor splines
+TAU_0=1                      # tau intercept
+NU_0=4                       #nu intercept
+SIGMA_TAU=0.2                #variance of random effects on tau
+SIGMA_NU=0.1                 # variance of random effects on nu
+DMIN=1                       #min distance to shore for initial position
+DELTA=1/60                   #time step
+PAR0=c(0,0,2,1,0)            # initial values (mu1,mu2,tau,nu,omega)
+SIGMA_OBS=0.005               # measurement error
 
 
 # Land polygons --------------------
@@ -48,20 +56,14 @@ v0=c(0,0)
 x0=matrix(rep(NA,N_ID*2),ncol=2)
 colnames(x0)=c("x1","x2")
 
-v0=c(0,0)
-
-#generate random initial points
-x0=matrix(rep(NA,N_ID*2),ncol=2)
-colnames(x0)=c("x1","x2")
-
 i=1
 while (i<=N_ID) {
   #choose location uniformly in the map
-  x=c(runif(1,min=430,max=510),runif(1,min=7760,max=7900))
+  x=c(runif(1,min=430,max=570),runif(1,min=7760,max=7900))
   p=nearest_shore_point(st_point(x),border)
   Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
   #keep it as initial position if it is at least 50 metres away from the shore
-  if (Dshore>4) {
+  if (Dshore>DMIN) {
     x0[i,]=x
     i=i+1
   }
@@ -69,26 +71,22 @@ while (i<=N_ID) {
 
 # Time steps ----------------
 
-hf=1/60 
 
 #high frequency time points
-times_hf=seq(0,TMAX,by=hf)
+times=seq(0,TMAX,by=DELTA)
 
-n_hf=length(times_hf)-1
+n_obs=length(times)-1
 
 # Measurement error -------------
 
-sigma_obs=0.005
-H_hf=array(rep(sigma_obs^2*diag(2),n_hf*N_ID),dim=c(2,2,n_hf*N_ID))
+H=array(rep(SIGMA_OBS^2*diag(2),n_obs*N_ID),dim=c(2,2,n_obs*N_ID))
 
 
 # Definition of parameters tau and nu ----------------
-sigma_tau=0.2
-sigma_nu=0.1
-tau_re=rnorm(N_ID,mean=0,sd=sigma_tau)
-nu_re=rnorm(N_ID,mean=0,sd=sigma_nu)
-true_log_tau=tau_re+log(1)
-true_log_nu=nu_re+log(4)
+tau_re=rnorm(N_ID,mean=0,sd=SIGMA_TAU)
+nu_re=rnorm(N_ID,mean=0,sd=SIGMA_NU)
+true_log_tau=tau_re+log(TAU_0)
+true_log_nu=nu_re+log(NU_0)
 
 
 

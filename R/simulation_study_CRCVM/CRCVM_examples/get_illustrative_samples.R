@@ -16,7 +16,7 @@ cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
 #seed for reproducibility 
-set.seed(2)
+set.seed(42)
 
 #parallel computing
 library(foreach)
@@ -118,7 +118,7 @@ ftau_constant=function(cov_data,tau=1) {
   return (tau)
 }
 
-ftau_bump=function(cov_data,epsilon=pi/8,alpha=pi/8,tau0=0.5,tau1=4) {
+ftau_bump=function(cov_data,epsilon=pi/6,alpha=pi/8,tau0=0.5,tau1=4) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   tau=(tau0+(tau1-tau0)/2*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
@@ -127,7 +127,7 @@ ftau_bump=function(cov_data,epsilon=pi/8,alpha=pi/8,tau0=0.5,tau1=4) {
   return (tau)
 }
 
-ftau_bump_modified=function(cov_data,epsilon=pi/5,alpha=pi/8,D0=3,kappa=1,tau0=0.5,tau1=3) {
+ftau_bump_modified=function(cov_data,epsilon=pi/8,alpha=pi/8,D0=3,kappa=1,tau0=0.5,tau1=4) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   coeff=exp(-kappa*(Dshore/D0)^2)
@@ -155,7 +155,7 @@ fomega=function(cov_data,D0=0.3,omega0=60*pi/2,lambda=2,kappa=0.2) {
   return(omega)
 }
 
-fomega_fast=function(cov_data,D0=0.05,omega0=90*pi,lambda=2,kappa=0.2) {
+fomega_fast=function(cov_data,D0=0.3,omega0=60*pi,lambda=2,kappa=0.2) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -322,7 +322,7 @@ data_sim_fjords_pers=data_sim_fjords_pers[seq(1,length(data_sim_fjords_pers$time
 # Simulate constrained CRCVM in rectangle ----------------
 
 # standard CRCVM in rectangle
-res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],
+res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_fast,fnu=fnu_constant,v0=v0,x0=x0[1,],
                     times=seq(0,5*24,by=1/60),land=rect_border,verbose=FALSE)
 
 data_sim_rect_standard=res$sim
@@ -341,7 +341,7 @@ data_shore=res$shore[,c("p1","p2")]
 data_sim_rect_splines=cbind(data_sim_rect_splines,data_shore)
 
 # #CRCVM persistent along the boundary in rectangle
-res=sim_theta_CRCVM(ftau=ftau_bump,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],
+res=sim_theta_CRCVM(ftau=ftau_bump,fomega=fomega_fast,fnu=fnu_constant,v0=v0,x0=x0[1,],
                     times=seq(0,5*24,by=1/60),land=rect_border,verbose=FALSE)
 
 data_sim_rect_pers=res$sim
@@ -355,6 +355,7 @@ data_sim_rect_pers=data_sim_rect_pers[seq(1,length(data_sim_rect_pers$time),by=5
 
 # Simulate constrained CRCVM in circle ----------------
 
+#standard CRCVM in circle
 res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],
                     times=seq(0,5*24,by=1/60),land=circ_border,verbose=FALSE)
 
@@ -363,6 +364,7 @@ data_sim_circ_standard$ID=factor(rep(1,length(data_sim_circ_standard$y1)))
 data_shore=res$shore[,c("p1","p2")]
 data_sim_circ_standard=cbind(data_sim_circ_standard,data_shore)
 
+#spline CRCVM in circle
 res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,v0=v0,x0=x0[1,],
                     times=seq(0,5*24,by=1/60),land=circ_border,verbose=FALSE)
 
@@ -371,6 +373,7 @@ data_sim_circ_splines$ID=factor(rep(1,length(data_sim_circ_splines$y1)))
 data_shore=res$shore[,c("p1","p2")]
 data_sim_circ_splines=cbind(data_sim_circ_splines,data_shore)
 
+#persistent CRCVM in circle
 res=sim_theta_CRCVM(ftau=ftau_bump,fomega=fomega,fnu=fnu_constant,v0=v0,x0=x0[1,],
                     times=seq(0,5*24,by=1/60),land=circ_border,verbose=FALSE)
 
@@ -393,10 +396,10 @@ data_sim$ID=factor(rep(1,length(data_sim$y1)))
 
 #Zoom on Fjords for the plot --------------------
 
-x.min= min(data_sim_fjords_pers$y1)-1
-x.max = max(data_sim_fjords_pers$y1)+1
-y.min = min(data_sim_fjords_pers$y2)-1
-y.max = max(data_sim_fjords_pers$y2)+1
+x.min= min(c(data_sim_fjords_pers$y1,data_sim_fjords_standard$y1,data_sim_fjords_splines$y1))-1
+x.max = max(c(data_sim_fjords_pers$y1,data_sim_fjords_standard$y1,data_sim_fjords_splines$y1))+1
+y.min = min(c(data_sim_fjords_pers$y2,data_sim_fjords_standard$y2,data_sim_fjords_splines$y2))-1
+y.max = max(c(data_sim_fjords_pers$y2,data_sim_fjords_standard$y2,data_sim_fjords_splines$y2))+1
 
 bbox <- st_bbox(c(xmin=x.min, xmax = x.max, ymin =y.min, ymax = y.max), 
                 crs = st_crs(land_border))
@@ -404,65 +407,13 @@ bbox <- st_bbox(c(xmin=x.min, xmax = x.max, ymin =y.min, ymax = y.max),
 bbox_polygon <- st_as_sfc(st_bbox(bbox)
                           , crs = st_crs(land_border))
 
-cropped_land_pers<- land_border%>% st_intersection(bbox_polygon)
-
-x.min= min(data_sim_fjords_standard$y1)-1
-x.max = max(data_sim_fjords_standard$y1)+1
-y.min = min(data_sim_fjords_standard$y2)-1
-y.max = max(data_sim_fjords_standard$y2)+1
-
-bbox <- st_bbox(c(xmin=x.min, xmax = x.max, ymin =y.min, ymax = y.max), 
-                crs = st_crs(land_border))
-
-bbox_polygon <- st_as_sfc(st_bbox(bbox)
-                          , crs = st_crs(land_border))
-
-cropped_land_standard<- land_border%>% st_intersection(bbox_polygon)
-
-x.min= min(data_sim_fjords_splines$y1)-1
-x.max = max(data_sim_fjords_splines$y1)+1
-y.min = min(data_sim_fjords_splines$y2)-1
-y.max = max(data_sim_fjords_splines$y2)+1
-
-bbox <- st_bbox(c(xmin=x.min, xmax = x.max, ymin =y.min, ymax = y.max), 
-                crs = st_crs(land_border))
-
-bbox_polygon <- st_as_sfc(st_bbox(bbox)
-                          , crs = st_crs(land_border))
-
-cropped_land_splines<- land_border%>% st_intersection(bbox_polygon)
+cropped_land<- land_border%>% st_intersection(bbox_polygon)
 
 
 
 # Create the plots ----------------------
-plot_illust_fjords_standard=ggplot()+geom_sf(data=cropped_land_standard$geometry,fill="grey")+
-  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
-  geom_path(data=data_sim_fjords_standard,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_point(data=data_sim_fjords_standard,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_fjords_standard%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
 
-plot_illust_fjords_splines=ggplot()+geom_sf(data=cropped_land_splines$geometry,fill="grey")+
-  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
-  geom_path(data=data_sim_fjords_splines,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_point(data=data_sim_fjords_splines,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_fjords_splines%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
-
-plot_illust_fjords_pers=ggplot()+geom_sf(data=cropped_land_pers$geometry,fill="grey")+
-  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
-  geom_path(data=data_sim_fjords_pers,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_point(data=data_sim_fjords_pers,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_fjords_pers%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
-
-
+#standard unconstrained 
 plot_illust_standard=ggplot()+
   geom_path(data=data_sim,mapping=aes(y1,y2,col=time),size=0.1)+
   geom_point(data=data_sim,mapping=aes(y1,y2,col=time),size=0.1)+
@@ -471,66 +422,76 @@ plot_illust_standard=ggplot()+
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
+# Combine fjords data
+data_fjords_combined <- bind_rows(
+  data_sim_fjords_standard %>% mutate(set = "Standard"),
+  data_sim_fjords_splines %>% mutate(set = "Tortuous"),
+  data_sim_fjords_pers %>% mutate(set = "Persistent")
+)
 
-plot_illust_rect_standard=ggplot()+geom_sf(data=rect_border$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim_rect_standard,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_path(data=data_sim_rect_standard,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_rect_standard%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+#
+# Plot
+plot_fjords_combined <- ggplot() +
+  geom_sf(data = cropped_land$geometry, fill = "grey") +
+  coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
+  geom_path(data = data_fjords_combined, mapping = aes(y1, y2, col = time), size = 0.1) +
+  geom_point(data = data_fjords_combined, mapping = aes(y1, y2, col = time), size = 0.1) +
+  scale_color_viridis_c(name = "Time") +
+  geom_point(data = data_fjords_combined %>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red") +
+  facet_wrap(~set) + theme(plot.margin = grid::unit(c(0,0,0,0),"mm"))+
   xlab("x") + ylab("y")
 
-plot_illust_rect_splines=ggplot()+geom_sf(data=rect_border$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim_rect_splines,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_path(data=data_sim_rect_splines,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_rect_splines%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+
+
+
+# Combine rect data
+data_rect_combined <- bind_rows(
+  data_sim_rect_standard %>% mutate(set = "Standard"),
+  data_sim_rect_splines %>% mutate(set = "Tortuous"),
+  data_sim_rect_pers %>% mutate(set = "Persistent")
+)
+
+#
+# Plot
+plot_rect_combined <- ggplot() +
+  geom_sf(data = rect_border$geometry, fill = "grey") +
+  coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
+  geom_path(data = data_rect_combined, mapping = aes(y1, y2, col = time), size = 0.1) +
+  geom_point(data = data_rect_combined, mapping = aes(y1, y2, col = time), size = 0.1) +
+  scale_color_viridis_c(name = "Time") +
+  geom_point(data = data_rect_combined %>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red") +
+  facet_wrap(~set) +theme(plot.margin = grid::unit(c(0,0,0,0),"mm"))+
   xlab("x") + ylab("y")
 
-plot_illust_rect_pers=ggplot()+geom_sf(data=rect_border$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim_rect_pers,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_path(data=data_sim_rect_pers,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_rect_pers%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+
+# Combine circ data
+data_circ_combined <- bind_rows(
+  data_sim_circ_standard %>% mutate(set = "Standard"),
+  data_sim_circ_splines %>% mutate(set = "Tortuous"),
+  data_sim_circ_pers %>% mutate(set = "Persistent")
+)
+
+#
+# Plot
+plot_circ_combined <- ggplot() +
+  geom_sf(data = circ_border$geometry, fill = "grey") +
+  coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
+  geom_path(data = data_circ_combined, mapping = aes(y1, y2, col = time), size = 0.1) +
+  geom_point(data = data_circ_combined, mapping = aes(y1, y2, col = time), size = 0.1) +
+  scale_color_viridis_c(name = "Time") +
+  geom_point(data = data_circ_combined %>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red") +
+  facet_wrap(~set) + theme(plot.margin = grid::unit(c(0,0,0,0),"mm"))+
   xlab("x") + ylab("y")
 
-plot_illust_circ_standard=ggplot()+geom_sf(data=circ_border$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim_circ_standard,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_path(data=data_sim_circ_standard,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_circ_standard%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
-
-plot_illust_circ_splines=ggplot()+geom_sf(data=circ_border$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim_circ_splines,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_path(data=data_sim_circ_splines,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_circ_splines%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
-
-plot_illust_circ_pers=ggplot()+geom_sf(data=circ_border$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
-  geom_point(data=data_sim_circ_pers,mapping=aes(y1,y2,col=time),size=0.1)+
-  geom_path(data=data_sim_circ_pers,mapping=aes(y1,y2,col=time),size=0.1)+
-  scale_color_viridis_c(name="Time")+
-  geom_point(data = data_sim_circ_pers%>% filter(!duplicated(ID)),
-             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
 
 
 #SAVE
+ggsave(filename="illustrative_sample_standard.png",plot=plot_illust_standard,width=10,height=5,dpi=320)
+ggsave(filename="illustrative_sample_fjords.png",plot=plot_fjords_combined,width=10,height=3,dpi=320)
 
-ggsave(filename="illustrative_sample_fjords_standard.png",plot=plot_illust_fjords_standard,width=10,height=5)
-ggsave(filename="illustrative_sample_fjords_splines.png",plot=plot_illust_fjords_splines,width=10,height=5)
-ggsave(filename="illustrative_sample_fjords_pers.png",plot=plot_illust_fjords_pers,width=10,height=5)
-ggsave(filename="illustrative_sample_standard.png",plot=plot_illust_standard,width=10,height=5)
-ggsave(filename="illustrative_sample_rect_standard.png",plot=plot_illust_rect_standard,width=10,height=5)
-ggsave(filename="illustrative_sample_rect_splines.png",plot=plot_illust_rect_splines,width=10,height=5)
-ggsave(filename="illustrative_sample_rect_pers.png",plot=plot_illust_rect_pers,width=10,height=5)
-ggsave(filename="illustrative_sample_circ_standard.png",plot=plot_illust_circ_standard,width=10,height=5)
-ggsave(filename="illustrative_sample_circ_splines.png",plot=plot_illust_circ_splines,width=10,height=5)
-ggsave(filename="illustrative_sample_circ_pers.png",plot=plot_illust_circ_pers,width=10,height=5)
+ggsave(filename="illustrative_sample_rect.png",plot=plot_rect_combined,width=10,height=4,dpi=320)
+ggsave(filename="illustrative_sample_circ.png",plot=plot_circ_combined,width=10,height=4,dpi=320)
 

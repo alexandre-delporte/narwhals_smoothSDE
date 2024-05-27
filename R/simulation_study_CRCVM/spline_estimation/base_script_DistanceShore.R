@@ -45,7 +45,7 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
     return (exp(true_log_tau[i]))
   }
   res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
-                      log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times_hf,land=border,verbose=FALSE)
+                      log_sigma_obs=log(SIGMA_OBS),v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
   
   data_sim=res$sim
   data_sim$ID=factor(rep(i,length(data_sim$y1)))
@@ -54,12 +54,11 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
 }
 
 
-
 # Points that reached land ---------------
 count=0
 for (id in unique(data$ID)) {
   sub_data=data[data$ID==id,]
-  if (nrow(sub_data) < n_hf) {
+  if (nrow(sub_data) < n_obs) {
     count=count+1
     cat("ID",id,"reached land","\n",sep=" ")
   }
@@ -67,9 +66,6 @@ for (id in unique(data$ID)) {
 
 cat(count/N_ID*100,"percent of the samples reached land")
 
-if (count>0) {
-  stop("Stop : at least one trajectory reached the shore.")
-}
 
 # Save plot of the trajectories ------------
 
@@ -80,8 +76,11 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
-ggsave(filename=paste("plot_",domain_name,seed,".png",sep=""),plot=plot,width=10,height=5)
+ggsave(filename=paste("plot_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km",seed,".png",sep=""),plot=plot,width=10,height=5)
 
+if (count>0) {
+  stop("Stop : at least one trajectory reached the shore.")
+}
 # Add covariates to simulation -----------
 
 signed_angle <- function(u, v) {
@@ -149,30 +148,31 @@ add_covs=function(data) {
 
 data=add_covs(data)
 
-# Estimate from simulated data over TMAX/2 ------------------
+
+# Estimate from simulated data ------------------
 
 formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
-par0 <- c(0,0,1,1,0)
+
 knots=list("omega"=knots_DistanceShore)
 
-crcvm_short<- SDE$new(formulas = formulas,data = data[data$time<TMAX/2,],type = "RACVM",
-                      response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
-                      other_data=list("H"=H_hf[,,1:(N_ID*n_hf/2)]),knots=knots)
+crcvm<- SDE$new(formulas = formulas,data = data,type = "RACVM",
+                    response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
+                    other_data=list("H"=H),knots=knots)
 
 #fit
-crcvm_short$fit(method="BFGS")
+crcvm$fit(method="BFGS")
 
 # Get estimated coefficients --------------
 
 
-coeffs=rbind(crcvm_short$coeff_re(),crcvm_short$coeff_fe()) #re and fe coeffs
+coeffs=rbind(crcvm$coeff_re(),crcvm$coeff_fe()) #re and fe coeffs
 
 coeff_names=rownames(coeffs)
 coeff_values=as.numeric(coeffs)
 
 #standard deviation of random effects
-sdev=crcvm_short$sdev()
+sdev=crcvm$sdev()
 sdev_names=rownames(sdev)
 sdev_values=as.numeric(sdev)
 
@@ -181,47 +181,9 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,m1$sp))
+                            log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,m1$sp))
 
 coeffs_df=cbind(coeffs_df,true_df)
 
-write.csv(coeffs_df,paste("result_",TMAX/2,"h_",domain_name,"_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
-
-
-# Estimate from simulated data over TMAX ------------------
-
-formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
-par0 <- c(0,0,1,1,0)
-
-crcvm_long<- SDE$new(formulas = formulas,data = data,type = "RACVM",
-                    response = c("y1","y2"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H_hf),knots=knots)
-
-#fit
-crcvm_long$fit(method="BFGS")
-
-# Get estimated coefficients --------------
-
-
-coeffs=rbind(crcvm_long$coeff_re(),crcvm_long$coeff_fe()) #re and fe coeffs
-
-coeff_names=rownames(coeffs)
-coeff_values=as.numeric(coeffs)
-
-#standard deviation of random effects
-sdev=crcvm_long$sdev()
-sdev_names=rownames(sdev)
-sdev_values=as.numeric(sdev)
-
-#bind dataframe
-coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c(coeff_values,sdev_values))
-
-#true values of the coeffs
-true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(1),log(4),sp_coeff_Dshore[1],sigma_tau,sigma_nu,m1$sp))
-
-coeffs_df=cbind(coeffs_df,true_df)
-
-write.csv(coeffs_df,paste("result_",TMAX,"h_",domain_name,"_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
+write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
 

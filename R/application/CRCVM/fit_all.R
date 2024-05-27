@@ -85,19 +85,19 @@ res=model1$get_all_plots(baseline=NULL,model_name="model1",show_CI="pointwise",s
 ##   MODEL WITH ANGLENORMAL AND DISTANCE SHORE IN OMEGA -------------------
 
 #initial parameters
-par0 <- c(0,0,1,4.5,0)
+par0 <- c(0,0,1,4,0)
 
 #measurement error
 sigma_obs=0.05
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #define model
-formulas <- list(mu1=~1,mu2=~1,tau =~1,nu=~1,
+formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
                  omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(DistanceShore,AngleNormal,k=c(3,4),bs="cs"))
 
 model2<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H))
+                    other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
 
 
@@ -108,13 +108,32 @@ std_mod2=as.list(model1$tmb_rep(),what="Std")
 
 
 #plot parameters
-
-
-xmin=list("DistanceShore"=D_low,"AngleNormal"=-pi)
-xmax=list("DistanceShore"=D_up,"AngleNormal"=pi)
+xmin=list("DistanceShore"=0.05,"AngleNormal"=-pi)
+xmax=list("DistanceShore"=5,"AngleNormal"=pi)
 xlabel=list("DistanceShore"="Distance to shore")
 res=model2$get_all_plots(baseline=NULL,model_name="model2",xmin=xmin,xmax=xmax,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
+
+sigma_obs=0.05
+par0=c(0,0,1,4,0)
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+model2_ci<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
+                    other_data=list("H"=H))
+
+
+
+#fit_model
+model2_ci$fit()
+estimates_mod2_ci=as.list(model2_ci$tmb_rep(),what="Est")
+std_mod2_ci=as.list(model2_ci$tmb_rep(),what="Std")
+
+xmin=list("DistanceShore"=0.05,"AngleNormal"=-pi)
+xmax=list("DistanceShore"=5,"AngleNormal"=pi)
+
+#plot parameters
+
+model2_ci$get_all_plots(baseline=NULL,model_name="model2_ci",xmin=xmin,xmax=xmax,show_CI="pointwise",save=TRUE)
 
 
 #########################  RACVM  MODEL WITH tensor splines of  AngleNormal, ExpShore in omega ##############################
@@ -152,7 +171,7 @@ model3$get_all_plots(baseline=NULL,model_name="model3",xmin=xmin,
                         xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
-sigma_obs=0.055
+sigma_obs=0.05
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 model3_ci<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
                             response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),

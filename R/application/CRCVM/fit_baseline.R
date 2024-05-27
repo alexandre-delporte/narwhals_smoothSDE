@@ -143,7 +143,7 @@ n_obs=length(dataBE2$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(DistanceShore,AngleNormal,k=c(5,5),bs="cs")+s(ID,bs="re"))
+                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(DistanceShore,AngleNormal,k=c(5,5),bs="cs"))
 
 baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
