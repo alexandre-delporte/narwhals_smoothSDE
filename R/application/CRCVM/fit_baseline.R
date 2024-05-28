@@ -104,10 +104,10 @@ std_bas0=as.list(baseline0$tmb_rep(),what="Std")
 #### ANGLE NORMAL IN OMEGA  -----------------------------------------  
 
 #initial parameters
-par0 <- c(0,0,1,4.5,0)
+par0 <- baseline0$par()
 
 # Measurement error
-sigma_obs=0.035
+sigma_obs=0.032
 n_obs=length(dataBE2$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
@@ -115,7 +115,7 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #model formula
 formulas <- list(mu1=~1,mu2=~1,
-                 tau =~s(ID,bs="re"),
+                 tau =~s(AngleNormal,k=5,bs="cs")+s(ID,bs="re"),
                  nu=~s(ID,bs="re"),
                  omega=~s(AngleNormal,k=4,bs="cs"))
 
@@ -135,7 +135,7 @@ res=baseline1$get_all_plots(baseline=NULL,model_name="baseline1",show_CI="pointw
 ###  DISTANCE SHORE AND ANGLE NORMAL IN OMEGA  -----------------------
 
 #initial parameters
-par0 <- c(0,0,1,4,0)
+par0 <- model2$par()
 
 # Measurement error
 sigma_obs=0.05
@@ -143,13 +143,13 @@ n_obs=length(dataBE2$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(DistanceShore,AngleNormal,k=c(5,5),bs="cs"))
+                 omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(DistanceShore,AngleNormal,k=c(3,4),bs="cs"))
 
 baseline2<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
                     fixpar=c("mu1","mu2"))
 
-#initialize coefficients based on estimates of model3 with all the data
+#initialize coefficients based on estimates of model2 with all the data
 init_coeff_re=model2$coeff_re()
 baseline2$update_coeff_re(init_coeff_re)
 
@@ -162,7 +162,7 @@ std_bas2=as.list(baseline2$tmb_rep(),what="Std")
 ###  EXP SHORE AND ANGLE NORMAL IN OMEGA  -----------------------
 
 #initial parameters
-par0 <- c(0,0,1,4,0)
+par0 <- model3$par()
 
 # Measurement error
 sigma_obs=0.05
@@ -170,7 +170,7 @@ n_obs=length(dataBE2$time)
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                   omega=~ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,AngleNormal,k=c(5,5),bs="cs")+s(ID,bs="re"))
+                   omega=~ti(ExpShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(ExpShore,AngleNormal,k=c(3,4),bs="cs"))
 
 baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
                     response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),
@@ -179,6 +179,7 @@ baseline3<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
 #initialize coefficients based on estimates of model3 with all the data
 init_coeff_re=model3$coeff_re()
 baseline3$update_coeff_re(init_coeff_re)
+new_lambda=mode
 
 #fit_model
 baseline3$fit()

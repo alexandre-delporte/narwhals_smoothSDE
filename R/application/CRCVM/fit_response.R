@@ -96,10 +96,9 @@ sigma_obs=0.05
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #model formula
-formulas <- list(mu1=~1,mu2=~1,
-                 tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
                  nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
-                 omega=~s(AngleNormal,k=4,bs="cs"))
+                 omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(DistanceShore,AngleNormal,k=c(3,4),bs="cs"))
 
 response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"),
@@ -135,28 +134,33 @@ res=response2$get_all_plots(baseline=baseline1,model_name="response2",xmin=xmin,
 
 ####### FULL MODEL WITH FIXED BASELINE SPLINE COEFFS
 
+sigma_obs=0.07
 #define model
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
                  nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
-                 omega=~ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,AngleNormal,k=5,bs="cs")+s(ID,bs="re"))
-par0 <- c(0,0,1,4,0)
-response4<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                 omega=~ti(ExpShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(ExpShore,AngleNormal,k=c(3,4),bs="cs"))
+
+par0=baseline3$par()
+response3<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("log_sigma_obs0"=log(sigma_obs)),
-                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,24),rep(NA,6))),coeff_fe=factor(rep(NA,5))))
+                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,11))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c(12,NA,13,NA,NA,NA,NA,NA))))
 
 
-new_coeff_re=c(rep(0,2),baseline2$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline2$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
-               baseline2$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],baseline2$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
-          baseline2$coeff_re()[paste("omega.ti(ExpShore,AngleNormal).",1:16,sep=""),1],baseline2$coeff_re()[paste("omega.s(ID).",1:6,sep=""),1])
+new_coeff_re=c(rep(0,2),baseline3$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline3$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+               baseline3$coeff_re()[paste("omega.ti(ExpShore).",1:2,sep=""),1],baseline3$coeff_re()[paste("omega.ti(AngleNormal).",1:3,sep=""),1],
+          baseline3$coeff_re()[paste("omega.ti(ExpShore,AngleNormal).",1:6,sep=""),1])
+new_lambda=c(1,baseline3$lambda()["tau.s(ID)",1],1,baseline3$lambda()["nu.s(ID)",1],baseline3$lambda()[3:6,1])
+response3$update_coeff_re(new_coeff_re)
+response3$update_coeff_fe(baseline3$coeff_fe()[,1])
 
-response4$update_coeff_re(new_coeff_re)
-response4$update_coeff_fe(baseline2$coeff_fe()[,1])
+response3$update_lambda(new_lambda)
 
 
 #fit_model
-response4$fit()
-estimates4=as.list(response4$tmb_rep(),what="Est")
-std4=as.list(response4$tmb_rep(),what="Std")
+response3$fit()
+estimates_res3=as.list(response3$tmb_rep(),what="Est")
+std_res3=as.list(response3$tmb_rep(),what="Std")
 
 #plot parameters
 xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi,"ExpShip"=1/45)
@@ -164,8 +168,8 @@ xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/3)
 link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
 xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
 
-response4$get_all_plots(baseline=baseline2,model_name="response4",xmin=xmin,
-                        xmax=xmax,link=link,xlabel=xlabel,show_CI="none",save=TRUE)
+response3$get_all_plots(baseline=baseline3,model_name="response3",xmin=xmin,
+                        xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 #############################      RESPONSE AIC VALUES    #####################################################

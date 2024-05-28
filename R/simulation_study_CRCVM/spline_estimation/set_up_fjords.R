@@ -25,14 +25,14 @@ library(smoothSDE)          #to compute nearest shore point
 
 #https://stats.stackexchange.com/questions/37647/what-is-the-minimum-recommended-number-of-groups-for-a-random-effects-factor
 #It is recommended to have around 10 groups to get good estimates of the random effect variance
-N_ID=18                      #number of individual tracks per batch
+N_ID=6                      #number of individual tracks per batch
 TMAX=12                      #duration of each track in hour
 SP_DF=3                      #degree of freedom in tensor splines
 TAU_0=1                      # tau intercept
 NU_0=4                       #nu intercept
 SIGMA_TAU=0.2                #variance of random effects on tau
 SIGMA_NU=0.1                 # variance of random effects on nu
-DMIN=1                       #min distance to shore for initial position
+DMIN=4                      #min distance to shore for initial position
 DELTA=1/60                   #time step
 PAR0=c(0,0,2,1,0)            # initial values (mu1,mu2,tau,nu,omega)
 SIGMA_OBS=0.005               # measurement error
@@ -59,7 +59,7 @@ colnames(x0)=c("x1","x2")
 i=1
 while (i<=N_ID) {
   #choose location uniformly in the map
-  x=c(runif(1,min=430,max=570),runif(1,min=7760,max=7900))
+  x=c(runif(1,min=430,max=520),runif(1,min=7760,max=7900))
   p=nearest_shore_point(st_point(x),border)
   Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
   #keep it as initial position if it is at least 50 metres away from the shore
@@ -92,7 +92,7 @@ true_log_nu=nu_re+log(NU_0)
 
 # Defintion of smooth parameter omega ----------
 
-fomega=function(cov_data,D0=0.4,omega0=40*pi/2,lambda=2,kappa=0.2) {
+fomega=function(cov_data,D0=0.3,omega0=50*pi/2,lambda=2,kappa=0.2) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -136,7 +136,7 @@ title("truth")
 
 #fit with bivariate splines te fo DistanceShore
 knots_DistanceShore=list(theta=seq(-pi,pi,len=SP_DF),DistanceShore=seq(0.5,5,len=SP_DF))
-m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs="cs"),knots=knots_DistanceShore)
+m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs="cs"),knots=knots_DistanceShore,sp=c(0.1,0.1))
 
 #visualize
 vis.gam(m1);title("tensor product")
@@ -151,7 +151,7 @@ ExpShore=1/DistanceShore
 
 #fit with bivariate splines te of ExpShore
 knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/5,1/0.5,len=SP_DF))
-m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=knots_ExpShore)
+m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=knots_ExpShore,sp=c(0.1,0.1))
 
 
 #visualize

@@ -146,6 +146,9 @@ crcvm<- SDE$new(formulas = formulas,data = data,type = "RACVM",
                     response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                     other_data=list("H"=H),knots=knots)
 
+#initialize smoothing penalties and re variances
+new_lambda=c(1/0.5^2,1/0.5^2,0.001,0.001)
+crcvm$update_lambda(new_lambda)
 #fit
 crcvm$fit(method="BFGS")
 
@@ -167,7 +170,7 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,m1$sp))
+                            log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(0.1),1/sqrt(0.1)))
 
 coeffs_df=cbind(coeffs_df,true_df)
 

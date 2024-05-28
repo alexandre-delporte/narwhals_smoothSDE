@@ -31,13 +31,13 @@ library(htmlwidgets)
 
 # Set the path to the directory containing the data
 par_dir=dirname(dirname(dirname(getwd()))) #parent directory 
+
 narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")  
 
 
 # DATA BEFORE EXPOSURE
 
 allData=read.csv(file.path(narwhal_data_path,"allData.csv"), header = TRUE,dec = ".")
-
 
 
 
@@ -72,7 +72,8 @@ formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
 
 model1<- SDE$new(formulas = formulas,data = allData,type = "RACVM",response = c("x","y"),
                     par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
-
+init_lambda=c(1/0.1^2,1/0.2^2,1)
+model1$update_lambda(init_lambda)
 #fit_model
 model1$fit()
 estimates_mod1=as.list(model1$tmb_rep(),what="Est")
@@ -85,7 +86,7 @@ res=model1$get_all_plots(baseline=NULL,model_name="model1",show_CI="pointwise",s
 ##   MODEL WITH ANGLENORMAL AND DISTANCE SHORE IN OMEGA -------------------
 
 #initial parameters
-par0 <- c(0,0,1,4,0)
+par0 <- model1$par()
 
 #measurement error
 sigma_obs=0.05
@@ -93,13 +94,14 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #define model
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                 omega=~ti(DistanceShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(DistanceShore,AngleNormal,k=c(3,4),bs="cs"))
+                 omega=~te(AngleNormal,DistanceShore,k=c(3,4),bs="cs"))
 
 model2<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(sigma_obs)))
 
-
+init_lambda=c(model1$lambda()[1:2,1],5,model1$lambda()[3,1])
+model2$update_lambda(init_lambda)
 
 #fit_model
 model2$fit()
@@ -139,7 +141,7 @@ model2_ci$get_all_plots(baseline=NULL,model_name="model2_ci",xmin=xmin,xmax=xmax
 #########################  RACVM  MODEL WITH tensor splines of  AngleNormal, ExpShore in omega ##############################
 
 #initial parameters
-par0 <- c(0,0,1,4.5,0)
+par0 <- model1$par()
 
 #measurement error
 sigma_obs=0.05
@@ -152,8 +154,8 @@ formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
 model3<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
                  other_data=list("log_sigma_obs0"=log(sigma_obs)))
-
-
+init_lambda=c(1/0.1^2,1/0.1^2,1,1,1,1)
+model3$update_lambda(init_lambda)
 
 #fit_model
 model3$fit()
