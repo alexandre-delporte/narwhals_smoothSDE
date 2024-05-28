@@ -649,22 +649,48 @@ A baseline model is fitted on the narwhals's track before exposure. It is suppos
 
 \subsection{Baseline estimations}
 
+The persistence is estimated to $\hat{\tau}_{0}=1.3 $ h.
+In comparison, harbour seal in Alaska were proved to exhibit slightly more persistent motion $\hat{\tau}=1.51$ h with $95\%$ CI ; $1.30 -1.75$  \cite{johnson_continuoustime_2008} while bowhead whales in Greenland showed much less persistence $\hat{\tau}=0.17$ h with $95\%$ CI ; $0.14 -0.20$  \cite{gurarie_correlated_2017}.
+The intercept value for $\nu$ is estimated to be $\hat{\nu}_{0}=4.19$ km/h with $95\%$ CI $3.79-4.63$.
 \begin{table}[H]
 	\centering
 	\begin{tabular}{|c|c|c|}
 		\hline
 		Coefficient   & Estimate  & $95\%$ CI \\
 		\hline
-		$\log(\tau_0)$   & 0     & 0.03 \\
-		$\log(\nu_0)$  & 1.39  & -0.02 \\
-		$\omega_0$     & 0     & -0.02 \\
-		$\sigma_{\tau,pre}$   & 0.1   & 0.01  \\
-		$\sigma_{\nu,pre}$    & 0.1   & 0.03  \\
+		$\log(\tau_0)$   & 0.3    &  \\
+		$\log(\nu_0)$  & 1.48  &  \\
+		$\omega_0$     & -0.13     &  \\
+		$\sigma_{\tau,pre}$   & 0.1   &   \\
+		$\sigma_{\nu,pre}$    & 0.1   &  \\
 		\hline
 	\end{tabular}
 	\caption{Intercepts baseline estimations}
 	\label{table: baseline estilations}
 \end{table}
+
+Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omega$ as a function of $\Theta$ for different values of the distance to shore. As distance increases, the magnitude of the angular velocity decreases. 
+% PUT ON THE SAME PLOT WITH DIFFERENT COLOR FOR EACH CURVE
+\begin{figure}[H]
+	\begin{subfigure}{0.33\textwidth}
+		\centering
+		\includegraphics[width=0.95\linewidth]{"images/application/baseline/fe_baseline3_omega_AngleNormal_q0.95_ExpShore .png"}
+	\end{subfigure}
+	\begin{subfigure}{0.33\textwidth}
+		\centering
+		\includegraphics[width=0.95\linewidth]{"images/application/baseline/fe_baseline3_omega_AngleNormal_q0.75_ExpShore .png"}
+	\end{subfigure}
+	\begin{subfigure}{0.33\textwidth}
+		\centering
+		\includegraphics[width=0.95\linewidth]{"images/application/baseline/fe_baseline3_omega_AngleNormal_q0.25_ExpShore .png"}
+	\end{subfigure}
+	\caption{}
+
+	\label{fig:febaseline3omegaanglenormalq0}
+\end{figure}
+
+
+
 
 
 
