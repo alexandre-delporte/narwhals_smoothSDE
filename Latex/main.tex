@@ -9,6 +9,7 @@
 \usepackage{subcaption}
 \usepackage{float}
 \usepackage{multirow}
+\usepackage{lscape} 
 
 \usepackage{amssymb}
 \usepackage{amsfonts}
@@ -484,7 +485,7 @@ This parametrization of $\omega$ is only motivated by the observations above, an
 	\end{subfigure}
 
 
- 	\caption{Five day trajectories with time step $\Delta=5$ min within circular, rectangular and fjords domains. Plot labeled persistent and standard have the same smooth parameter $\omega$ defined in equation~\ref{eq: smooth omega}, but the persistent trajectory as a smooth parameter $\tau$ as in Figure~\ref{fig:smoothtaubump} while the standard trajectory has a constant $\tau =1$h. Trajectories labeled "tortuous" are obtained from a contant $\tau=1$ h and a smooth parameter $\nu$ defined with spline basis function as in figures~\ref{fig: smoothomegasplines1}~\ref{fig: smoothomegasplines2}.}
+ 	\caption{Five day trajectories with time step $\Delta=5$ min within circular, rectangular and fjords domains. Plots labeled "persistent" and "standard" have the same smooth parameter $\omega$ defined in equation~\ref{eq: smooth omega}, but the persistent trajectory as a smooth parameter $\tau$ as in Figure~\ref{fig:smoothtaubump} while the standard trajectory has a constant $\tau =1$h. Trajectories labeled "tortuous" are obtained from a constant $\tau=1$ h and a smooth parameter $\nu$ defined with spline basis function as in figures~\ref{fig: smoothomegasplines1}~\ref{fig: smoothomegasplines2}.}
  	\label{fig: crcvm examples}
  \end{figure}
 
@@ -593,21 +594,62 @@ This is technique is already available for the CVM, which corresponds to the spe
 
 \section{Simulation study for the baseline model}
 \label{section: simulation constrained motion}
-In order to experiment the constrained models we simulate a CRCVM in Scoresby Sound fjords system in which the narwhals move in our application. We consider observations of a baseline model as described in equation~\ref{eq: exact baseline model}. We set $L=9$ degrees of freedom for the bivariates splines in the parameter $\omega$ and  we place the knots regularly between $-\pi$ and $\pi$ for the covariate $\Theta$, and between $0.5$ and $5$ km for $D^{shore}$. The values of the spline coefficients are chosen before hand to get a process that meet the spatial constraints. We fix $\tau_0=1$ h and $\nu_0=4$ km/h. Random effects standard deviations for the parameters $\tau$ and $\nu$ are set to $\sigma_{\tau}=0.2$ and $\sigma_{\nu}=0.1$. Initial velocities are set to $(0,0)$ and initial positions are uniformly sampled at least $1$ km away from the shore in Hjornedal region where the narwhals were initially captured and released for the controlled exposure experiment. \\
+In order to experiment estimation of the constrained models we simulate CRCVM trajectories in Scoresby Sound fjords system where the narwhals move in our application. We consider observations of a baseline model as described in equation~\ref{eq: exact baseline model}. We set $L=9$ degrees of freedom for the bivariates splines in the parameter $\omega$ and  we place the knots regularly between $-\pi$ and $\pi$ for the covariate $\Theta$, and between $0.5$ and $5$ km for $D^{shore}$. The values of the spline coefficients are chosen before hand to get a process that meet the spatial constraints. We fix $\tau_0=1$ h and $\nu_0=4$ km/h. Random effects standard deviations for the parameters $\tau$ and $\nu$ are set to $\sigma_{\tau}=0.2$ and $\sigma_{\nu}=0.1$. Initial velocities are set to $(0,0)$ and initial positions are uniformly sampled at least $1$ km away from the shore in Hjornedal region where the narwhals were initially captured and released during the controlled exposure experiment. \\
 
 Two setups are considered: high frequency data with short trajectories and low frequency data with long trajectories. For each setup, we simulate $M=100$ batches of $N$ individual trajectories for $N \in \{6,12\}$. In the high frequency framework, the time step between consecutive observations is $\Delta=1$ min, the overall observation time is $12$h and measurement error is gaussian with standard deviation $\sigma_{obs}=5$ m. This amounts to $n_{i,pre}=720$ observations for each individual $i \in \{1,\cdots,N\}$. In the low frequency framework, the time step between consecutive observations is $\Delta=5$ min, the overall observation time is $2.5$ days and measurement error is gaussian with standard deviation $\sigma_{obs}=25$ m. This also amounts to $n_{i,pre}=720$ observations for each individual $i \in \{1,\cdots,N\}$.
 
-None of the $600$ simulations reached the boundary. \\
+A small percentage (around $2\%$) of all the simulated trajectories reached the shoreline, due to regions of acute corner in the polygon defining land. For the estimation, we only kept the trajectories that did not reached land and whose observed distance to the shore in km were included in the interval $[0.5,5]$ for consistency with the fixed knots used to define the true smooth function $\omega$.  \\
 
 
 \begin{comment}Note that if time steps are too large, the assumption of constant covariates between observations is very likely to be violated due to the steepness of the shoreline, resulting in samples that reach land very often. For the fjords system, this already happens if we try to sample directly with $5$ min time steps. Moreover, sampling within the fjords takes much more time than within the rectangular domain, since it is necessary to loop over each polygon of the geometry to compute the nearest shore point for each new position. 
 \end{comment}
 
 
-These $100$ batches of noisy samples are used as data for estimation. First, we estimate using only the first $12$h of the trajectories, that is $720$ observations for each narwhals. Then, we use the whole $24$h-long trajectory. The covariates $E^{shore}$ and $\Theta$ are computed from the observed noisy positions. It is worth noting that as measurement error grows, they are becoming less accurate, which makes estimation more challenging. The smooth parameter $\omega$ is estimated using bivariate tensor splines of these covariates, given by the function \texttt{te} in \texttt{R}. The marginal spline degree of freedom is set to $3$ for each covariate to match the fixed degree of freedom $L=8$. This corresponds to one single knot in each dimension. Hence, $9$ coefficients, including the intercept, are to be estimated for the smooth function $\omega$, plus the two parameters $\log(\tau_0)$ and $\log(\nu_0)$, and the individual effects standard deviations $\sigma_{\tau}$ and $\sigma_{\nu}$. Measurement error $\sigma_{obs}$ is supposed to be known.  
+These batches of noisy samples are used as data for estimation. It is worth noting that as measurement error grows, they are becoming less accurate, which makes estimation more challenging in the low frequency framework. For the smooth $\omega$, $9$ coefficients, including the intercept, are to be estimated, plus the two parameters $\log(\tau_0)$ and $\log(\nu_0)$, and the individual effects standard deviations $\sigma_{\tau}$ and $\sigma_{\nu}$. Measurement error $\sigma_{obs}$ is supposed to be known.  
 We fix initial parameter values to $\tau_{0}=1$ h, $\nu_{0} = 1$ km/h, $\sigma_{\tau}=1$, $\sigma_{\nu}=1$ and $\omega_k=0$ for all $k \in \{0,\cdots,L\}$. 
-For each batch of $N=6$ trajectories, we obtain estimates $\widehat{\log(\tau_{0})}^{(k)}$, $\widehat{\log(\nu_{0})}^{(k)}$, $\hat{\omega}_l^{(k)}, l \in \{0,\cdots, L\}$, $\hat{\sigma}_{\tau}^{(k)}$ and $\hat{\sigma}_{\nu}^{(k)}$, $k \in \{1,\cdots,M\}$ and compute the root mean squared error and the biais of the estimates. Simulation and optimization of the log-likelihood for one batch of trajectories is performed on $16$ cpu cores within less than $1$ h. The results are summarized in Tables~\ref{table: estimation performance fjords 12h} and~\ref{table: estimation performance fjords 24h}.
-Figure~\ref{fig: marginal_estimates_CRCVM} shows the results of the estimation of $f_{\omega}$ from one batch of $6$ trajectories with confidence intervals obtained from the observed Fisher information matrix. The function $f_{\omega}$  is plotted as a function of $\Theta$ for different fixed values of the distance to the shore, representing movement relatively close and far from the shore.
+For each batch of $N$ trajectories, we obtain estimates $\widehat{\log(\tau_{0})}^{(k)}$, $\widehat{\log(\nu_{0})}^{(k)}$, $\hat{\omega}_l^{(k)}, l \in \{0,\cdots, L\}$, $\hat{\sigma}_{\tau}^{(k)}$ and $\hat{\sigma}_{\nu}^{(k)}$, $k \in \{1,\cdots,M\}$ and compute the mean  and the standard deviation of the estimates. Simulation and optimization of the log-likelihood for one batch of trajectories is performed on $16$ cpu cores within less than $1$ h. The results are summarized in Table~\ref{table: simulation study results}.
+
+
+\begin{landscape}
+\begin{table}[H]
+	\centering
+		\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+		\hline
+		&\multicolumn{3}{|c|}{Intercepts} & \multicolumn{8}{|c|}{Spline coefficients} & \multicolumn{2}{|c|}{SD} \\
+		\hline
+		&$\log(\tau_0)$ & $\log(\nu_0)$ & $\omega_0$ & $\omega_1$ & $\omega_2$ & $\omega_3$ & $\omega_4$  & $\omega_5$ & $\omega_6$ & $\omega_7$ & $\omega_8$ & $\sigma_{\tau}$ & $\sigma_{\nu}$ \\
+		\hline 
+		 True & $0$ & $1.39$ & $0.01$ & $6.47$ & $-2.07$ & $4.62$ & $15.44$ & $4.62$ & $21.10$ & $2.91$ & $4.86$ & $0.2$ & $0.1$ \\
+		\hline
+			\multicolumn{14}{|c|}{High frequency} \\
+			\hline
+	\multirow{2}{4em}{$N=6$} & & & & & & & & & & & & &\\
+	& & & & & & & & & & & & & \\
+	\hline
+	\multirow{2}{4em}{$N=12$} & -0.03 & 1.38 & -0.02
+	&5.82&-1.60 & 3.84 & 14.59 &4.06 & 19.77 & 3.04 & 4.20 & 0.09& 
+	0.09\\
+	& $\pm$ 0.09 & $\pm$ 0.04 & $\pm$ 0.17 & $\pm$ 0.64 & $\pm$ 0.83 & $\pm$ 0.81 & $\pm$ 1.08 & $\pm$ 1.83 & $\pm$ 1.02 & $\pm$ 0.65 & $\pm$ 0.77 &
+	$\pm$ 0.08 & $\pm$ 0.03  \\
+	\hline	
+	\multicolumn{14}{|c|}{Low frequency} \\
+	\hline
+	\multirow{2}{4em}{$N=6$} & & & & & & & & & & & & &\\
+	& & & & & & & & & & & & & \\
+	\hline
+	\multirow{2}{4em}{$N=12$} & -0.03 & 1.38 & -0.02
+	&5.82&-1.60 & 3.84 & 14.59 &4.06 & 19.77 & 3.04 & 4.20 & 0.09& 
+	0.09\\
+	& 0.09 & 0.04 & 0.17 & 0.64 &0.83 &0.81 & 1.08 & 1.83 & 1.02 &0.65 &0.77 &
+	0.08 & 0.03  \\
+	\hline	
+\end{tabular}
+\label{table: simulation study results}
+\caption{Simulation study results}
+\end{table}
+\end{landscape}
+
+In practical case, confidence intervals on the estimates are derived from the observed Fisher information matrix. Figure~\ref{fig: marginal_estimates_CRCVM} shows the results of the estimation of $f_{\omega}$ from one batch of $6$ trajectories with these confidence intervals.  The function $f_{\omega}$  is plotted as a function of $\Theta$ for different fixed values of the distance to the shore, representing movement relatively close and far from the shore.
 
 
 \begin{figure}[H]
@@ -626,42 +668,6 @@ Figure~\ref{fig: marginal_estimates_CRCVM} shows the results of the estimation o
 	\label{fig: marginal_estimates_CRCVM}
 \end{figure}
 
-
-
-\begin{table}[H]
-	\centering
-		\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
-		\hline
-		&\multicolumn{3}{|c|}{Intercepts} & \multicolumn{8}{|c|}{Spline coefficients} & \multicolumn{2}{|c|}{SD} \\
-		\hline
-		&$\log(\tau_0)$ & $\log(\nu_0)$ & $\omega_0$ & $\omega_1$ & $\omega_2$ & $\omega_3$ & $\omega_4$  & $\omega_5$ & $\omega_6$ & $\omega_7$ & $\omega_8$ & $\sigma_{\tau}$ & $\sigma_{\nu}$ \\
-		\hline 
-		 True values & $0$ & $1.39$ & $0.01$ & $6.47$ & $-2.07$ & $4.62$ & $15.44$ & $4.62$ & $21.10$ & $2.91$ & $4.86$ & $0.2$ & $0.1$ \\
-		\hline
-			\multicolumn{14}{|c|}{High frequency} \\
-			\hline
-	\multirow{2}{4em}{$N=6$} & & & & & & & & & & & & &\\
-	& & & & & & & & & & & & & \\
-	\hline
-	\multirow{2}{4em}{$N=12$} & -0.03 & 1.38 & -0.02
-	&5.82&-1.60 & 3.84 & 14.59 &4.06 & 19.77 & 3.04 & 4.20 & 0.09& 
-	0.09\\
-	& 0.09 & 0.04 & 0.17 & 0.64 &0.83 &0.81 & 1.08 & 1.83 & 1.02 &0.65 &0.77 &
-	0.08 & 0.03  \\
-	\hline	
-	\multicolumn{14}{|c|}{Low frequency} \\
-	\hline
-	\multirow{2}{4em}{$N=6$} & & & & & & & & & & & & &\\
-	& & & & & & & & & & & & & \\
-	\hline
-	\multirow{2}{4em}{$N=12$} & -0.03 & 1.38 & -0.02
-	&5.82&-1.60 & 3.84 & 14.59 &4.06 & 19.77 & 3.04 & 4.20 & 0.09& 
-	0.09\\
-	& 0.09 & 0.04 & 0.17 & 0.64 &0.83 &0.81 & 1.08 & 1.83 & 1.02 &0.65 &0.77 &
-	0.08 & 0.03  \\
-	\hline	
-\end{tabular}
-\end{table}
 
 
 
