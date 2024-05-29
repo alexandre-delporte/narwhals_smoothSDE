@@ -33,8 +33,12 @@ set.seed(seed)
 
 # Generate samples ---------------
 
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
 
-data=foreach (i=1:N_ID,.combine='rbind') %do% {
+
+data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
   #constant nu
   fnu_constant=function(cov_data) {
@@ -52,6 +56,12 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
   data_shore=res$shore[,c("p1","p2")]
   cbind(data_sim,data_shore)
 }
+
+#stop cluster
+stopCluster(cl)
+
+
+
 
 
 # Points that reached land ---------------
@@ -72,6 +82,7 @@ cat(count/N_ID*100,"percent of the samples reached land")
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
   coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
   geom_point(data=data,mapping=aes(y1,y2,col=ID),size=0.1)+
+  geom_path(data=data,mapping=aes(y1,y2,color=ID),size=0.1)+
   geom_point(data = data%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")

@@ -19,8 +19,12 @@ set.seed(seed)
 
 # Generate samples ---------------
 
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
 
-data=foreach (i=1:N_ID,.combine='rbind') %do% {
+
+data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
   #constant nu
   fnu_constant=function(cov_data) {
@@ -38,6 +42,12 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
   data_shore=res$shore[,c("p1","p2")]
   cbind(data_sim,data_shore)
 }
+
+#stop cluster
+stopCluster(cl)
+
+
+
 
 
 # Points that reached land ---------------
@@ -58,6 +68,7 @@ cat(count/N_ID*100,"percent of the samples reached land")
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
   coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
   geom_point(data=data,mapping=aes(y1,y2,col=ID),size=0.1)+
+  geom_path(data=data,mapping=aes(y1,y2,color=ID),size=0.1)+
   geom_point(data = data%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
@@ -147,7 +158,7 @@ crcvm<- SDE$new(formulas = formulas,data = data,type = "RACVM",
                     other_data=list("H"=H),knots=knots)
 
 #initialize smoothing penalties and re variances
-new_lambda=c(1/0.5^2,1/0.5^2,0.001,0.001)
+new_lambda=c(1/0.5^2,1/0.5^2,0.01,0.01)
 crcvm$update_lambda(new_lambda)
 #fit
 crcvm$fit(method="BFGS")
@@ -170,7 +181,7 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:9],0,0,
-                            log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(0.1),1/sqrt(0.1)))
+                            log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(m1$sp)))
 
 coeffs_df=cbind(coeffs_df,true_df)
 

@@ -72,7 +72,7 @@ formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
 
 model1<- SDE$new(formulas = formulas,data = allData,type = "RACVM",response = c("x","y"),
                     par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
-init_lambda=c(1/0.1^2,1/0.2^2,1)
+init_lambda=c(1/0.2^2,1/0.2^2,1)
 model1$update_lambda(init_lambda)
 #fit_model
 model1$fit()
@@ -94,14 +94,11 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #define model
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                 omega=~te(AngleNormal,DistanceShore,k=c(3,4),bs="cs"))
+                 omega=~te(AngleNormal,DistanceShore,k=c(4,3),bs="cs"))
 
 model2<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(sigma_obs)))
-
-init_lambda=c(model1$lambda()[1:2,1],5,model1$lambda()[3,1])
-model2$update_lambda(init_lambda)
 
 #fit_model
 model2$fit()
@@ -117,14 +114,16 @@ res=model2$get_all_plots(baseline=NULL,model_name="model2",xmin=xmin,xmax=xmax,x
 
 
 sigma_obs=0.05
-par0=c(0,0,1,4,0)
+par0=model1$par()
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 model2_ci<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H))
+                    other_data=list("H"=H),map=list("log_lambda"=factor(c(NA,NA,1:2))))
 
 
 
+init_lambda=c(1/0.05^2,1/0.07^2,1,1)
+model2_ci$update_lambda(init_lambda)
 #fit_model
 model2_ci$fit()
 estimates_mod2_ci=as.list(model2_ci$tmb_rep(),what="Est")
