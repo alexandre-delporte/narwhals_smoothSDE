@@ -40,6 +40,8 @@ registerDoParallel(cl)
 
 data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
+  set.seed((seed-1)*N_ID+i)
+  
   #constant nu
   fnu_constant=function(cov_data) {
     return (exp(true_log_nu[i]))
@@ -159,6 +161,11 @@ add_covs=function(data) {
 
 data=add_covs(data)
 
+#only estimate if observed Distances to shore include the interval [0.5,5]
+
+if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
+  stop("Observed distance to shore are irrelevant with the fixed knots")
+}
 
 # Estimate from simulated data ------------------
 
