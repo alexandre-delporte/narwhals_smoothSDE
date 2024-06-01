@@ -78,6 +78,9 @@ for (id in unique(data$ID)) {
 
 cat(count/N_ID*100,"percent of the samples reached land")
 
+#subsample
+data=data[seq(1,n_obs*N_ID,by=BY),]
+
 
 # Save plot of the trajectories ------------
 
@@ -94,6 +97,7 @@ ggsave(filename=paste("plot_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km",see
 if (count>0) {
   stop("Stop : at least one trajectory reached the shore.")
 }
+
 # Add covariates to simulation -----------
 
 signed_angle <- function(u, v) {
@@ -179,7 +183,7 @@ crcvm<- SDE$new(formulas = formulas,data = data,type = "RACVM",
                     other_data=list("H"=H),knots=knots)
 
 #initialize smoothing penalties and re variances
-new_lambda=c(1/0.5^2,1/0.5^2,0.01,0.01)
+new_lambda=c(1,1,1,1)
 crcvm$update_lambda(new_lambda)
 #fit
 crcvm$fit(method="BFGS")

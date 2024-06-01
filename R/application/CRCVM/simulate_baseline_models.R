@@ -1,17 +1,33 @@
+# HEADER --------------------------------------------
+#
+# Author:     Alexandre Delporte
+# Copyright     Copyright 2024 - Alexandre Delporte
+# Email:      alexandre.delporte@univ-grenoble-alpes.fr
+#
+# Date:     2024-05-30
+#
+# Script Name:    ~/Documents/Research/Projects/narwhals_smoothSDE/R/application/CRCVM/simulate_baseline_models.R
+#
+# Script Description:
+#
+#
+# SETUP ------------------------------------
+cat("\014")                 # Clears the console
 
 
 library(sf)
 library(ggplot2)
+library(smoothSDE)
 
-source("/home/delporta/Documents/Recherche/Codes/smoothSDE/R/utility.R")
 # FJORDS POLYGONS
 
-# Set the path to the directory containing coastline data
-data_path <- file.path("/home","delporta", "Documents", "Recherche","Données", "greenland")
+
+# Set the path to the directory containing the data
+par_dir=dirname(dirname(dirname(getwd()))) #parent directory 
+greenland_data_path <- file.path(par_dir,"Data", "Greenland")  
 
 #get the coastline geometry from the geojson file
-coastline<-st_read(file.path(data_path,"filtered_coastline_utm.geojson"))
-land<-st_read(file.path(data_path,"filtered_land_utm.shp"))
+land<-st_read(file.path(greenland_data_path,"land_utm.shp"))
 
 
 
@@ -48,10 +64,25 @@ for (i in 1:n_samples) {
   z0_rect[i,]=x
 }
 
-z0=matrix(as.numeric(c(dataBE2[dataBE2$ID=="Asgeir",][1,c("x","y")],dataBE2[dataBE2$ID=="Frederik",][1,c("x","y")],
-                       dataBE2[dataBE2$ID=="Helge18",][1,c("x","y")],dataBE2[dataBE2$ID=="Kyrri",][1,c("x","y")],
-                       dataBE2[dataBE2$ID=="Nemo",][1,c("x","y")],dataBE2[dataBE2$ID=="Siggi",][1,c("x","y")])),
-          ncol=2,byrow=TRUE)
+
+#generate random initial points
+N_ID=6
+
+z0=matrix(rep(NA,N_ID*2),ncol=2)
+colnames(z0)=c("x1","x2")
+
+i=1
+while (i<=N_ID) {
+  #choose location uniformly in the map
+  x=c(runif(1,min=440,max=515),runif(1,min=7780,max=7880))
+  p=nearest_shore_point(st_point(x),land)
+  Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
+  #keep it as initial position if it is at least 50 metres away from the shore
+  if (Dshore>2) {
+    z0[i,]=x
+    i=i+1
+  }
+}
 
 
 
@@ -77,11 +108,11 @@ fExpShore=function(z,v,p) {
   
   #distance to shore
   Dshore=sqrt(normal[1]^2+normal[2]^2)
-  if (Dshore>0.5){
+  if (Dshore>3){
     return (0)
   }
-  else if (Dshore<0.01) {
-    return (100)
+  else if (Dshore<0.05) {
+    return (20)
   }
   else {
     return (1/Dshore)
@@ -102,46 +133,28 @@ atw=list("ExpShore"=fExpShore,"AngleNormal"=fangle)
 
 
 # TIME STEPS
-Tmax=12
-times=seq(0,Tmax,by=1/60)
+Tmax=10
+delta=1/60/6
+times=seq(0,Tmax,by=delta)
 n=length(times)
 data_reg=data.frame("AngleNormal"=rep(0,n*length(unique(dataBE2$ID))),
-                    "ExpShore"=rep(1,n*length(unique(dataBE2$ID))),times=seq(0,Tmax,by=1/60),ID=rep(unique(dataBE2$ID),each=n))
+                    "ExpShore"=rep(1,n*length(unique(dataBE2$ID))),times=seq(0,Tmax,by=delta),ID=rep(unique(dataBE2$ID),each=n))
 
 
 
 
 # SIMULATE WITH CONSTRAINTS
-sample1=baseline1$simulate(z0=z0,data=data_reg,atw=atw,land=land,omega_times = 20)
-sample2= baseline2$simulate(z0=z0,data=data_reg,atw=atw,land=land,omega_times=20)
-sample3=baseline3$simulate(z0=z0,data=data_reg,atw=atw,land=land,omega_times=20)
-sample1_rect=baseline1$simulate(z0=z0_rect,data=data_reg,atw=atw,land=rect,omega_times=20)
-sample2_rect=baseline2$simulate(z0=z0_rect,data=data_reg,atw=atw,land=rect,omega_times=20)
-sample3_rect=baseline3$simulate(z0=z0_rect,data=data_reg,atw=atw,land=rect,omega_times=20)
+sample=baseline3$simulate(z0=z0,data=data_reg,atw=atw,land=land,omega_times = 1)
+
 
 #plots
 
-p1=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=sample1,aes(x*1000,y*1000,col=ID),size=0.6)
+p=ggplot()+geom_sf(data=land$geometry,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=sample,aes(x,y,col=ID),size=0.6)+theme_minimal()
 
-p2=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=sample2,aes(x*1000,y*1000,col=ID),size=0.6)
+p_rect=ggplot()+geom_sf(data=rect,fill="grey")+coord_sf(datum=st_crs(32626))+
+  geom_point(data=sample_rect,aes(x,y,col=ID),size=0.6)+theme_minimal()
 
-p3=ggplot()+geom_sf(data=land$geometry,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=sample3,aes(x*1000,y*1000,col=ID),size=0.6)
 
-p1_rect=ggplot()+geom_sf(data=rect,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=sample1_rect,aes(x*1000,y*1000,col=ID),size=0.6)
-
-p2_rect=ggplot()+geom_sf(data=rect,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=sample2_rect,aes(x*1000,y*1000,col=ID),size=0.6)
-
-p3_rect=ggplot()+geom_sf(data=rect,fill=NA)+coord_sf(datum=st_crs(32626))+
-  geom_point(data=sample3_rect,aes(x*1000,y*1000,col=ID),size=0.6)
-
-saveWidget(ggplotly(p1), file ="baseline1/sample_baseline1.html")
-saveWidget(ggplotly(p1_rect), file ="baseline1/sample_baseline1_rect.html")
-saveWidget(ggplotly(p2), file ="baseline2/sample_baseline2.html")
-saveWidget(ggplotly(p2_rect), file ="baseline2/sample_baseline2_rect.html")
-saveWidget(ggplotly(p3), file ="baseline3/sample_baseline3.html")
-saveWidget(ggplotly(p3_rect), file ="baseline3/sample_baseline3_rect.html")
+saveWidget(ggplotly(p1), file ="baseline3/sample_baseline3.html")
+saveWidget(ggplotly(p1_rect), file ="baseline3/sample_baseline3_rect.html")

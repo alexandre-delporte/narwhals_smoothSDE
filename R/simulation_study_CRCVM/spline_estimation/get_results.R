@@ -24,7 +24,7 @@ library(tidyverse)
 domains=c("fjords")
 list_TMAX=c(12)
 covs=c("DistanceShore")
-list_N_ID=c(12)
+list_N_ID=c(6,12)
 list_DMIN=c(4)
 
 for (domain in domains) {
@@ -93,16 +93,16 @@ for (domain in domains) {
             geom_density(alpha=.2, fill="#FF6666") +
             geom_vline(aes(xintercept=true),color="blue", linetype="dashed", size=0.5)+
             facet_wrap(~coeff_name)
-        
-          ggsave(filename=paste(paste("histo","tauID",domain,TMAX,cov,sep="_"),".png",sep=""),
+    
+          ggsave(filename=paste(paste("histo_tauID",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
                  plot=histo_tau_ID,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo","nuID",domain,TMAX,cov,sep="_"),".png",sep=""),
+          ggsave(filename=paste(paste("histo_nuID",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
                  plot=histo_nu_ID,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo","omega.te",domain,TMAX,cov,sep="_"),".png",sep=""),
+          ggsave(filename=paste(paste("histo_omega.te",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
                  plot=histo_omega_te,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo","sigma",domain,TMAX,cov,sep="_"),".png",sep=""),
+          ggsave(filename=paste(paste("histo_sigma",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
                  plot=histo_sigma,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo","intercepts",domain,TMAX,cov,sep="_"),".png",sep=""),
+          ggsave(filename=paste(paste("histo_intercepts",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
                  plot=histo_intercepts,path=file.path(domain),width=10,height=5)
   
           # Bias and rmse for spline coefficients ------------

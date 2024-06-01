@@ -72,9 +72,9 @@ H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 
 #model formula
 formulas <- list(mu1=~1,mu2=~1,
-                 tau =~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),
-                 omega=~s(AngleNormal,k=5,bs="cs")+s(ID,bs="re"))
+                 tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 omega=~s(AngleNormal,k=5,bs="cs"))
 
 response1<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
                     par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
@@ -102,17 +102,18 @@ formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
 
 response2<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
                     par0 = par0,other_data=list("log_sigma_obs0"=log(sigma_obs)),fixpar=c("mu1","mu2"),
-                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,3))),coeff_fe=factor(rep(NA,5)),
-                             log_lambda=factor(c(6,NA,7,NA,NA))))
+                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,11))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c(6,NA,7,NA,rep(NA,4)))))
 
-new_coeff_re=c(rep(0,2),baseline1$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline1$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
-              baseline1$coeff_re()[paste("omega.s(AngleNormal).",1:3,sep=""),1])
 
-response2$update_coeff_re(new_coeff_re)
-response2$update_coeff_fe(baseline1$coeff_fe()[,1])
+new_coeff_re=c(rep(0,2),baseline2$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline3$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+               baseline3$coeff_re()[paste("omega.ti(ExpShore).",1:2,sep=""),1],baseline3$coeff_re()[paste("omega.ti(AngleNormal).",1:3,sep=""),1],
+               baseline3$coeff_re()[paste("omega.ti(ExpShore,AngleNormal).",1:6,sep=""),1])
+new_lambda=c(1,baseline3$lambda()["tau.s(ID)",1],1,baseline3$lambda()["nu.s(ID)",1],baseline3$lambda()[3:6,1])
+response3$update_coeff_re(new_coeff_re)
+response3$update_coeff_fe(baseline3$coeff_fe()[,1])
 
-new_lambda=c(1,baseline1$lambda()["tau.s(ID)",1],1,baseline1$lambda()["nu.s(ID)",1],baseline1$lambda()["omega.s(AngleNormal)",1])
-response2$update_lambda(new_lambda)
+response3$update_lambda(new_lambda)
 
 
 #fit_model
@@ -134,22 +135,23 @@ res=response2$get_all_plots(baseline=baseline1,model_name="response2",xmin=xmin,
 
 ####### FULL MODEL WITH FIXED BASELINE SPLINE COEFFS
 
-sigma_obs=0.07
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 #define model
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
                  nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
-                 omega=~ti(ExpShore,k=3,bs="cs")+ti(AngleNormal,k=4,bs="cs")+ti(ExpShore,AngleNormal,k=c(3,4),bs="cs"))
+                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=c(5,5),bs="cs"))
 
 par0=baseline3$par()
 response3<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("log_sigma_obs0"=log(sigma_obs)),
-                    map=list(coeff_re=factor(c(1:2,rep(NA,6),3:4,rep(NA,6),rep(NA,11))),coeff_fe=factor(rep(NA,5)),
-                             log_lambda=factor(c(12,NA,13,NA,NA,NA,NA,NA))))
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,6),"nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,6),rep(NA,24))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA,NA,NA))))
 
 
 new_coeff_re=c(rep(0,2),baseline3$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],rep(0,2),baseline3$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
-               baseline3$coeff_re()[paste("omega.ti(ExpShore).",1:2,sep=""),1],baseline3$coeff_re()[paste("omega.ti(AngleNormal).",1:3,sep=""),1],
-          baseline3$coeff_re()[paste("omega.ti(ExpShore,AngleNormal).",1:6,sep=""),1])
+               baseline3$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],baseline3$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+          baseline3$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
 new_lambda=c(1,baseline3$lambda()["tau.s(ID)",1],1,baseline3$lambda()["nu.s(ID)",1],baseline3$lambda()[3:6,1])
 response3$update_coeff_re(new_coeff_re)
 response3$update_coeff_fe(baseline3$coeff_fe()[,1])
@@ -168,9 +170,38 @@ xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/3)
 link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
 xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
 
-response3$get_all_plots(baseline=baseline3,model_name="response3",xmin=xmin,
+
+res=response3$get_all_plots(baseline=baseline3,model_name="response3",xmin=xmin,
                         xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
+# improve plot aspect
+plot_me_nu=res[[6]]+theme_minimal()
+plot_me_tau=res[[4]]+theme_minimal()
+
+ggsave("me_response3_nu_ExpShip.png",plot=plot_me_nu,width=10,height=5,path="response3")
+ggsave("me_response3_tau_ExpShip.png",plot=plot_me_tau,width=10,height=5,path="response3")
+
+#inspect specific values of tau 
+plot_nu=res$fe_nu_ExpShip+theme_minimal()
+plot_tau=res$fe_tau_ExpShip+theme_minimal()
+
+nu_data <- ggplot_build(plot_nu)$data[[1]]
+tau_data <- ggplot_build(plot_tau)$data[[1]]
+
+
+q1=quantile(dataAE$Dist_Ship,0.05,na.rm=TRUE)
+q2=quantile(dataAE$Dist_Ship,0.25,na.rm=TRUE)
+q3=quantile(dataAE$Dist_Ship,0.75,na.rm=TRUE)
+very_close_tau=mean(tau_data[tau_data$x<q1,"y"])
+close_tau=mean(tau_data[tau_data$x>q1 & tau_data$x<q2,"y"])
+medium_tau=mean(tau_data[tau_data$x>q2 & tau_data$x<q3,"y"])
+far_tau=mean(tau_data[tau_data$x>q3,"y"])
+
+#inspect specific values of nu
+very_close_nu=mean(nu_data[nu_data$x<q1,"y"])
+close_nu=mean(nu_data[nu_data$x>q1 & nu_data$x<q2,"y"])
+medium_nu=mean(nu_data[nu_data$x>q2 & 1/nu_data$x<q3,"y"])
+far_nu=mean(nu_data[nu_data$x>q3,"y"])
 
 #############################      RESPONSE AIC VALUES    #####################################################
 

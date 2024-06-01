@@ -36,6 +36,7 @@ DMIN=4                      #min distance to shore for initial position
 DELTA=1/60                   #time step
 PAR0=c(0,0,1,1,0)            # initial values (mu1,mu2,tau,nu,omega)
 SIGMA_OBS=0.005               # measurement error
+BY=1
 
 
 # Land polygons --------------------
@@ -79,7 +80,7 @@ n_obs=length(times)-1
 
 # Measurement error -------------
 
-H=array(rep(SIGMA_OBS^2*diag(2),n_obs*N_ID),dim=c(2,2,n_obs*N_ID))
+H=array(rep(SIGMA_OBS^2*diag(2),n_obs*N_ID/BY),dim=c(2,2,n_obs*N_ID/BY))
 
 
 # Definition of parameters tau and nu ----------------

@@ -118,7 +118,16 @@ ftau_constant=function(cov_data,tau=1) {
   return (tau)
 }
 
-ftau_bump=function(cov_data,epsilon=pi/6,alpha=pi/8,tau0=0.5,tau1=4) {
+ftau_bump=function(cov_data,epsilon=pi/12,alpha=pi/8,tau0=0.5,tau1=3) {
+  Dshore=cov_data$DistanceShore
+  theta=cov_data$theta
+  tau=(tau0+(tau1-tau0)/2*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
+         (tau1-tau0)/2*(tanh((theta+(-pi/2+epsilon))/alpha)-tanh((theta+(-pi/2-epsilon))/alpha)))
+  
+  return (tau)
+}
+
+ftau_bump_rect=function(cov_data,epsilon=pi/12,alpha=pi/10,tau0=0.5,tau1=4) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   tau=(tau0+(tau1-tau0)/2*(tanh((theta+(pi/2+epsilon))/alpha)-tanh((theta+(pi/2-epsilon))/alpha))+
@@ -249,7 +258,11 @@ persp(Dshore,theta,omega_splines,theta=270,axes=T,xlab="Distance to shore",ylab=
 dev.off()
 
 
-plot_tau_bump=ggplot()+geom_line(aes(x=seq(from=-pi,to=pi,length.out=100),y=tau_bump))+ylab("Tau")+xlab("Theta")
+plot_tau_bump=ggplot()+geom_line(aes(x=seq(from=-pi,to=pi,length.out=100),y=tau_bump))+ylab("Tau")+xlab("Theta")+
+  geom_vline(xintercept = c(-pi/2, pi/2), linetype = "dashed", color = "grey")+
+  annotate("text", x = -pi/2, y = Inf, label = expression(-pi/2), vjust = 40, color = "black") +
+  annotate("text", x = pi/2, y = Inf, label = expression(pi/2), vjust = 40, color = "black")+
+  theme_minimal()
 
 
 plot_tau_bump_modified <- plot_ly(type = "surface",
@@ -341,7 +354,7 @@ data_shore=res$shore[,c("p1","p2")]
 data_sim_rect_splines=cbind(data_sim_rect_splines,data_shore)
 
 # #CRCVM persistent along the boundary in rectangle
-res=sim_theta_CRCVM(ftau=ftau_bump,fomega=fomega_fast,fnu=fnu_constant,v0=v0,x0=x0[1,],
+res=sim_theta_CRCVM(ftau=ftau_bump_rect,fomega=fomega_fast,fnu=fnu_constant,v0=v0,x0=x0[1,],
                     times=seq(0,5*24,by=1/60),land=rect_border,verbose=FALSE)
 
 data_sim_rect_pers=res$sim
@@ -420,7 +433,7 @@ plot_illust_standard=ggplot()+
   scale_color_viridis_c(name="Time")+
   geom_point(data = data_sim%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
-  xlab("x") + ylab("y")
+  xlab("x") + ylab("y")+theme_minimal()
 
 # Combine fjords data
 data_fjords_combined <- bind_rows(
@@ -440,7 +453,7 @@ plot_fjords_combined <- ggplot() +
   geom_point(data = data_fjords_combined %>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red") +
   facet_wrap(~set) + theme(plot.margin = grid::unit(c(0,0,0,0),"mm"))+
-  xlab("x") + ylab("y")
+  xlab("x") + ylab("y")+theme_minimal()
 
 
 
@@ -463,7 +476,7 @@ plot_rect_combined <- ggplot() +
   geom_point(data = data_rect_combined %>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red") +
   facet_wrap(~set) +theme(plot.margin = grid::unit(c(0,0,0,0),"mm"))+
-  xlab("x") + ylab("y")
+  xlab("x") + ylab("y")+theme_minimal()
 
 
 # Combine circ data
@@ -484,7 +497,7 @@ plot_circ_combined <- ggplot() +
   geom_point(data = data_circ_combined %>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red") +
   facet_wrap(~set) + theme(plot.margin = grid::unit(c(0,0,0,0),"mm"))+
-  xlab("x") + ylab("y")
+  xlab("x") + ylab("y")+theme_minimal()
 
 
 
