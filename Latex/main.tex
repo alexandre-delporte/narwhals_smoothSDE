@@ -115,7 +115,7 @@ Anthropogenic underwater noise in the Arctic environment causes disturbances in 
 Research recommendations include a particular focus on measurement of behavioral reactions to various type of sound exposure \cite{southall_marine_2008,southall_marine_2019}. Rich behavioral studies typically involve controlled exposure experiments during which animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured such as GPS positions, depth, sound exposure level, temperature, pressure, heart beat, stroke rate, vocalizations... Numerous surveys have been conducted about beaked whales, which have been regularly implicated in stranding events following sonar exercises \cite{tyack_beaked_2011,cioffi_trade-offs_2022}, belugas \cite{martin_exposure_2023}, sperm whales \cite{madsen_quantitative_2006}, blue whales \cite{friedlaender_preymediated_2016}, and narwhals \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. \\
 A severity scale is defined in \cite{southall_marine_2008} to help assessing which behavioral responses are more likely to alter a population's capacity to survive, reproduce or forage. Changes in movement speed and direction, avoidance reactions as well as modified dive profiles or vocalizations  are ranked between 4 and 7 on a scale out of 9 (9 being stranding events that can directly lead to the death of the animal) depending on the magnitude of the changes and their duration.\\
 
-So far, the studies about narwhals behavioral responses to sound exposure prove that they can exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}.  Though GPS positions are retrieved only when the narwhals emerge to the surface, that is irregularly in time, they have so far been analyzed with discrete time methods relying on linear interpolation to obtain data every second. In \cite{heide-jorgensen_behavioral_2021}, the positions are classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second, and the dynamic of the states is modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source is then used to model the transition probabilities of the Markov Chain. The probabilities of being in states "Close to the shore" and "Moving toward the shore" are shown to increase with exposure to the sound, while probability of being in state "Far from the shore" decreases. Additionally, an overall speed increase due to sound exposure is revealed in the 2018 a data by an analysis of the consecutive GPS positions through a mixed effect model. 
+So far, the studies about narwhals behavioral responses to sound exposure prove that they can exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}.  Though GPS positions are retrieved only when the narwhals emerge to the surface, that is irregularly in time, they have so far been analyzed with discrete time methods relying on linear interpolation to obtain data every second. In \cite{heide-jorgensen_behavioral_2021}, the positions are classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second, and the dynamic of the states is modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source is then used to model the transition probabilities of the Markov Chain. The probabilities of being in states "Close to the shore" and "Moving toward the shore" are shown to increase with exposure to the sound, while probability of being in state "Far from the shore" decreases. Additionally, an overall speed increase due to sound exposure is revealed for the 2018 data by an analysis of the consecutive GPS positions through a mixed effect model. 
 Here, we  make use of a continuous time model to analyse the GPS positions in order to be able to quantify the effect of sound exposure on the speed and the heading of the narwhals in one holistic model. \\
 
 We focus on continuous-time models defined as a solution of a stochastic differential equation with time-varying coefficients. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. The following formulation of the equations represents an extension of the CVM which involves a rotational component and  is based on biologically interpretable parameters \cite{gurarie_correlated_2017}.
@@ -144,7 +144,7 @@ Additionally, the way to model the motion of an animal near the boundary of the 
 Here, we show that the angular velocity  can be estimated as a function of the two covariates in the framework of the \texttt{R} package \texttt{smoothSDE} \cite{michelot_varying-coefficient_2021}. To make this possible, we derive explicit formulas for the transition density of the process $U(t)=\begin{pmatrix} X(t) & V(t) \end{pmatrix}$ and then formulate a state-space model from the discretisation of these formulas. Maximum likelihood estimation based on Kalman filter is then performed as for any other model in \texttt{smoothSDE}.\\
 
 
-Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in equation \eqref{eq: RACVM equation}. This effect is estimated as a smooth function of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model is compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
+Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in \eqref{eq: RACVM equation}. This effect is estimated as a smooth function of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model is compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
 The effect of sound exposure is assessed as a deviation in the response model parameters when compared to the baseline model parameters.
 
 
@@ -172,18 +172,14 @@ Six male narwhals were equipped with FastLoc GPS receivers in August 2018 in Sco
 is known to be the summer residence for an isolated population of narwhals.
 Here we recall briefly how the data has been retrieved. For more details about the study area and the tagging of the animals, the reader may refer to \cite{heide-jorgensen_behavioral_2021}. 
 An offshore patrol vessel military ship was sailed to shoot airguns underwater between August 25 and September 1. It was equipped with two Sercel G-guns at 6m depth and moved at a speed of 4.5 knots. The guns were fired synchronously every 80 s, and the GPS navigation system recorded the location of every shot. 
-Data includes narwhals's latitude and longitude, distance relative to the ship in metres, GPS time, distance to the shore in metres. GPS positions are known only at specific times when the narwhals get close to the sea surface. The median time step between two GPS measurements in the data is about $5$ minutes and only $0.3 \%$ of the time steps reach more than two hours, with a maximum at more than $4$ hours. While statistical analysis in \cite{heide-jorgensen_behavioral_2021} relied on positions linearly interpolated at each second, here we only consider the actual GPS measurements with irregular time steps.
+Data includes narwhals's latitude and longitude, distance relative to the ship in metres, GPS time, distance to the shore in metres. GPS positions are known only at specific times when the narwhals get close to the sea surface. The median time step between two GPS measurements in the data is about $5$ minutes and only $0.3 \%$ of the time steps reach more than two hours, with a maximum at more than $4$ hours. While statistical analysis in \cite{heide-jorgensen_behavioral_2021} relied on positions linearly interpolated at each second, here we only consider the actual GPS measurements with irregular time steps.\\
 
 
 
-Experiments were divided into unexposed periods - for which the narwhals are not in line of sight with the ship - trial periods - when the narwhals are exposed to the ship and airguns are shot - and intertrial periods - when the narwhals are exposed to the ship but airguns are not shot. These periods are indicated by a categorical variable $T_{ship}$ in the dataset. In this analysis, we do not distinguish between Trial and Intertrial periods, and treat them both as exposure periods, where the degree of exposure depends on the narwhals positions relative to the ship.
 
-
-
-For each narwhal, the entire track is split into a period before exposure defined as the period before the narwhal gets in line of sight with the ship for the first time, and a period "after" exposure, starting after the narwhal has been in line of sight with the ship for the first time. We keep only GPS measures 24 
-hours after tagging, to avoid any tagging effects on the narwhals's movement, as recommended in \cite{heide-jorgensen_behavioral_2021}.
-Measures that result in a velocity higher than $20$ km/h were also discarded (only 2 data points for the same narwhal track).
-Overall, $4192$ GPS positions are kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure results in $935$ measures before exposure and $3257$ measures after exposure.
+For each narwhal, the entire track is split into a period before exposure defined as the period before the narwhal gets in line of sight with the ship for the first time, and a period "after" exposure, starting after the narwhal has been in line of sight with the ship for the first time. We keep only GPS measures 12 
+hours after tagging, to avoid any tagging effects on the narwhals's movement. Measures that result in a velocity higher than $20$ km/h were also discarded (only 2 data points for the same narwhal track).
+Overall, $4815$ GPS positions are kept for the analysis and projected to UTM coordinates zone 26. The splitting between data before and after exposure results in $1558$ measures before exposure and $3257$ measures after exposure.
 
 \subsection{Notations and definition of the covariates}
 \label{subsection: covariates}
@@ -302,7 +298,7 @@ We denote $A=\begin{pmatrix}
 	\label{eq: RACVM equation bis}
 \end{equation*}
 In this section, we obtain explicit transition density for the process $U=\begin{pmatrix} X & V \end{pmatrix}^\top$. Though this model is considered in several papers, we found no mention of the closed form formulas derived here. In \cite{gurarie_correlated_2017}, only the process $V$ is exhaustively studied, and the classical distributional results about this process are used for estimation and simulation purposes.
-A more general formulation is considered by \cite{albertsen_generalizing_2018} in which the diffusion matrix is lower triangular matrix with positive diagonal elements whereas and two distinct autocorrelation parameters are considered in both directions allowing for anisotropic movement.
+A more general formulation is considered by \cite{albertsen_generalizing_2018} in which the diffusion matrix is lower triangular with positive diagonal elements whereas and two distinct autocorrelation parameters are considered in both directions allowing for anisotropic movement.
 In this case, \cite{albertsen_generalizing_2018} derives an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}. But again, exact formulas for the process $X$ are not mentioned and the Euler-scheme is used to get approximate transition densities of $X$. Here, we claim that under the hypothesis of isotropic movement, with diagonal diffusion matrix as in equation ~\eqref{eq: RACVM equation}, not only the velocity but also the position process have a closed form formula. \\
 
 
@@ -365,12 +361,12 @@ Intuitively, ~\eqref{eq: X V distribution} means that the next velocity $V(t+\De
 
 
 Unconstrained movement of marine mammals  is often modeled through a CVM, that is~\eqref{eq: RACVM equation} with $\omega=0$, or a RACVM with low angular velocity $\omega$.
-In the case of motion under spatial constraints, we claim that an increase in tortuosity is the symptom of movement to avoid the boundary and adapt the heading to the spatial constraint.
+In the case of motion under spatial constraints, we claim that an increase in tortuosity is the symptom of movement to avoid the boundary and adapt the heading to the spatial constraint. We use this remark to define a constrained version of the standard RCVM.
  
 \subsection{Constrained rotational correlated velocity model}
 \label{section: CRCVM}
 
-We thus propose a new RCVM that relies on the tortuosity parameter, or angular velocity $\omega$, to describe how the animals turn in reaction to the shore. 
+We propose a new RCVM that relies on the tortuosity parameter, or angular velocity $\omega$, to describe how the animals turn in reaction to the shore. 
 To do so, we consider $\omega$ as a smooth function of the distance to the shore and the angle between the velocity vector and the shore normal vector. 
 The smooth function should be non zero close to the shore, that is when a change of direction due to the proximity of the shore is expected, and  zero far away from the shore. 
 We keep the notation $\mathcal{D} \subset \R^2$ for the polygon defining the domain of the process $X$. The new formulation of the equation is 
@@ -414,7 +410,7 @@ f_{\omega}(\Theta,D^{shore})=\frac{\omega_0}{2}\left(\tanh(\lambda(\theta+\theta
 \end{equation}
 for some $\omega_0 \in \R$, $\lambda>0$, $\theta^* \in [0,2\pi]$.
 
-This parametrization of $\omega$ is only motivated by the observations above, and do not pretend to be optimal. Any smooth function that meets minimum requirements could be used instead. An alternative is to specify the smooth function $f_{\omega}$ using spline basis functions. Figures~\ref{fig: smoothomega1} and~\ref{fig: smoothomega2} show function~\ref{eq: smooth omega}, while Figures~\ref{fig: smoothomegasplines1} and~\ref{fig: smoothomegasplines2}  represent a smooth function $f_{\omega}$ obtained as a combination of nine cubic spline basis functions approximating~\ref{eq: smooth omega}. Sampled trajectories of these models are shown in Figure~\ref{fig: crcvm examples}.
+This parametrization of $\omega$ is only motivated by the observations above, and do not pretend to be optimal. Any smooth function that meets minimum requirements could be used instead. An alternative is to specify the smooth function $f_{\omega}$ using spline basis functions. Figures~\ref{fig: smoothomega1} and~\ref{fig: smoothomega2} show function~\eqref{eq: smooth omega}, while Figures~\ref{fig: smoothomegasplines1} and~\ref{fig: smoothomegasplines2}  represent a smooth function $f_{\omega}$ obtained as a combination of nine cubic spline basis functions approximating~\eqref{eq: smooth omega}. Sampled trajectories of these models are shown in Figure~\ref{fig: crcvm examples}.
 
 \begin{figure}[H]
 	\centering
@@ -443,11 +439,11 @@ This parametrization of $\omega$ is only motivated by the observations above, an
 	\caption{}
 	\label{fig: smoothomegasplines2}
 	\end{subfigure}
-	\caption{Examples of smooth functions $f_{\omega}$. Angular velocity $\omega$ increases as $\Theta$ approaches $\pm\pi$, and decreases with increasing distance to the shore  (a)-(b) Two views of the smooth function $f_{\omega}$ defined by~\eqref{eq: smooth omega} with values $D_0=0.3$ km, $\kappa=0.2$, $\lambda=2$, $\omega_0=\frac{\pi}{2}$ rad/min. (c)-(d) Two views of a smooth function $f_{\omega}$ obtained by combining nine bivariate cubic spline basis functions.}
+	\caption{Examples of smooth functions $f_{\omega}$. Angular velocity $\omega$ increases as $\Theta$ approaches $\pm\pi$, and decreases with increasing distance to the shore.  (a)-(b) Two views of the smooth function $f_{\omega}$ defined by~\eqref{eq: smooth omega} with values $D_0=0.3$ km, $\kappa=0.2$, $\lambda=2$, $\omega_0=\frac{\pi}{2}$ rad/min. (c)-(d) Two views of a smooth function $f_{\omega}$ obtained by combining nine bivariate cubic spline basis functions approximating~\eqref{eq: smooth omega} .}
 	
 \end{figure}
 
- This general model is very flexible, and different species-specific behaviours can be described. The function $\omega$ allows to control at which distance the animal will turn away from the shore, and how fast it will turn. We will show in section~\ref{section: simulation constrained motion} that is can be estimated from the observed positions, distances and angles. Specific constraints on the smooth function $f_{\omega}$ could also be set by biological expertise and knowledge about the species in question. Additionally, the tendency of an animal to move along the boundary of its spatial domain can be captured in the parameter $\tau$, as more persistent movement when the angle $\theta$ has value close to $\pm\frac{\pi}{2}$ would represent such an inclination. More precisely, to model persistent movement along the shoreline, we modify~\eqref{eq: CRCVM matrix A} by expressing $\tau$ as a smooth function :
+ This general model is very flexible, and different species-specific behaviours can be described. The function $\omega$ allows to control at which distance the animal will turn away from the shore, and how fast it will turn. We will show in section~\ref{section: simulation constrained motion} that it can be estimated from the observed positions, distances and angles. Specific constraints on the smooth function $f_{\omega}$ could also be set by biological expertise and knowledge about the species in question. Additionally, the tendency of an animal to move along the boundary of its spatial domain can be captured in the parameter $\tau$, as more persistent movement when the angle $\theta$ has value close to $\pm\frac{\pi}{2}$ would represent such an inclination. More precisely, to model persistent movement along the shoreline, we modify~\eqref{eq: CRCVM matrix A} by expressing $\tau$ as a smooth function :
  \[\tau(X(t),V(t))=f_{\tau}(\Theta(t))\] with $f_{\tau}:[-\pi,\pi] \longrightarrow \R$.
  The function $f_{\tau}$ is defined such that it reaches local maximas in $\Theta=\pm\frac{\pi}{2}$, which represents movement along the boundary of the domain. An example of such a function is given in figure~\ref{fig:smoothtaubump}.
  \begin{figure}[h]
@@ -456,8 +452,6 @@ This parametrization of $\omega$ is only motivated by the observations above, an
  	\caption{Example of smooth function $f_{\tau}$ that can represent persistent movement along the boundary of the domain.}
  	\label{fig:smoothtaubump}
  \end{figure}
- 
- The flexibility of CRCVMs is illustrated in Figure~\ref{fig: crcvm examples}. Trajectories obtained within circular, rectangular and fjords domains for different smooth functions $f_{\omega}$ and $f_{\tau}$ are shown side by side.
  
  \begin{figure}[H]
  
@@ -480,9 +474,11 @@ This parametrization of $\omega$ is only motivated by the observations above, an
 	\end{subfigure}
 
 
- 	\caption{Five days trajectories with time step $\Delta=5$ min within circular, rectangular and fjords domains. Plots labeled "persistent" and "standard" have the same smooth parameter $\omega$ defined by~\eqref{eq: smooth omega}, but the persistent trajectory has a smooth parameter $\tau$ as in Figure~\ref{fig:smoothtaubump} while the standard trajectory has a constant $\tau =1$ h. Trajectories labeled "tortuous" are obtained from a constant $\tau=1$ h and a smooth parameter $\omega$ defined with spline basis function as in Figures~\ref{fig: smoothomegasplines1}~\ref{fig: smoothomegasplines2}.}
+ 	\caption{Five days trajectories with time step $\Delta=5$ min within circular, rectangular and fjords domains. Plots labeled "persistent" and "standard" have the same smooth parameter $\omega$ defined by~\eqref{eq: smooth omega}, but the persistent trajectory has a smooth parameter $\tau$ as in Figure~\ref{fig:smoothtaubump} while the standard trajectory has a constant $\tau =1$ h. Trajectories labeled "tortuous" are obtained from a constant $\tau=1$ h and a smooth parameter $\omega$ defined with spline basis function as in Figures~\ref{fig: smoothomegasplines1}~\ref{fig: smoothomegasplines2}. All trajectories have constant velocity parameter $\nu=4$ km/h.}
  	\label{fig: crcvm examples}
  \end{figure}
+
+The flexibility of CRCVMs is illustrated in Figure~\ref{fig: crcvm examples}. Trajectories obtained within circular, rectangular and fjords domains for different smooth functions $f_{\omega}$ and $f_{\tau}$ are shown side by side.
 
 
 
@@ -506,7 +502,7 @@ For the baseline model, only the effect of the shore is included through the sho
 We add random effects to account for individual variability among the narwhals.
 For each narwhal $i \in \{1, \cdots, N\}$, we have 	GPS observations before exposure $y_{ij}$ at times $t_{ij}$, $j \in \{1,\cdots,n_{i,pre}\}$. The true motion processes $V_i$ and $X_i$ are supposed to solve equation~\eqref{eq: CRCVM equation}. Since $\tau$ and $\nu$ can only be positive, a log link function is used for these parameters and the angular velocity $\omega$ is expressed as a smooth function of $\Theta$ and $E^{shore}$ through splines. Since the two covariates are not on the same scale (one is in $rad$ while the other is in $km^{-1}$), tensor splines were judged more appropriate than thin plate regression splines \cite{wood_generalized_2017}.\\
 
-We denote $\tau_i$, $\nu_i$, $\omega_i$ the parameters of the diffusion. The complete statistical model for the baseline estimations is the following:
+We denote $\tau_i$, $\nu_i$, $\omega_i$ the parameters of the diffusion for the narwhal $i$. The complete statistical model for the baseline estimations is the following:
 
 \begin{equation}  \forall i \in \{1,\cdots,N\}, \quad \left\{
 	\begin{array}{l}
@@ -529,7 +525,7 @@ We denote $\tau_i$, $\nu_i$, $\omega_i$ the parameters of the diffusion. The com
 
 
 The coefficients $\log(\tau_{0})$, $\log(\nu_{0})$, $\omega_{0}$ are population intercepts and $b_{\tau,i}$, $b_{\nu,i}$
-are the individual parameters. 
+are the individual parameters. THe standard deviation $\sigma_{obs}$ represent GPS measurement errors.
 
 The functions $\psi_k$ in equation~\eqref{eq: exact baseline model} are bivariate basis functions constructed through tensor products of univariate cubic spline basis functions. We refer to \cite{wood_generalized_2017} section $4.
 1.8$ for the construction of tensor splines basis functions. The splines degree of freedom is $L=q_E \times q_{\Theta}$ and the numbers of knots in the splines is $q_E-1$ and $q_{\Theta}-1$ for the respective covariates $E_{shore}$ and $\Theta$. It is needed to choose them before hand.\\
@@ -556,7 +552,7 @@ The functions $\phi_k$ are univariate cubic spline basis functions and $q$ is th
 
 \subsection{State-space model}
 \label{section: state space model}
-To consider the GPS measurement error between the observation $y$ and the true position $X$, it is needed to include the observations in a state-space model as done by \cite{johnson_continuoustime_2008}. This is the approach we use here. We consider i.i.d gaussian measurement errors with variance $\sigma_{obs}^2$. In the statistical model~\eqref{eq: exact baseline model} for the baseline model, we make the approximation mentioned in \cite{michelot_varying-coefficient_2021} that the parameter $\omega_i$ is constant on each time step $[t_{ij},t_{i,j+1}]$, equal to its value at time $t_{ij}$, that is 
+To consider the GPS measurement error between the observation $y$ and the true position $X$, it is needed to include the observations in a state-space model as done by \cite{johnson_continuoustime_2008}. This is the approach we use here. In the statistical model~\eqref{eq: exact baseline model} for the baseline model, we make the approximation mentioned in \cite{michelot_varying-coefficient_2021} that the parameter $\omega_i$ is constant on each time step $[t_{ij},t_{i,j+1}]$, equal to its value at time $t_{ij}$, that is 
 \[\forall t \in [t_{ij},t_{i,j+1}], \quad \omega_{i}(t) \simeq \omega(t_{ij})= f_{\omega}(E^{shore}_{ij},\Theta_{ij})\]
  Denote $\Delta_{ij}=t_{i,j+1}-t_{ij}$, $V_{ij}=V(t_{ij})$, $X_{ij}=X(t_{ij})$, ,$\omega_{ij}=\omega(t_{ij})$, $A_{ij}=\begin{pmatrix} 
 	\frac{1}{\tau_{i}} & -\omega_{ij} \\
@@ -704,7 +700,7 @@ The intercept value for $\nu$ is estimated to be $\hat{\nu}_{0}=4.61$ km/h which
 	\label{table: baseline estimations}
 \end{table}
 
-Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omega$ as a function of $\Theta$ for different values of the distance to shore. Movement toward the shoreline matches values of $\Theta$ such that $\vert \Theta \vert > \frac{\pi}{2}$, for which the angular velocity $\omega$ is estimated to be close to $2$ rad/h for low distances to shore. As distance increases, the magnitude of the angular velocity decreases, which means that the movement becomes less tortuous. This indicates that the spatial constraints influence the tortuosity of the movement by forcing the narwhals velocity to rotate when they are close to the shoreline.
+Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omega$ as a function of $\Theta$ for different values of the distance to shore. Movement toward the shoreline matches values of $\Theta$ such that $\vert \Theta \vert > \frac{\pi}{2}$, for which the angular velocity $\omega$ is estimated to be close to $\pm 2$ rad/h for low distances to shore. As distance increases, the magnitude of the angular velocity decreases, which means that the movement becomes less tortuous. This indicates that the spatial constraints influence the tortuosity of the movement by forcing the narwhals velocity to rotate when they are close to the shoreline.
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=0.7\linewidth]{"images/application/baseline/omega_DistanceShore_levels.png"}
@@ -719,7 +715,7 @@ Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omeg
 
 The baseline estimates of the spline coefficients $\omega_k$, the intercepts $\log(\tau_0)$, $\log(\nu_0)$ and the standard deviations $\sigma_{\tau}$, $\sigma_{\nu}$ are introduced as offsets in the response model. Only the effect of the exposure to the sound on $\tau$ and $\nu$ is estimated from the data after exposure.\\
 
-Figure~\ref{fig: me response} shows that exposure to sound has an effect on both the persistence and the velocity of the movement. The value of $\nu$ increases with increased exposure to the sound, suggesting motion at higher speed in presence of the ship. This should not come as a surprise since, for instance, the mean experimental velocity norm when the narwhals are less than $5$ km away from the ship is $5.7$ km/h, which is more than $1$ km/h higher than the mean experimental velocity norm before exposure. We draw specific attention to the parameter $\tau$, that decreases with increased exposure to the ship, implying lower persistence and lower autocorrelation in the velocity of the narwhals. This is a new finding that had been hinted in \cite{heide-jorgensen_behavioral_2021} since it was acknowledged that the narwhals had more tendency to change direction and move toward the shore in the presence of the ship. This can now be interpreted as a drop in persistence due to the appearance of the ship. Our analysis suggests that the magnitude of this drop might be alarming : for most of the narwhals, at distance less than $5$ km away from the ship, the persistence is half the baseline value. This shows evidence of a strong shift in the behavior of the whales, which is likely to impede their capacity to mate and forage at short term.
+Figure~\ref{fig: me response} shows that exposure to sound has an effect on both the persistence and the velocity of the movement. The value of $\nu$ increases with increased exposure to the sound, suggesting motion at higher speed in presence of the ship. This should not come as a surprise since, for instance, the mean empirical velocity norm when the narwhals are less than $5$ km away from the ship is $5.7$ km/h, which is more than $1$ km/h higher than the mean experimental velocity norm before exposure. We draw specific attention to the parameter $\tau$, that decreases with increased exposure to the ship, implying lower persistence and lower autocorrelation in the velocity of the narwhals. This is a new finding that had been hinted in \cite{heide-jorgensen_behavioral_2021} since it was acknowledged that the narwhals had more tendency to change direction and move toward the shore in the presence of the ship. This can now be interpreted as a drop in persistence due to the appearance of the ship. Our analysis suggests that the magnitude of this drop might be alarming : for most of the narwhals, at distance less than $5$ km away from the ship, the persistence is half the baseline value. This shows evidence of a strong shift in the behavior of the whales, which is likely to impede their capacity to mate and forage at short term.
 The baseline value is attained for a distance to the sound source higher than $20$ km for $\tau$, and  $40$ km for $\nu$. This indicates that sound exposure can be perceived and can disturb the narwhals motion up to $40$ km.
  
  \begin{figure}[H]
@@ -740,7 +736,7 @@ The baseline value is attained for a distance to the sound source higher than $2
 We categorize narwhals position relative to the ship as follows :
 \begin{itemize}
 	\item very close when the distance to the ship is lower than the $5\%$. quantile, which is $4.04$ km.
-	\item close when the distance to the ship is between $5\%$. quantile and the $25\%$ quantile, which is $9.35$ km.
+	\item close when the distance to the ship is between $5\%$ quantile and the $25\%$ quantile, which is $9.35$ km.
 	\item medium when the distance to the ship is between the $25\%$ and $75\%$ quantile, that is between $9.35$ and $25.80$ km.
 	\item far otherwise.
 \end{itemize}
@@ -991,7 +987,9 @@ The median time step between GPS measurements is $4.8$ minutes, and the mean tim
 	\label{fig:alltimestepshisto}
 \end{figure}
 
-Figure~\ref{fig: trials and intertrials distributions} shows how the exposure periods are distributed among the $6$ narwhals that were tracked. Our analysis in section \ref{section: application} does not distinguish between intertrial and trial periods. They are both treated as exposure periods, though the nature and intensity of the behavioral response might differ for the two periods. The lack of intertrial data as well as a potential persistence in time of the behavior shift due to airguns exposure during trial periods justify the use of this simple model.
+
+
+Experiments were divided into unexposed periods - for which the narwhals are not in line of sight with the ship - trial periods - when the narwhals are exposed to the ship and airguns are shot - and intertrial periods - when the narwhals are exposed to the ship but airguns are not shot. These periods are indicated by a categorical variable $T_{ship}$ in the dataset. In this analysis, we do not distinguish between Trial and Intertrial periods, and treat them both as exposure periods, where the degree of exposure depends on the narwhals positions relative to the ship. Figure~\ref{fig: trials and intertrials distributions} shows how the exposure periods are distributed among the $6$ narwhals that were tracked. Our analysis in section \ref{section: application} does not distinguish between intertrial and trial periods. They are both treated as exposure periods, though the nature and intensity of the behavioral response might differ for the two periods. The lack of intertrial data as well as a potential persistence in time of the behavior shift due to airguns exposure during trial periods justify the use of this simple model.
 
 	\begin{figure}[H]
 		\centering
@@ -1010,17 +1008,17 @@ Figure~\ref{fig: trials and intertrials distributions} shows how the exposure pe
 		\hline
 		Narwhal ID & Number of measurement before exposure & Number of measurements during exposure \\
 		\hline
-		A1 & 258 & 576\\
+		A1 & 354 & 576\\
 		\hline
-		A2  & 40 & 515 \\
+		A2  & 151 & 515 \\
 		\hline
-		A3 & 222 & 680 \\
+		A3 & 397 & 680 \\
 		\hline
-		A4 & 291 & 642  \\
+		A4 & 127 & 642  \\
 		\hline
-		A5 & 48 & 419\\
+		A5 & 207 & 419\\
 		\hline
-		A6 & 76 & 425 \\
+		A6 & 322 & 425 \\
 		\hline
 		\textbf{Total} & \textbf{935} & \textbf{3257} \\
 		\hline
