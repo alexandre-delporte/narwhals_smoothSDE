@@ -16,11 +16,18 @@ set.seed(seed)
 
 
 
+
 # Generate samples ---------------
 
+cores=detectCores()
+cl <- makeCluster(cores[1]-1) #not to overload your computer
+registerDoParallel(cl)
 
-data=foreach (i=1:N_ID,.combine='rbind') %do% {
-    
+
+data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+  
+  set.seed((seed-1)*N_ID+i)
+  
   #constant nu
   fnu_constant=function(cov_data) {
     return (exp(true_log_nu[i]))
@@ -30,13 +37,18 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
     return (exp(true_log_tau[i]))
   }
   res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
-                        log_sigma_obs=log(sigma_obs),v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
-    
+                      log_sigma_obs=log(SIGMA_OBS),v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
+  
   data_sim=res$sim
   data_sim$ID=factor(rep(i,length(data_sim$y1)))
   data_shore=res$shore[,c("p1","p2")]
   cbind(data_sim,data_shore)
 }
+
+#stop cluster
+stopCluster(cl)
+
+
 
 
 
@@ -44,7 +56,7 @@ data=foreach (i=1:N_ID,.combine='rbind') %do% {
 count=0
 for (id in unique(data$ID)) {
   sub_data=data[data$ID==id,]
-  if (nrow(sub_data) < n) {
+  if (nrow(sub_data) < n_obs) {
     count=count+1
     cat("ID",id,"reached land","\n",sep=" ")
   }
@@ -52,17 +64,25 @@ for (id in unique(data$ID)) {
 
 cat(count/N_ID*100,"percent of the samples reached land")
 
-# Save plot of the trajectories -------------------
+#subsample
+data=data[seq(1,n_obs*N_ID,by=BY),]
+
+
+# Save plot of the trajectories ------------
 
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
   coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
   geom_point(data=data,mapping=aes(y1,y2,col=ID),size=0.1)+
+  geom_path(data=data,mapping=aes(y1,y2,color=ID),size=0.1)+
   geom_point(data = data%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
-ggsave(filename=paste("plot_",domain_name,seed,".png",sep=""),plot=plot,width=10,height=5)
+ggsave(filename=paste("plot_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km",seed,".png",sep=""),plot=plot,width=10,height=5)
 
+if (count>0) {
+  stop("Stop : at least one trajectory reached the shore.")
+}
 
 # Add covariates to simulation -----------
 
@@ -131,17 +151,26 @@ add_covs=function(data) {
 
 data=add_covs(data)
 
-# Estimate from simulated data  ------------------
+#only estimate if observed Distances to shore include the interval [0.5,5]
+
+if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
+  stop("Observed distance to shore are irrelevant with the fixed knots")
+}
+
+# Estimate from simulated data ------------------
 
 formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
                  nu=~s(ID,bs="re"),omega=~te(theta,ExpShore,k=SP_DF,bs="cs"))
 
 knots=list("omega"=knots_ExpShore)
 
-crcvm_long<- SDE$new(formulas = formulas,data = data,type = "RACVM",
-                      response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
-                      other_data=list("H"=H_hf),knots=knots)
+crcvm<- SDE$new(formulas = formulas,data = data,type = "RACVM",
+                response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
+                other_data=list("H"=H),knots=knots)
 
+#initialize smoothing penalties and re variances
+new_lambda=c(1,1,1,1)
+crcvm$update_lambda(new_lambda)
 #fit
 crcvm$fit(method="BFGS")
 
@@ -163,10 +192,10 @@ coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c
 
 #true values of the coeffs
 true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_ExpShore[2:9],0,0,
-                            log(TAU_0),log(NU_0),sp_coeff_ExpShore[1],SIGMA_TAU,SIGMA_NU,m2$sp))
+                            log(TAU_0),log(NU_0),sp_coeff_ExpShore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(m1$sp)))
 
 coeffs_df=cbind(coeffs_df,true_df)
 
-
 write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_ExpShore",seed,".csv",sep=""), row.names=FALSE)
+
 

@@ -1318,7 +1318,7 @@ for (id in unique(dataprep$ID)) {
 ```{r}
 #number of data points for each individual
 for (id in unique(data$ID)) {
-  narwhalDataBE=dataBE1[dataBE1$ID==id,]
+  narwhalDataBE=dataBE2[dataBE2$ID==id,]
   narwhalDataAE=dataAE[dataAE$ID==id,]
   cat(id," : ", length(narwhalDataBE$time)," GPS measurement before exposure and ", length(narwhalDataAE$time)," after exposure.\n",sep="")
 }
