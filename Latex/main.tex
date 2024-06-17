@@ -120,13 +120,13 @@ Narwhals in Arctic seas are increasingly exposed to human activities that can te
 
 
 Anthropogenic underwater noise in the Arctic environment causes disturbances in the endemic wildlife. More precisely, marine mammals, whose vital functions highly depend on sound perception for communication and orientation, are likely to react to such disturbances. The Arctic Council report \cite{halliday_underwater_2020} emphasizes the need for more knowledge about the impact of underwater noise on Arctic marine mammals. The main sources of noise in the region are vessel traffic, ice breakers, drilling, sonars and seismic airguns used for oil and gas exploration. Among those sources, an increase in vessel traffic is anticipated due to the melting of the ice cap, and seismic airguns are reported to have the largest impact on underwater noise. Two types of consequences can be considered: injury and behavior disturbance. While physical harm is straightforward to assess and mitigate by determining species-specific received sound level thresholds, no canonical method is expected to be found to examine behavior disturbances, due to the multiplicity of contextual variables that can influence a behavioral reaction, and the variety of these reactions.\\
-Research recommendations include a particular focus on measurement of behavioral reactions to various type of sound exposure \cite{southall_marine_2008,southall_marine_2019}. Rich behavioral studies typically involve controlled exposure experiments during which animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured such as GPS positions, depth, sound exposure level, temperature, pressure, heart beat, stroke rate, vocalizations... Numerous surveys have been conducted about beaked whales, which have been regularly implicated in stranding events following sonar exercises \cite{tyack_beaked_2011,cioffi_trade-offs_2022}, belugas \cite{martin_exposure_2023}, sperm whales \cite{madsen_quantitative_2006}, blue whales \cite{friedlaender_preymediated_2016}, and narwhals \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. \\
+Research recommendations include a particular focus on measurement of behavioral reactions to various type of sound exposure \cite{southall_marine_2008,southall_marine_2019}. Behavioral studies typically involve controlled exposure experiments during which animals are exposed to disturbances in a precise and monitored set up where different  statistics can be measured such as GPS positions, depth, sound exposure level, temperature, pressure, heart beat, stroke rate, vocalizations... Numerous surveys have been conducted about beaked whales, which have been regularly implicated in stranding events following sonar exercises \cite{tyack_beaked_2011,cioffi_trade-offs_2022}, belugas \cite{martin_exposure_2023}, sperm whales \cite{madsen_quantitative_2006}, blue whales \cite{friedlaender_preymediated_2016}, and narwhals \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. \\
 A severity scale is defined in \cite{southall_marine_2008} to help assessing which behavioral responses are more likely to alter a population's capacity to survive, reproduce or forage. Changes in movement speed and direction, avoidance reactions as well as modified dive profiles or vocalizations  are ranked between 4 and 7 on a scale out of 9 (9 being stranding events that can directly lead to the death of the animal) depending on the magnitude of the changes and their duration.\\
 
 So far, the studies about narwhals behavioral responses to sound exposure prove that they can exhibit avoidance reactions and have a proclivity to move toward the shore when exposed to seismic airguns \cite{heide-jorgensen_behavioral_2021}. Moreover, a significant decrease in their buzzing rate has been assessed as far as 40 km away from the sound source \cite{tervo_narwhals_2021}. These results are based on controlled exposure experiments conducted in 2017 and 2018 in South-east Greeland, which is home to a declining population of narwhals \cite{garde_biological_2022}.  Though GPS positions are retrieved only when the narwhals emerge to the surface, that is irregularly in time, they have so far been analyzed with discrete time methods relying on linear interpolation to obtain data every second. In \cite{heide-jorgensen_behavioral_2021}, the positions are classified in three states "Far from the shore", "Moving toward shore" and "Close to the shore" at each second, and the dynamic of the states is modeled with a Markov chain, assuming that the current state only depends on the last one in time. An exposure covariate defined as the inverse of the distance to the sound source is then used to model the transition probabilities of the Markov Chain. The probabilities of being in states "Close to the shore" and "Moving toward the shore" are shown to increase with exposure to the sound, while probability of being in state "Far from the shore" decreases. Additionally, an overall speed increase due to sound exposure is revealed for the 2018 data by an analysis of the consecutive GPS positions through a mixed effect model. 
-Here, we  make use of a continuous time model to analyse the GPS positions in order to be able to quantify the effect of sound exposure on the speed and the heading of the narwhals in one holistic model. \\
+Here, we  make use of a continuous time model to analyse the GPS positions in order to be able to quantify the effect of sound exposure on the speed and the heading of the narwhals in one holistic model. The benefit of such a modelisation are multiple : it does not rely on any interpolation of the positions each second since irregular time step are easily handled in the continuous-time framework, it does not require labelling states by hand and therefore results are more reliable, it allows to quantify the magnitude of the changes in the movement depending on the distance to the sound source. \\
 
-We focus on continuous-time models defined as a solution of a stochastic differential equation with time-varying coefficients. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. The following formulation of the equations represents an extension of the CVM which involves a rotational component and  is based on biologically interpretable parameters \cite{gurarie_correlated_2017}.
+We focus on continuous-time models defined as a solution of a stochastic differential equation with time-varying coefficients. One widely known model for such data is the continuous-time correlated random walk, also known as the integrated Ornstein-Uhlenbeck or correlated velocity model (CVM) \cite{johnson_continuoustime_2008}. It can be viewed as a special case of velocity potential model, where the potential is a second degree polynomial \cite{preisler_analyzing_2013}. An extension of the CVM which involves a rotational component and is based on biologically interpretable parameters is formulated in  \cite{gurarie_correlated_2017}. The equations are as follows:
 \begin{equation} \left\{
 	\begin{array}{l}
 		dX(t)=V(t)dt \\
@@ -152,7 +152,7 @@ Additionally, the way to model the motion of an animal near the boundary of the 
 Here, we show that the angular velocity  can be estimated as a function of the two covariates in the framework of the \texttt{R} package \texttt{smoothSDE} \cite{michelot_varying-coefficient_2021}. To make this possible, we derive explicit formulas for the transition density of the process $U(t)=\begin{pmatrix} X(t) & V(t) \end{pmatrix}$ and then formulate a state-space model from the discretisation of these formulas. Maximum likelihood estimation based on Kalman filter is then performed as for any other model in \texttt{smoothSDE}.\\
 
 
-Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in \eqref{eq: RACVM equation}. This effect is estimated as a smooth function of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model is compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
+Sound exposure is considered to affect only the parameters $\nu$ and $\tau$ in \eqref{eq: RACVM equation}. These effects are estimated as smooth functions of a sound exposure covariate defined as the inverse of the distance to the ship. This choice of covariate is motivated by \cite{heide-jorgensen_behavioral_2021}. A response model is compared to a baseline model representing the narwhals movement before exposure to the disturbance, that is under normal conditions \cite{michelot_continuous-time_2022}.
 The effect of sound exposure is assessed as a deviation in the response model parameters when compared to the baseline model parameters.
 
 
@@ -165,7 +165,7 @@ To summarize, the main contributions of this paper are:
 \end{itemize}
 
 In Section 2, we give an overview of the narwhal data available for the analysis.
-Then, the diffusion models are discussed in Section 3. Section 4 is dedicated to the statistical model used to infer the shore and sound exposure effects. Simulation study results are shown in section 5. Eventually, our models are applied to analyse a behavioral response of the narwhals in section 6.
+Then, the diffusion models are discussed in Section 3. Section 4 is dedicated to the statistical model used to infer the shore and sound exposure effects. Simulation study results are shown in Section 5. Eventually, our models are applied to analyse a behavioral response of the narwhals in Section 6.
 
 
 
@@ -175,7 +175,7 @@ Then, the diffusion models are discussed in Section 3. Section 4 is dedicated to
 
 \subsection{Description of the controlled exposure experiments}
 
-The dataset analysed in this paper has been the subject of several studies, focusing mainly on vocalizations and avoidance reactions \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. 
+The dataset analysed in this paper has been subject of several studies, focusing mainly on vocalizations and avoidance reactions \cite{heide-jorgensen_behavioral_2021,tervo_narwhals_2021}. 
 Six male narwhals were equipped with FastLoc GPS receivers in August 2018 in Scoresby Sound fjord system in South-East Greenland by biologists from the Greenland Institute of natural ressources, with the help of local Inuit hunters. The Scoresby Sound fjord system
 is known to be the summer residence for an isolated population of narwhals.
 Here we recall briefly how the data has been retrieved. For more details about the study area and the tagging of the animals, the reader may refer to \cite{heide-jorgensen_behavioral_2021}. 
@@ -262,7 +262,7 @@ The angle between the narwhal's heading and the shoreline $\Theta_{ij}$ is estim
 
 The distance from the ship denoted $D^{ship}_{ij}$, is estimated as the distance between observed GPS locations of the ship and the narwhals. The values are comprised between $2.68$ and $63.8$ km.
 Exposure to ship covariate for narwhal $i$ at time $t_{ij}$, denoted $E^{ship}_{ij}$, is defined as the inverse of the distance to the ship (in km) \cite{heide-jorgensen_behavioral_2021}.
-$D^{ship}$ is only known when the narwhal is in line of sight with the boat, so that exposures are set to $0$ when this is not this case. This implies that the effect of the ship noise on the narwhals's movement is only considered in this specific case in the whole study, though it is very likely that narwhals can perceive the disturbance even when they are not clearly in line of sight with the sound source. This provides a conservative estimate of the effect of the noise exposure. The covariate $E^{ship}$ is meant to be a proxy for sound exposure levels received by the narwhals. Reasonably, the closer the narwhal is to the ship, the more it can hear its sound, and the greater the exposure. Exposure levels for each narwhals are displayed in figure~\ref{fig: realexpthroughtime}.
+$D^{ship}$ is only known when the narwhal is in line of sight with the boat, so that exposures are set to $0$ when this is not this case. This implies that the effect of the ship noise on the narwhals's movement is only considered in this specific case in the whole study, though it is very likely that narwhals can perceive the disturbance even when they are not clearly in line of sight with the sound source. This provides a conservative estimate of the effect of the noise exposure. The covariate $E^{ship}$ is meant to be a proxy for sound exposure levels received by the narwhals. Reasonably, the closer the narwhal is to the ship, the more it can hear its sound, and the greater the exposure. Exposure levels for each narwhal are displayed in figure~\ref{fig: realexpthroughtime}.
 
 
 \begin{figure}[H]
@@ -295,7 +295,7 @@ The dynamic of the true positions of the narwhals is controlled by a stochastic 
 We denote $A=\begin{pmatrix} 
 	\frac{1}{\tau} & -\omega \\
 	\omega & \frac{1}{\tau}
-\end{pmatrix}$ and rewrite~\eqref{eq: RACVM equation}
+\end{pmatrix}$ and rewrite~\eqref{eq: RACVM equation} as
 
 \begin{equation*} \left\{
 	\begin{array}{l}
@@ -307,7 +307,9 @@ We denote $A=\begin{pmatrix}
 \end{equation*}
 In this section, we obtain explicit transition density for the process $U=\begin{pmatrix} X & V \end{pmatrix}^\top$. Though this model is considered in several papers, we found no mention of the closed form formulas derived here. In \cite{gurarie_correlated_2017}, only the process $V$ is exhaustively studied, and the classical distributional results about this process are used for estimation and simulation purposes.
 A more general formulation is considered by \cite{albertsen_generalizing_2018} in which the diffusion matrix is lower triangular with positive diagonal elements whereas and two distinct autocorrelation parameters are considered in both directions allowing for anisotropic movement.
-In this case, \cite{albertsen_generalizing_2018} derives an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}. But again, exact formulas for the process $X$ are not mentioned and the Euler-scheme is used to get approximate transition densities of $X$. Here, we claim that under the hypothesis of isotropic movement, with diagonal diffusion matrix as in~\eqref{eq: RACVM equation}, not only the velocity but also the position process have a closed form formula. \\
+In this case, \cite{albertsen_generalizing_2018} derives an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}. But again, exact formulas for the process $X$ are not mentioned and the Euler-scheme is used to get approximate transition densities of $X$.
+This may not be a big deal when sucessive positions of the animal are known with high frequency. However, when it comes to marine mammals that dive at great depth such as the narwhal, the time steps between GPS measurements are generally irregular and can reach from several minutes to several hours, therefore invalidating the use of the Euler scheme. Moreover, to be able to include covariates in the SDE parameters we often need to approximate the transition density by supposing that the covariates are constant on each time step, which would then create two levels of approximations, likely making estimation unreliable.
+ Here, we claim that under the hypothesis of isotropic movement, with diagonal diffusion matrix as in~\eqref{eq: RACVM equation}, not only the velocity but also the position process have a closed form formula. This is stated in the following proposition.\\
 
 
 \begin{proposition}
@@ -408,15 +410,15 @@ An important spatial scale of the rotational movement is $\rho=\frac{\nu}{\omega
 The closer we are to the shore, the faster the velocity should rotate,
 whereas at a certain distance from the coast, there should be no further effect of the shore, meaning that $\omega$ should be close to $0$. Far from the coast, the movement model is simply an integrated Ornstein-Uhlenbeck process, as in the unconstrained case.
 A weight based on the distance to the shore can be defined as follows :
-\[c(D^{shore})=\exp\left(-\kappa \times \left(\frac{D^{shore}}{D_0}\right)^2\right)\mbox{ for some } D_0>0 \mbox{ and } \kappa>0\]
+\[c(D^{shore})=\mbox{ for some } \]
 
-Based on this weight, a relationship between $f_{\omega}$ and the angle $\Theta$ and the distance to the shore $D^{shore}$ can be formulated  :
+A relationship between $f_{\omega}$ and the angle $\Theta$ and the distance to the shore $D^{shore}$ can be formulated as follows :
 
 \begin{equation}
-f_{\omega}(\Theta,D^{shore})=\frac{\omega_0}{2}\left(\tanh(\lambda(\theta+\theta^{*}))+\tanh(\lambda(\theta-\theta^{*})))\right)\times c(D^{shore})
+f_{\omega}(\Theta,D^{shore})=\frac{\omega_0}{2}\left(\tanh(\lambda(\theta+\theta^{*}))+\tanh(\lambda(\theta-\theta^{*})))\right)\times \exp\left(-\kappa \times \left(\frac{D^{shore}}{D_0}\right)^2\right)
 \label{eq: smooth omega}
 \end{equation}
-for some $\omega_0 \in \R$, $\lambda>0$, $\theta^* \in [0,2\pi]$.
+for some $D_0>0$, $\kappa>0$, $\omega_0 \in \R$, $\lambda>0$, $\theta^* \in [0,2\pi]$.
 
 This parametrization of $\omega$ is only motivated by the observations above, and do not pretend to be optimal. Any smooth function that meets minimum requirements could be used instead. An alternative is to specify the smooth function $f_{\omega}$ using spline basis functions. Figures~\ref{fig: smoothomega1} and~\ref{fig: smoothomega2} show function~\eqref{eq: smooth omega}, while Figures~\ref{fig: smoothomegasplines1} and~\ref{fig: smoothomegasplines2}  represent a smooth function $f_{\omega}$ obtained as a combination of nine cubic spline basis functions approximating~\eqref{eq: smooth omega}. Sampled trajectories of these models are shown in Figure~\ref{fig: crcvm examples}.
 
