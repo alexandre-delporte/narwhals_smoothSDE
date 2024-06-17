@@ -9,7 +9,9 @@
 \usepackage{subcaption}
 \usepackage{float}
 \usepackage{multirow}
-\usepackage{lscape} 
+\usepackage{lscape}
+\usepackage{calc}
+\usepackage{array}
 
 \usepackage{amssymb}
 \usepackage{amsfonts}
@@ -80,9 +82,15 @@
 {\multicitedelim}
 {\usebibmacro{postnote}}
 
+
+%TABLES APPEARANCE
+\newlength\lenA \newlength\lenB
+\settowidth\lenA{Reach distance (km)}
+\setlength\lenB{(\lenA-2\tabcolsep-\arrayrulewidth)/2} 
+
 %TITLE
 \title{
- \textbf{Varying coefficients correlated velocity models in complex landscapes with application to narwhal behavioral response to ship exposure and airgun exposure}}
+ \textbf{Varying coefficients correlated velocity models in complex landscapes with application to narwhals behavioral response to ship exposure and airgun exposure}}
 
 
 \author[1]{Alexandre Delporte}
@@ -299,7 +307,7 @@ We denote $A=\begin{pmatrix}
 \end{equation*}
 In this section, we obtain explicit transition density for the process $U=\begin{pmatrix} X & V \end{pmatrix}^\top$. Though this model is considered in several papers, we found no mention of the closed form formulas derived here. In \cite{gurarie_correlated_2017}, only the process $V$ is exhaustively studied, and the classical distributional results about this process are used for estimation and simulation purposes.
 A more general formulation is considered by \cite{albertsen_generalizing_2018} in which the diffusion matrix is lower triangular with positive diagonal elements whereas and two distinct autocorrelation parameters are considered in both directions allowing for anisotropic movement.
-In this case, \cite{albertsen_generalizing_2018} derives an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}. But again, exact formulas for the process $X$ are not mentioned and the Euler-scheme is used to get approximate transition densities of $X$. Here, we claim that under the hypothesis of isotropic movement, with diagonal diffusion matrix as in equation ~\eqref{eq: RACVM equation}, not only the velocity but also the position process have a closed form formula. \\
+In this case, \cite{albertsen_generalizing_2018} derives an explicit form for the gaussian transition density of the velocity process, where the covariance matrix is expressed using a Kronecker sum \cite{albertsen_generalizing_2018}. But again, exact formulas for the process $X$ are not mentioned and the Euler-scheme is used to get approximate transition densities of $X$. Here, we claim that under the hypothesis of isotropic movement, with diagonal diffusion matrix as in~\eqref{eq: RACVM equation}, not only the velocity but also the position process have a closed form formula. \\
 
 
 \begin{proposition}
@@ -533,6 +541,7 @@ The functions $\psi_k$ in equation~\eqref{eq: exact baseline model} are bivariat
 The response model is then designed to assess a deviation from the baseline model due to exposure to the ship. We illustrate this by addding a dependency on the covariate $E_{ship}$ in the parameters $\tau$ and $\nu$. 
 For $i \in \{1, \cdots, N\}$, denote $n_{i,post}$ the number of post-exposure observations for the narwhal $i$.
 
+\begin{comment}
 \begin{equation}   \left\{
 	\begin{array}{l}
 		y_{ij}=X_{ij}+\varepsilon_{ij}, \quad j \in \{1,\cdots,n_{i,post}\} \\
@@ -543,9 +552,26 @@ For $i \in \{1, \cdots, N\}$, denote $n_{i,post}$ the number of post-exposure ob
 	\label{eq: exact response model}
 \end{equation}
 
+
 The intercepts $\log(\tau_0)$, $\log(\nu_0)$ and the spline coefficients $\omega_k$, $k \in \{1,\cdots,L\}$ are considered as offsets.
 The functions $\phi_k$ are univariate cubic spline basis functions and $q$ is the spline degree of freedom for the exposure to the ship covariate. Only the parameters $\log(\tau_k)$ and $\log(\nu_k)$, $k \in \{1,\cdots,q\}$ are estimated from the trajectories during exposure to the sound.
+\end{comment}
 
+
+
+\begin{equation}   \left\{
+	\begin{array}{l}
+		y_{ij}=X_{ij}+\varepsilon_{ij}, \quad j \in \{1,\cdots,n_{i,post}\} \\
+		\log(\tau_{i}(t))=\log(\tau_{0})+\alpha_{\tau} E^{ship}_i(t)+b_{\tau,i} \\
+		\log(\nu_{i}(t))=\log(\nu_{0}) +  \alpha_{\nu} E^{ship}_i(t) +b_{\nu,i}  \\
+	\end{array}
+	\right.
+	\label{eq: exact response model}
+\end{equation}
+
+
+The intercepts $\log(\tau_0)$, $\log(\nu_0)$ and the spline coefficients $\omega_k$, $k \in \{1,\cdots,L\}$ are considered as offsets.
+The coefficients $\alpha_{\tau}$ and $\alpha_{\nu}$ in the log-linear models control the distance at which the parameters $\tau_i$ and $\nu_i$ reach the baseline values $\tau_0$ and $\nu_0$.
 
 
 
@@ -676,31 +702,30 @@ A baseline model is fitted on the narwhals's track before exposure. It is suppos
 
 \subsection{Baseline estimations}
 
-Estimation is performed in \texttt{smoothSDE} by defining a template model for the complete negative  log-likelihood with \texttt{TMB}.  The choice of initial parameters is crucial in the optimization. Based on the results on measurement errors of Fastloc-GPS found in \cite{wensveen_path_2015}, we initialize the measurement error standard deviation to $\sigma_{obs}=50$ m. Then we estimate model ~\eqref{eq: exact baseline model} on all the available data with degree of freedom of the marginal splines set to $5$ and we use the estimated spline coefficients as initial values to fit the baseline model on the data before exposure. We initialize the random effects standard deviations to $\sigma_{\nu}=\sigma_{\tau}=0.2$ and fix the smoothing penalties of the tensor splines to $1$.
+Estimation is performed in \texttt{smoothSDE} by defining a template model for the complete negative  log-likelihood with \texttt{TMB}.  We fixed the measurement error standard deviation to $\sigma_{obs}=50$ m based on the results on measurement errors of Fastloc-GPS found in \cite{wensveen_path_2015}. Then we estimate model ~\eqref{eq: exact baseline model} on all the available data with degree of freedom of the marginal splines set to $5$. We initialize the random effects standard deviations to $\sigma_{\nu}=\sigma_{\tau}=1$, spline coefficients $\omega_k$, $k \in \{1,\cdots,L\}$ to 0 and fix the smoothing penalties of the tensor splines to $1$.
 
 Estimation and standard error on the parameter scale are shown in table~\ref{table: baseline estimations}. 
-The persistence is estimated to $\hat{\tau}_{0}=1.08 $ h.
+The persistence is estimated to $\hat{\tau}_{0}=1.35 $ h.
 In comparison, harbour seal in Alaska were proved to exhibit slightly more persistent motion $\hat{\tau}=1.51$ h with $95\%$ CI ; $1.30 -1.75$  \cite{johnson_continuoustime_2008} while bowhead whales in Greenland showed much less persistence $\hat{\tau}=0.17$ h with $95\%$ CI ; $0.14 -0.20$  \cite{gurarie_correlated_2017}.
-The intercept value for $\nu$ is estimated to be $\hat{\nu}_{0}=4.61$ km/h which is of the order of magnitude of the mean of the observed empirical velocities.
+The intercept value for $\nu$ is estimated to be $\hat{\nu}_{0}=4.64$ km/h which is of the order of magnitude of the mean of the observed empirical velocities.
 \begin{table}[H]
 	\centering
 	\begin{tabular}{|c|c|c|}
 		\hline
 		Coefficient   & Estimate  & Standard error \\
 		\hline
-		$\tau_0$ (h)   & $1.08$    &  $0.16$ \\
-		$\nu_0$ (km/h)  & $4.64$   &  $0.25$\\
-		$\omega_0$ (rad/h)    & $0.01$    &  $0.08$ \\
-		$\sigma_{\tau,pre}$    & 0.29   &  $0.12$ \\
-		$\sigma_{\nu,pre}$    & 0.10   &  $0.05$ \\
-		$\sigma_{obs}$ (m) & $35$ & $1$ \\
+		$\tau_0$ (h)   & $1.35$    &  $0.16$ \\
+		$\nu_0$ (km/h)  & $4.60$   &  $0.25$\\
+		$\omega_0$ (rad/h)    & $-0.01$    &  $0.07$ \\
+		$\sigma_{\tau,pre}$    & 0.20   &  $0.13$ \\
+		$\sigma_{\nu,pre}$    & 0.08   &  $0.05$ \\
 		\hline
 	\end{tabular}
 	\caption{Baseline estimations}
 	\label{table: baseline estimations}
 \end{table}
 
-Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omega$ as a function of $\Theta$ for different values of the distance to shore. Movement toward the shoreline matches values of $\Theta$ such that $\vert \Theta \vert > \frac{\pi}{2}$, for which the angular velocity $\omega$ is estimated to be close to $\pm 2$ rad/h for low distances to shore. As distance increases, the magnitude of the angular velocity decreases, which means that the movement becomes less tortuous. This indicates that the spatial constraints influence the tortuosity of the movement by forcing the narwhals velocity to rotate when they are close to the shoreline.
+Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omega$ as a function of $\Theta$ for different values of the distance to shore. Movement toward the shoreline matches values of $\Theta$ such that $\vert \Theta \vert > \frac{\pi}{2}$, for which the angular velocity $\omega$ is estimated to be close to $\pm 2$ rad/h for low distances to shore. As distance increases, the magnitude of the angular velocity decreases, which means that the movement becomes less tortuous. This indicates that the spatial constraints influence the tortuosity of the movement by forcing the narwhals velocity to rotate when they are close to the shoreline. However, the magnitude of the estimated $\omega$ is not sufficient to effectively obtain constrained trajectories when simulating from the fitted model.
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=0.7\linewidth]{"images/application/baseline/omega_DistanceShore_levels.png"}
@@ -710,53 +735,51 @@ Figure \ref{fig:febaseline3omegaanglenormalq0} shows the estimated smooth $\omeg
 \end{figure}
 
 
+We observed that fixing a high standard deviation for the measurement error tends to increase the estimate of the parameter $\tau$. Intuitively, for a low value of the measurement error, tortuous trajectory can only be caused by less persistent movement, whereas if the measurement error is high, a part of the tortuosity can be attributed to the measurement errors, which might give higher estimate of the persistence parameter. We tried fixing the measurement errors $\sigma_{obs}$ to different values and observed that the lowest negative log-likelihood value was obtained for a standard deviation $\sigma_{obs}$ close to $50$m. More details can be found in Appendix.
+
 
 \subsection{Response estimations}
 
-The baseline estimates of the spline coefficients $\omega_k$, the intercepts $\log(\tau_0)$, $\log(\nu_0)$ and the standard deviations $\sigma_{\tau}$, $\sigma_{\nu}$ are introduced as offsets in the response model. Only the effect of the exposure to the sound on $\tau$ and $\nu$ is estimated from the data after exposure.\\
+The baseline estimates of the spline coefficients $\omega_k$, the intercepts $\log(\tau_0)$, $\log(\nu_0)$ and the standard deviations $\sigma_{\tau}$, $\sigma_{\nu}$ are introduced as offsets in the response model. Only the effect of the exposure to the sound on $\tau$ and $\nu$ is estimated from the data after exposure. The estimates for the coefficients are $\alpha_{\tau}=-3.43$ with standard error $0.70$ and $\alpha_{\nu}=0.74$ with standard error $0.27$.\\
 
-Figure~\ref{fig: me response} shows that exposure to sound has an effect on both the persistence and the velocity of the movement. The value of $\nu$ increases with increased exposure to the sound, suggesting motion at higher speed in presence of the ship. This should not come as a surprise since, for instance, the mean empirical velocity norm when the narwhals are less than $5$ km away from the ship is $5.7$ km/h, which is more than $1$ km/h higher than the mean experimental velocity norm before exposure. We draw specific attention to the parameter $\tau$, that decreases with increased exposure to the ship, implying lower persistence and lower autocorrelation in the velocity of the narwhals. This is a new finding that had been hinted in \cite{heide-jorgensen_behavioral_2021} since it was acknowledged that the narwhals had more tendency to change direction and move toward the shore in the presence of the ship. This can now be interpreted as a drop in persistence due to the appearance of the ship. Our analysis suggests that the magnitude of this drop might be alarming : for most of the narwhals, at distance less than $5$ km away from the ship, the persistence is half the baseline value. This shows evidence of a strong shift in the behavior of the whales, which is likely to impede their capacity to mate and forage at short term.
-The baseline value is attained for a distance to the sound source higher than $20$ km for $\tau$, and  $40$ km for $\nu$. This indicates that sound exposure can be perceived and can disturb the narwhals motion up to $40$ km.
+The smooth parameters $\tau$ and $\nu$ as a function of the distance to the sound source are shown in Figure~\ref{fig: me response}. They indicate that exposure to sound has an effect on both the persistence and the velocity of the movement. The value of $\nu$ increases with increased exposure to the sound, suggesting motion at higher speed in presence of the ship. This should not come as a surprise since, for instance, the mean empirical velocity norm when the narwhals are less than $5$ km away from the ship is $5.7$ km/h, which is more than $1$ km/h higher than the mean experimental velocity norm before exposure. We draw specific attention to the parameter $\tau$, that decreases with increased exposure to the ship, implying lower persistence and lower autocorrelation in the velocity of the narwhals. This is a new finding that had been hinted in \cite{heide-jorgensen_behavioral_2021} since it was acknowledged that the narwhals had more tendency to change direction and move toward the shore in the presence of the ship. This can now be interpreted as a drop in persistence due to the appearance of the ship. Our analysis suggests that the magnitude of this drop might be alarming : for most of the narwhals, at distance less than $5$ km away from the ship, the persistence is half the baseline value. This shows evidence of a strong shift in the behavior of the whales, which is likely to impede their capacity to mate and forage at short term.
+For the parameter $\tau$, $95\%$ of the baseline value is recovered at a distance of $66$ km. For the parameter $\nu$, $95\%$ of the baseline value is recovered at a distance of $14$ km. This indicates that sound exposure can be perceived and can disturb the narwhals motion up to tens of kilometres.
  
  \begin{figure}[H]
  	\begin{subfigure}{0.98\textwidth}\centering
- 		\includegraphics[width=0.7\linewidth]{"images/application/response/me_response3_tau_ExpShip.png"}
+ 		\includegraphics[width=0.7\linewidth]{"images/application/response/me_response3_exp_tau_ExpShip.png"}
  		\caption{}
  	\end{subfigure}
  	
  	\begin{subfigure}{0.98\textwidth}
  		\centering
- 		\includegraphics[width=0.7\linewidth]{"images/application/response/me_response3_nu_ExpShip.png"}
+ 		\includegraphics[width=0.7\linewidth]{"images/application/response/me_response3_exp_nu_ExpShip.png"}
  		\caption{}
  	\end{subfigure}
  	\caption{Estimated effect of ship exposure on the parameters. The horizontal dashed lines represent the baseline values for each individual. The values on the $x$-axis are in kilometres. (a)  Smooth parameter $\tau$. Values on the $y$-axis are in hour. (b) Smooth parameter $\nu$. Values on the $y$-axis are in km/h.}
  	\label{fig: me response}
  \end{figure}
 
-We categorize narwhals position relative to the ship as follows :
-\begin{itemize}
-	\item very close when the distance to the ship is lower than the $5\%$. quantile, which is $4.04$ km.
-	\item close when the distance to the ship is between $5\%$ quantile and the $25\%$ quantile, which is $9.35$ km.
-	\item medium when the distance to the ship is between the $25\%$ and $75\%$ quantile, that is between $9.35$ and $25.80$ km.
-	\item far otherwise.
-\end{itemize}
-Table~\ref{table: baseline vs response parameters comparison} shows the changes in persistence and mean velocity parameters $\tau$ and $\nu$ for the four categories.
+The distances to the ship $D^{ship}_{\tau}(p)$ and $D^{ship}_{\nu}(p)$  at which a percentage $p$ of the population baseline values $\tau_0$ and $\nu_0$ are reached are given by 
+\begin{equation}
+	D^{ship}_{\tau}(p)=\frac{\alpha_{\tau}}{\log(p)} \quad  \mbox{and} \quad  D^{ship}_{\nu}(p)=-\frac{\alpha_{\nu}}{\log(p)}
+\end{equation}
+Table~\ref{table: baseline vs response parameters comparison} shows these values for different percentages $p$.
 \begin{table}[H]
 	\centering
-	\begin{tabular}{|c|c|c|c|c|}
+	\begin{tabular}{| c | *{2}{w{c}{\lenB}|}}
 		\hline
-		Position relative to the ship & mean population $\hat{\tau}$  & mean population $\hat{\nu}$ & $\frac{\hat{\tau}-\hat{\tau}_{0}}{\tau_{0}}$ & $\frac{\hat{\nu}-\hat{\nu}_{0}}{\hat{\nu}_{0}}$   \\
+		\multirow{2}{*}{Percentage of the baseline value} & \multicolumn{2}{c|}{Reach distance (km) }  \\
+		\cline{2-3} 
+		& $D^{ship}_{\tau}$ & $D^{ship}_{\nu}$ \\
 		\hline
-		Very close & 0.54 & 6.4 & $-50\%$ & $+39\%$ \\
+		50 & 4.9 &  1.1 \\
+		75 & 11.9 & 2.6 \\
+		95 & 66.9 & 14.4 \\
 		\hline
-		Close & 0.74 & 5.8 & $-31\%$ & $+26\%$ \\
-		\hline
-		Medium&  0.96 &  5.0 & $-11\%$ & $+9\%$\\
-		\hline
-		Far &  1.07 & 4.7 &  $-1\%$ & $+2\%$\\
-		\hline
+		
 	\end{tabular}
-	\caption{Comparison of response and baseline values of the parameters for different levels of exposure to the ship}
+	\caption{Percentage of the baseline value reached at different distances to the ship}
 	\label{table: baseline vs response parameters comparison}
 \end{table}
 
@@ -922,9 +945,12 @@ The mean velocity $\mu$ was fixed to $(0,0)$ and $\omega$ was estimated as smoot
 
 \paragraph{Response estimations}
 \end{comment}
-
+\begin{comment}
 \section{Discussion}
 
+We were able to estimate an increase tortuosity due to the proximity with the shoreline in the baseline model. However, the estimated angular velocity is too low to obtain constrained samples of the fitted model as the ones shown in~\ref{fig: crcvm examples}. 
+
+\end{comment}
 \begin{comment}
 \textcolor{red}{Further work: 
 \begin{itemize}
@@ -1020,7 +1046,7 @@ Experiments were divided into unexposed periods - for which the narwhals are not
 		\hline
 		A6 & 322 & 425 \\
 		\hline
-		\textbf{Total} & \textbf{935} & \textbf{3257} \\
+		\textbf{Total} & \textbf{1558} & \textbf{3257} \\
 		\hline
 	\end{tabular}
 	\caption{Distribution of the data among the 6 individuals}
@@ -1031,7 +1057,7 @@ Experiments were divided into unexposed periods - for which the narwhals are not
 	\centering
 	\begin{subfigure}{0.49\textwidth}
 		\centering
-		\includegraphics[scale=0.38]{images/data_exploration/tracksBE1.png}
+		\includegraphics[scale=0.38]{images/data_exploration/tracksBE2.png}
 		\caption{Tracks before exposure experiments}
 	\end{subfigure}
 	\begin{subfigure}{0.49\textwidth}
@@ -1085,7 +1111,7 @@ It has gaussian transition density with mean
 	\E(V(t+\Delta \vert V(t)))=\exp(-A\Delta) V(t)+ (I_2-\exp(-A\Delta))\mu 
 \end{equation}
 and covariance matrix 
-\begin{align*}Var(V(t+\Delta) \vert V(t))&=\frac{4\nu^2}{\pi \tau} \int_{t}^{t+\Delta} \exp(A(s-(t+\Delta))) \exp(A(s-(t+\Delta)))^{\top}\\
+\begin{align*}Var(V(t+\Delta) \vert V(t))&=\frac{4\nu^2}{\pi \tau} \int_{t}^{t+\Delta} \exp(A(s-(t+\Delta))) \exp(A(s-(t+\Delta)))^{\top} ds\\
 	&=\frac{4\nu^2}{\pi \tau} \int_{0}^{\Delta} \exp(-Au) \exp(-Au)^{\top} du 
 \end{align*}
 Since $\exp(-Au)=\exp(-\frac{u}{\tau}) R_{-\omega u}$, the matrix product  $\exp(-Au) \exp(-Au)^{\top}$ is simply $\exp(-\frac{2u}{\tau}) I_2$. We deduce that the two components of the velocity are independent and have the same variance, written $q_2(\Delta)$ to follow the notations in~\ref{prop: transition density}. The variance is 
