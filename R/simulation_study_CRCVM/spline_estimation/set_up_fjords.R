@@ -25,8 +25,8 @@ library(smoothSDE)          #to compute nearest shore point
 
 #https://stats.stackexchange.com/questions/37647/what-is-the-minimum-recommended-number-of-groups-for-a-random-effects-factor
 #It is recommended to have around 10 groups to get good estimates of the random effect variance
-N_ID=12                   #number of individual tracks per batch
-TMAX=12                  #duration of each track in hour
+N_ID=6                   #number of individual tracks per batch
+TMAX=24*5                  #duration of each track in hour
 SP_DF=c(3,3)                #degree of freedom in tensor splines
 TAU_0=1.5                      # tau intercept
 NU_0=4                       #nu intercept
@@ -35,8 +35,8 @@ SIGMA_NU=0.1                 # variance of random effects on nu
 DMIN=1                      #min distance to shore for initial position
 DELTA=1/60                   #time step
 PAR0=c(0,0,1,1,0)            # initial values (mu1,mu2,tau,nu,omega)
-SIGMA_OBS=0.005              # measurement error
-BY=1
+SIGMA_OBS=0.05             # measurement error
+BY=10
 
 
 # Land polygons --------------------
