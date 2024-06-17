@@ -84,7 +84,7 @@ data=data[seq(1,n_obs*N_ID,by=BY),]
 
 # Save plot of the trajectories ------------
 
-plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
+plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey",border="black")+
   coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
   geom_point(data=data,mapping=aes(y1,y2,col=ID),size=0.1)+
   geom_path(data=data,mapping=aes(y1,y2,color=ID),size=0.1)+
@@ -165,7 +165,7 @@ add_covs=function(data) {
 
 data=add_covs(data)
 
-#only estimate if observed Distances to shore include the interval [0.5,5]
+#only estimate if observed Distances to shore include the interval [D_low,D_up]
 
 if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
   stop("Observed distance to shore are irrelevant with the fixed knots")
@@ -205,8 +205,8 @@ sdev_values=as.numeric(sdev)
 coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c(coeff_values,sdev_values))
 
 #true values of the coeffs
-true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_ExpShore[2:9],0,0,
-                            log(TAU_0),log(NU_0),sp_coeff_ExpShore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(m1$sp)))
+true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_ExpShore[2:(SP_DF[1]*SP_DF[2])],0,0,
+                            log(TAU_0),log(NU_0),sp_coeff_ExpShore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(m2$sp)))
 
 coeffs_df=cbind(coeffs_df,true_df)
 

@@ -31,7 +31,7 @@ SP_DF=3                     #degree of freedom in tensor splines
 
 # Rectangular domain --------------------
 
-large_rectangle_coords <- matrix(c(0, 0, 0, 10, 10, 10, 10, 0, 0, 0), ncol = 2, byrow = TRUE)
+large_rectangle_coords <- matrix(c(0.4, 7.76, 0.4, 7.91, 0.62, 7.91, 0.62, 7.76, 0.4, 7.76), ncol = 2, byrow = TRUE)
 small_rectangle_coords <- matrix(c(1,1, 1, 9, 9, 9, 9, 1, 1, 1), ncol = 2, byrow = TRUE)
 
 # Create an sf object representing the rectangles

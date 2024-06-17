@@ -105,7 +105,7 @@ for (domain in domains) {
           ggsave(filename=paste(paste("histo_intercepts",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
                  plot=histo_intercepts,path=file.path(domain),width=10,height=5)
   
-          # Bias and rmse for spline coefficients ------------
+          # Bias and rmse ------------
   
           biais=c()
           re_biais=c()

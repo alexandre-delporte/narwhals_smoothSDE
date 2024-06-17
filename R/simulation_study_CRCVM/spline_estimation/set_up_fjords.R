@@ -26,17 +26,17 @@ library(smoothSDE)          #to compute nearest shore point
 #https://stats.stackexchange.com/questions/37647/what-is-the-minimum-recommended-number-of-groups-for-a-random-effects-factor
 #It is recommended to have around 10 groups to get good estimates of the random effect variance
 N_ID=12                   #number of individual tracks per batch
-TMAX=25*2.5                    #duration of each track in hour
-SP_DF=3                      #degree of freedom in tensor splines
+TMAX=12                  #duration of each track in hour
+SP_DF=c(3,3)                #degree of freedom in tensor splines
 TAU_0=1.5                      # tau intercept
 NU_0=4                       #nu intercept
 SIGMA_TAU=0.2                #variance of random effects on tau
 SIGMA_NU=0.1                 # variance of random effects on nu
-DMIN=4                      #min distance to shore for initial position
+DMIN=1                      #min distance to shore for initial position
 DELTA=1/60                   #time step
 PAR0=c(0,0,1,1,0)            # initial values (mu1,mu2,tau,nu,omega)
-SIGMA_OBS=0.025               # measurement error
-BY=5
+SIGMA_OBS=0.005              # measurement error
+BY=1
 
 
 # Land polygons --------------------
@@ -48,8 +48,8 @@ greenland_data_path <- file.path(dir,"Data", "Greenland")
 
 #get the land and coastline geometries from the geojson file
 border<-st_read(file.path(greenland_data_path,"land_utm.shp"))
-
-# Initial velocity and position -------------
+st_crs(border)="+init=EPSG:32626"
+border<-st_make_valid(border)
 
 v0=c(0,0)
 
@@ -60,7 +60,7 @@ colnames(x0)=c("x1","x2")
 i=1
 while (i<=N_ID) {
   #choose location uniformly in the map
-  x=c(runif(1,min=440,max=515),runif(1,min=7780,max=7880))
+  x=c(runif(1,min=430,max=500),runif(1,min=7760,max=7900))
   p=nearest_shore_point(st_point(x),border)
   Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
   #keep it as initial position if it is at least 50 metres away from the shore
@@ -93,7 +93,7 @@ true_log_nu=nu_re+log(NU_0)
 
 # Defintion of smooth parameter omega ----------
 
-fomega=function(cov_data,D0=0.5,omega0=50*pi/2,lambda=1.5,kappa=0.2) {
+fomega=function(cov_data,D0=0.5,omega0=60*pi,lambda=1.5,kappa=0.2) {
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -137,7 +137,7 @@ title("truth")
 
 
 #fit with bivariate splines te fo DistanceShore
-knots_DistanceShore=list(theta=seq(-pi,pi,len=SP_DF),DistanceShore=seq(D_low,D_up,len=SP_DF))
+knots_DistanceShore=list(theta=seq(-pi,pi,len=SP_DF[1]),DistanceShore=seq(D_low,D_up,len=SP_DF[2]))
 m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs="cs"),knots=knots_DistanceShore)
 
 #visualize
@@ -152,7 +152,7 @@ fig
 ExpShore=1/DistanceShore
 
 #fit with bivariate splines te of ExpShore
-knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF),ExpShore=seq(1/D_up,1/D_low,len=SP_DF))
+knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF[1]),ExpShore=seq(1/D_up,1/D_low,len=SP_DF[2]))
 m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=knots_ExpShore)
 
 

@@ -1,4 +1,5 @@
 
+
 # HEADER --------------------------------------------
 #
 # Author:     Alexandre Delporte
@@ -113,17 +114,22 @@ xlabel=list("DistanceShore"="Distance to shore")
 res=model2$get_all_plots(baseline=NULL,model_name="model2",xmin=xmin,xmax=xmax,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
+par0 <- c(0,0,1,4.5,0)
+
 sigma_obs=0.05
-par0=model1$par()
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
+
 model2_ci<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
                     response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H),map=list("log_lambda"=factor(c(NA,NA,1:2))))
+                    other_data=list("log_sigma_obs0"=log(sigma_obs)),map=list("log_lambda"=factor(c(1:2,NA,NA,NA,NA))))
 
 
+new_coeff_re=model2$coeff_re()
+model2_ci$update_coeff_re(new_coeff_re)
 
-init_lambda=c(1/0.05^2,1/0.07^2,1,1)
+init_lambda=c(1/0.2^2,1/0.2^2,1,1,1,1)
 model2_ci$update_lambda(init_lambda)
+
 #fit_model
 model2_ci$fit()
 estimates_mod2_ci=as.list(model2_ci$tmb_rep(),what="Est")
@@ -173,13 +179,13 @@ sigma_obs=0.05
 H=array(rep(sigma_obs^2*diag(2),n_obs),dim=c(2,2,n_obs))
 model3_ci<- SDE$new(formulas = formulas,data =allData,type = "RACVM",
                             response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),
-                            other_data=list("H"=H))
+                            other_data=list("log_sigma_obs0"=log(sigma_obs)),map=list("log_lambda"=factor(c(1:2,NA,NA,NA,NA))))
 
 new_coeff_re=model3$coeff_re()
-new_lambda=model3$lambda()
 model3_ci$update_coeff_re(new_coeff_re)
-model3_ci$update_lambda(new_lambda)
 
+init_lambda=c(1/0.2^2,1/0.2^2,1,1,1,1)
+model3_ci$update_lambda(init_lambda)
 
 
 #fit_model
@@ -196,6 +202,10 @@ xlabel=list("ExpShore"="Distance to shore")
 
 model3_ci$get_all_plots(baseline=NULL,model_name="model3_ci",xmin=xmin,
                      xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+coeff_re=model3_ci$coeff_re()
+
 
 #########################   Model with AngleNormal, ExpShore in omega and AngleNormal in tau ##############################
 
@@ -296,6 +306,78 @@ xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
 model6$get_all_plots(baseline=NULL,model_name="model6",xmin=xmin,
                         xmax=xmax,link=link,xlabel=xlabel,show_CI="none",save=TRUE)
 
+
+
+#########################   Model with AngleNormal, ExpShore in omega and exponential ExpShip in nu and tau ##############################
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+
+#measurement error
+sigma_obs=0.05
+
+#define model
+formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
+                 nu=~ExpShip+s(ID,bs="re"),
+                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=5,bs="cs"))
+
+model7<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
+                 response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                 map=list(log_lambda=factor(c("tau.s(ID)","nu.s(ID)",NA,NA,NA,NA))))
+
+
+init_lambda=c(1/0.2^2,1/0.2^2,1,1,1,1)
+model7$update_lambda(init_lambda)
+#fit_model
+model7$fit(optimizer="optim")
+estimates_mod7=as.list(model7$tmb_rep(),what="Est")
+std_mod7=as.list(model7$tmb_rep(),what="Std")
+
+#plot parameters
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
+
+model7$get_all_plots(baseline=NULL,model_name="model7",xmin=xmin,
+                     xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+
+
+#########################   Model with AngleNormal, DistanceShore in omega and exponential ExpShip in nu and tau ##############################
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+
+#measurement error
+sigma_obs=0.05
+
+#define model
+formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
+                 nu=~ExpShip+s(ID,bs="re"),
+                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,DistanceShore,k=5,bs="cs"))
+
+model8<- SDE$new(formulas = formulas,data = allData,type = "RACVM",
+                 response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("log_sigma_obs0"=log(sigma_obs)),
+                 map=list(log_lambda=factor(c("tau.s(ID)","nu.s(ID)",NA,NA,NA,NA))))
+
+
+init_lambda=c(1/0.2^2,1/0.2^2,1,1,1,1)
+model8$update_lambda(init_lambda)
+#fit_model
+model8$fit()
+estimates_mod8=as.list(model8$tmb_rep(),what="Est")
+std_mod8=as.list(model8$tmb_rep(),what="Std")
+
+#plot parameters
+xmin=list("DistanceShore"=D_low,"AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("Distance"=5,"AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShip"=(\(x) 1/x))
+xlabel=list("DistanceShore"="Distance to shore","ExpShip"="Distance to ship")
+
+model8$get_all_plots(baseline=NULL,model_name="model8",xmin=xmin,
+                     xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
 
 
 

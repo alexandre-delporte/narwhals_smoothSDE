@@ -1,3 +1,0 @@
-Extracting trajectories after exposure.. 
-3257 positions measured after exposure 
-
