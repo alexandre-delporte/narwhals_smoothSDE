@@ -153,7 +153,7 @@ data=add_covs(data)
 
 #only estimate if observed Distances to shore include the interval [D_low,D_up]
 
-if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
+if (min(data$DistanceShore)>D_low+0.2 | max(data$DistanceShore)<D_up-0.2) {
   stop("Observed distance to shore are irrelevant with the fixed knots")
 }
 

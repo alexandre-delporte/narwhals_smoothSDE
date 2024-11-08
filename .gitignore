@@ -1,4 +1,4 @@
-#ignore resultrs of simulation study, only keep teh code to reproduce the results
+#ignore results of simulation study, only keep the code to reproduce the results
 /R/simulation_study_CRCVM/spline_estimation/*.csv
 /R/simulation_study_CRCVM/spline_estimation/*.png
 /R/simulation_study_CRCVM/spline_estimation/fjords/*.csv
@@ -8,13 +8,13 @@
 /R/simulation_study_CRCVM/spline_estimation/circ/*.csv
 /R/simulation_study_CRCVM/spline_estimation/circ/*.png
 
+#ignore outdated file
+/R/preprocessing/process_boundaries.R
+
 
 # Cluster tracking files 
 *.err
 *.out
-
-# too large data files
-land_google_utm*
 
 # History files
 .Rhistory

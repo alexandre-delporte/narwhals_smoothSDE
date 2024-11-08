@@ -1,0 +1,1271 @@
+---
+title: "fit_crcvm"
+author: "Alexandre Delporte"
+date: "2024-06-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set up
+
+```{r packages}
+set.seed(42)
+
+library(smoothSDE)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(htmlwidgets)
+library(mgcv)
+```
+
+
+```{r get data}
+
+# Set the path to the directory containing the data
+par_dir=dirname(dirname(dirname(getwd()))) #parent directory 
+narwhal_data_path <- file.path(par_dir,"Data", "Narwhals")  
+
+#data before exposure with first 24h removed
+dataBE1=read.csv(file.path(narwhal_data_path,"DataBE1.csv"), header = TRUE,dec = ".")
+
+#data before exposure with first 12h removed
+dataBE2=read.csv(file.path(narwhal_data_path,"DataBE2.csv"), header = TRUE,dec = ".")
+
+#data after exposure
+dataAE=read.csv(file.path(narwhal_data_path,"DataAE.csv"), header = TRUE,dec = ".")
+
+```
+
+
+We choose thresholds on the distance to the shore to define the ExpShore covariate.
+
+```{r preprocess data}
+
+
+D_low=0.07
+D_up=3
+dataBE1[dataBE1$DistanceShore> D_up,"ExpShore"]=0
+dataBE1[dataBE1$DistanceShore< D_low,"ExpShore"]=1/D_low
+
+dataBE2[dataBE2$DistanceShore> D_up,"ExpShore"]=0
+dataBE2[dataBE2$DistanceShore< D_low,"ExpShore"]=1/D_low
+
+dataAE[dataAE$DistanceShore> D_up,"ExpShore"]=0
+dataAE[dataAE$DistanceShore< D_low,"ExpShore"]=1/D_low
+
+N=length(unique(dataBE2$ID))
+
+n_pre=length(dataBE2$time) #number of observations before exposure
+n_post=length(dataAE$time) #number of observations after exposure
+```
+
+
+
+
+## Baseline models
+
+We can estimate the measurement error standard deviation directly from the data. Based on accuracy studies about fastloc GPS, it should be a few tens of metres. The estimate we get from the data before exposure is 25m (std error 1m), which seems consistent with previous studies. However, when estimating this measurement error from the post exposure data, we get a higher value of 48m, which is weird : the same GPS is device is used during all the experiment, so measurement error before or after exposure should be about the same. If we fix the measurement error to 25m when estimating the response, then we can't estimate because TMB gets a non finite value of the negative log-likelihood at initial parameters. This cannot be solved by changing the other initial parameters in the optimisation. Thus we decided to fix the measurement error to different values in the baseline and the response and compare the results we get. Higher measurement error gives higher estimates for tau, whereas the estimate of nu is not affected by the changes in the measurement error.
+
+
+### Baselines with constant parameters
+
+
+
+
+```{r fit baseline0}
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),omega=~1)
+
+
+
+# Fit baseline with 25m measurement error
+sigma_obs=0.025
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline0_25m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
+baseline0_25m$fit()
+
+# Fit baseline with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline0_50m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
+baseline0_50m$fit()
+
+
+
+# Fit baseline with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline0_75m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
+baseline0_75m$fit()
+
+# Fit baseline with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline0_100m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
+baseline0_100m$fit()
+
+
+
+
+
+
+
+```
+
+
+```{r results baseline0}
+estimates_bas0_25m=as.list(baseline0_25m$tmb_rep(),what="Est")
+std_bas0_25m=as.list(baseline0_25m$tmb_rep(),what="Std")
+
+estimates_bas0_50m=as.list(baseline0_50m$tmb_rep(),what="Est")
+std_bas0_50m=as.list(baseline0_50m$tmb_rep(),what="Std")
+
+estimates_bas0_75m=as.list(baseline0_75m$tmb_rep(),what="Est")
+std_bas0_75m=as.list(baseline0_75m$tmb_rep(),what="Std")
+
+estimates_bas0_100m=as.list(baseline0_100m$tmb_rep(),what="Est")
+std_bas0_100m=as.list(baseline0_100m$tmb_rep(),what="Std")
+
+```
+
+
+### Baseline with AngleNormal covariate in omega
+
+Fixing a high standard deviation (>50m) for the measurement error tends to increase the estimate of the parameter tau. Intuitively, for a low value of the measurement error, tortuous trajectory can only be caused by less persistent movement, whereas if the measurement error is high, a part of the tortuosity can be attributed to the measurement errors, which might give higher estimate of the persistence parameter.
+
+```{r fit baseline1}
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+init_lambda=c(1,1,1)
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),
+                 omega=~s(AngleNormal,k=5,bs="cs"))
+
+
+# Fit baseline with 25m measurement error
+sigma_obs=0.025
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline1_25m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(log_lambda=factor(c("tau.s(ID)","nu.s(ID)",NA))))
+
+baseline1_25m$update_lambda(init_lambda)
+
+baseline1_25m$fit()
+
+# Fit baseline with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline1_50m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(log_lambda=factor(c("tau.s(ID)","nu.s(ID)",NA))))
+
+baseline1_50m$update_lambda(init_lambda)
+
+baseline1_50m$fit()
+
+
+# Fit baseline with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline1_75m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(log_lambda=factor(c("tau.s(ID)","nu.s(ID)",NA))))
+
+baseline1_75m$update_lambda(init_lambda)
+
+baseline1_75m$fit()
+
+
+# Fit baseline with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline1_100m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(log_lambda=factor(c("tau.s(ID)","nu.s(ID)",NA))))
+
+baseline1_100m$update_lambda(init_lambda)
+
+baseline1_100m$fit()
+
+```
+
+```{r results baseline1}
+estimates_bas1_25m=as.list(baseline1_25m$tmb_rep(),what="Est")
+std_bas1_25m=as.list(baseline1_25m$tmb_rep(),what="Std")
+
+estimates_bas1_50m=as.list(baseline1_50m$tmb_rep(),what="Est")
+std_bas1_50m=as.list(baseline1_50m$tmb_rep(),what="Std")
+
+estimates_bas1_75m=as.list(baseline1_75m$tmb_rep(),what="Est")
+std_bas1_75m=as.list(baseline1_75m$tmb_rep(),what="Std")
+
+estimates_bas1_100m=as.list(baseline1_100m$tmb_rep(),what="Est")
+std_bas1_100m=as.list(baseline1_100m$tmb_rep(),what="Std")
+
+plots_bas1_25m=baseline1_25m$get_all_plots(baseline=NULL,model_name="baseline1_25m",show_CI="pointwise",save=TRUE)
+plots_bas1_50m=baseline1_50m$get_all_plots(baseline=NULL,model_name="baseline1_50m",show_CI="pointwise",save=TRUE)
+plots_bas1_75m=baseline1_75m$get_all_plots(baseline=NULL,model_name="baseline1_75m",show_CI="pointwise",save=TRUE)
+plots_bas1_100m=baseline1_100m$get_all_plots(baseline=NULL,model_name="baseline1_100m",show_CI="pointwise",save=TRUE)
+
+```
+
+### Baseline with AngleNormal and DistanceShore in omega
+
+```{r fit baseline2}
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+init_lambda=c(1/0.2^2,1/0.2^2,1,0.01,1,1)
+
+
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
+                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(AngleNormal,DistanceShore,k=c(5,5),bs="cs"))
+
+
+
+# Fit baseline with 25m measurement error
+sigma_obs=0.025
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline2_25m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+
+baseline2_25m$update_lambda(init_lambda)
+baseline2_25m$fit()
+
+# Fit baseline with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline2_50m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+
+baseline2_50m$update_lambda(init_lambda)
+baseline2_50m$fit()
+
+
+# Fit baseline with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline2_75m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+
+baseline2_75m$update_lambda(init_lambda)
+baseline2_75m$fit()
+
+
+
+
+# Fit baseline with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+baseline2_100m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+
+baseline2_100m$update_lambda(init_lambda)
+baseline2_100m$fit()
+
+
+```
+
+```{r get results baseline2}
+
+estimates_bas2_25m=as.list(baseline2_25m$tmb_rep(),what="Est")
+std_bas2_25m=as.list(baseline2_25m$tmb_rep(),what="Std")
+
+estimates_bas2_50m=as.list(baseline2_50m$tmb_rep(),what="Est")
+std_bas2_50m=as.list(baseline2_50m$tmb_rep(),what="Std")
+
+estimates_bas2_75m=as.list(baseline2_75m$tmb_rep(),what="Est")
+std_bas2_75m=as.list(baseline2_75m$tmb_rep(),what="Std")
+
+estimates_bas2_100m=as.list(baseline2_100m$tmb_rep(),what="Est")
+std_bas2_100m=as.list(baseline2_100m$tmb_rep(),what="Std")
+
+#plot parameters
+
+xmin=list("DistanceShore"=0.07)
+xmax=list("DistanceShore"=5)
+
+plots_bas2_25m=baseline2_25m$get_all_plots(baseline=NULL,model_name="baseline2_25m",xmin=xmin,xmax=xmax,show_CI="pointwise",save=TRUE)
+plots_bas2_50m=baseline2_50m$get_all_plots(baseline=NULL,model_name="baseline2_50m",xmin=xmin,xmax=xmax,show_CI="pointwise",save=TRUE)
+plots_bas2_75m=baseline2_75m$get_all_plots(baseline=NULL,model_name="baseline2_75m",xmin=xmin,xmax=xmax,show_CI="pointwise",save=TRUE)
+plots_bas2_100m=baseline2_100m$get_all_plots(baseline=NULL,model_name="baseline2_100m",xmin=xmin,xmax=xmax,show_CI="pointwise",save=TRUE)
+```
+
+
+```{r estimates on parameter scale baseline2}
+
+
+post_coeff_bas2_25m=baseline2_25m$post_coeff(n_post=1000)
+post_par_bas2_25m=list("tau0"=exp(post_coeff_bas2_25m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas2_25m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas2_25m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas2_25m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas2_25m$log_lambda[,2])))
+mean_par_bas2_25m=lapply(post_par_bas2_25m,mean)
+sd_par_bas2_25m=lapply(post_par_bas2_25m,sd)
+
+post_coeff_bas2_50m=baseline2_50m$post_coeff(n_post=1000)
+post_par_bas2_50m=list("tau0"=exp(post_coeff_bas2_50m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas2_50m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas2_50m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas2_50m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas2_50m$log_lambda[,2])))
+mean_par_bas2_50m=lapply(post_par_bas2_50m,mean)
+sd_par_bas2_50m=lapply(post_par_bas2_50m,sd)
+
+
+post_coeff_bas2_75m=baseline2_75m$post_coeff(n_post=1000)
+post_par_bas2_75m=list("tau0"=exp(post_coeff_bas2_75m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas2_75m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas2_75m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas2_75m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas2_75m$log_lambda[,2])))
+mean_par_bas2_75m=lapply(post_par_bas2_75m,mean)
+sd_par_bas2_75m=lapply(post_par_bas2_75m,sd)
+
+#get 95% confidence intervals
+post_coeff_bas2_100m=baseline2_100m$post_coeff(n_post=1000)
+post_par_bas2_100m=list("tau0"=exp(post_coeff_bas2_100m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas2_100m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas2_100m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas2_100m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas2_100m$log_lambda[,2])))
+mean_par_bas2_100m=lapply(post_par_bas2_100m,mean)
+sd_par_bas2_100m=lapply(post_par_bas2_100m,sd)
+```
+
+
+```{r smooth omega baseline2}
+
+#get angular velocity for different distances to shore
+
+plot1=plots_bas2_50m$fe_omega_AngleNormal_q1_DistanceShore
+plot2=plots_bas2_50m$fe_omega_AngleNormal_q2_DistanceShore
+plot4=plots_bas2_50m$fe_omega_AngleNormal_q4_DistanceShore
+
+omega1 <- ggplot_build(plot1)$data[[1]]
+omega2 <- ggplot_build(plot2)$data[[1]]
+omega4 <- ggplot_build(plot4)$data[[1]]
+
+omega1$Category <- "Close"
+omega2$Category <- "Medium"
+omega4$Category <- "Far"
+
+# Combine the data frames
+combined_omega <- rbind(omega1, omega2, omega4)
+
+
+ci_omega1 <- ggplot_build(plot1)$data[[2]]
+ci_omega2 <- ggplot_build(plot2)$data[[2]]
+ci_omega4 <- ggplot_build(plot4)$data[[2]]
+
+ci_omega1$Category <- "Close"
+ci_omega2$Category <- "Medium"
+ci_omega4$Category <- "Far"
+
+
+# Combine the data frames
+combined_ci_omega <- rbind(ci_omega1, ci_omega2, ci_omega4)
+
+combined_plot <- ggplot() +
+  geom_line(data=combined_omega,aes(x=x,y = y,color = Category, linetype = Category)) +
+  geom_ribbon(data=combined_ci_omega,aes(x=x,ymin=ymin,ymax=ymax,fill=Category),alpha=0.1)+
+  labs(color = "Category", linetype = "Category",x="Theta",y="Omega") +
+  geom_vline(xintercept = c(-pi/2, pi/2), linetype = "dashed", color = "grey")+
+  annotate("text", x = -pi/2, y = Inf, label = expression(-pi/2), vjust = 40, color = "black") +
+  annotate("text", x = pi/2, y = Inf, label = expression(pi/2), vjust = 40, color = "black")+
+  theme_minimal()
+
+ggsave("omega_DistanceShore_levels.png",plot=combined_plot,path="baseline2_50m",width = 10, height = 6, units = "in")
+
+
+```
+
+### Baseline with AngleNormal and ExpShore in omega
+
+```{r fit baseline3}
+
+#initial parameters
+par0 <- c(0,0,1,4,0)
+init_lambda=c(1,1,0.01,1,1,1)
+
+
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
+                   omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=c(5,5),bs="cs"))
+
+
+# Fit baseline with 25m measurement error
+sigma_obs=0.025
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+
+baseline3_25m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+baseline3_25m$update_lambda(init_lambda)
+baseline3_25m$fit()
+
+
+
+# Fit baseline with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+
+baseline3_50m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+baseline3_50m$update_lambda(init_lambda)
+baseline3_50m$fit()
+
+
+# Fit baseline with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+
+baseline3_75m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+baseline3_75m$update_lambda(init_lambda)
+baseline3_75m$fit()
+
+
+
+# Fit baseline with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_pre),dim=c(2,2,n_pre))
+
+
+baseline3_100m<- SDE$new(formulas = formulas,data = dataBE2,type = "RACVM",
+                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+                    fixpar=c("mu1","mu2"),map=list("log_lambda"=factor(c(1,2,rep(NA,4)))))
+
+baseline3_100m$update_lambda(init_lambda)
+baseline3_100m$fit()
+```
+```{r get results baseline3}
+
+estimates_bas3_25m=as.list(baseline3_25m$tmb_rep(),what="Est")
+std_bas3_25m=as.list(baseline3_25m$tmb_rep(),what="Std")
+
+estimates_bas3_50m=as.list(baseline3_50m$tmb_rep(),what="Est")
+std_bas3_50m=as.list(baseline3_50m$tmb_rep(),what="Std")
+
+estimates_bas3_75m=as.list(baseline3_75m$tmb_rep(),what="Est")
+std_bas3_75m=as.list(baseline3_75m$tmb_rep(),what="Std")
+
+estimates_bas3_100m=as.list(baseline3_100m$tmb_rep(),what="Est")
+std_bas3_100m=as.list(baseline3_100m$tmb_rep(),what="Std")
+
+#plot parameters
+
+xmin=list("ExpShore"=1/D_up)
+xmax=list("ExpShore"=1/D_low)
+link=list("ExpShore"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore")
+
+plots_bas3_25m=baseline3_25m$get_all_plots(baseline=NULL,model_name="baseline3_25m",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+plots_bas3_50m=baseline3_50m$get_all_plots(baseline=NULL,model_name="baseline3_50m",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+plots_bas3_75m=baseline3_75m$get_all_plots(baseline=NULL,model_name="baseline3_75m",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+plots_bas3_100m=baseline3_100m$get_all_plots(baseline=NULL,model_name="baseline3_100m",
+                            xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+```
+
+
+```{r estimates on parameter scale baseline3}
+
+post_coeff_bas3_25m=baseline3_25m$post_coeff(n_post=1000)
+post_par_bas3_25m=list("tau0"=exp(post_coeff_bas3_25m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas3_25m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas3_25m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas3_25m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas3_25m$log_lambda[,2])))
+mean_par_bas3_25m=lapply(post_par_bas3_25m,mean)
+sd_par_bas3_25m=lapply(post_par_bas3_25m,sd)
+
+
+post_coeff_bas3_50m=baseline3_50m$post_coeff(n_post=1000)
+post_par_bas3_50m=list("tau0"=exp(post_coeff_bas3_50m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas3_50m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas3_50m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas3_50m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas3_50m$log_lambda[,2])))
+mean_par_bas3_50m=lapply(post_par_bas3_50m,mean)
+sd_par_bas3_50m=lapply(post_par_bas3_50m,sd)
+
+post_coeff_bas3_75m=baseline3_75m$post_coeff(n_post=1000)
+post_par_bas3_75m=list("tau0"=exp(post_coeff_bas3_75m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas3_75m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas3_75m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas3_75m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas3_75m$log_lambda[,2])))
+mean_par_bas3_75m=lapply(post_par_bas3_75m,mean)
+sd_par_bas3_75m=lapply(post_par_bas3_75m,sd)
+
+
+post_coeff_bas3_100m=baseline3_100m$post_coeff(n_post=1000)
+post_par_bas3_100m=list("tau0"=exp(post_coeff_bas3_100m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_bas3_100m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_bas3_100m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_bas3_100m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_bas3_100m$log_lambda[,2])))
+mean_par_bas3_100m=lapply(post_par_bas3_100m,mean)
+sd_par_bas3_100m=lapply(post_par_bas3_100m,sd)
+
+```
+
+
+
+```{r smooth omega baseline3}
+
+
+plot1=plots_bas3_50m$fe_omega_AngleNormal_q1_ExpShore
+plot2=plots_bas3_50m$fe_omega_AngleNormal_q2_ExpShore
+plot4=plots_bas3_50m$fe_omega_AngleNormal_q4_ExpShore
+
+omega1 <- ggplot_build(plot1)$data[[1]]
+omega2 <- ggplot_build(plot2)$data[[1]]
+omega4 <- ggplot_build(plot4)$data[[1]]
+
+omega1$Category <- "Far"
+omega2$Category <- "Medium"
+omega4$Category <- "Close"
+
+# Combine the data frames
+combined_omega <- rbind(omega1, omega2, omega4)
+
+
+ci_omega1 <- ggplot_build(plot1)$data[[2]]
+ci_omega2 <- ggplot_build(plot2)$data[[2]]
+ci_omega4 <- ggplot_build(plot4)$data[[2]]
+
+
+ci_omega1$Category <- "Far"
+ci_omega2$Category <- "Medium"
+ci_omega4$Category <- "Close"
+
+
+# Combine the data frames
+combined_ci_omega <- rbind(ci_omega1, ci_omega2, ci_omega4)
+
+combined_plot <- ggplot() +
+  geom_line(data=combined_omega,aes(x=x,y = y,color = Category, linetype = Category)) +
+  geom_ribbon(data=combined_ci_omega,aes(x=x,ymin=ymin,ymax=ymax,fill=Category),alpha=0.1)+
+  labs(color = "Category", linetype = "Category",x="Theta",y="Omega") +
+  geom_vline(xintercept = c(-pi/2, pi/2), linetype = "dashed", color = "grey")+
+  annotate("text", x = -pi/2, y = Inf, label = expression(-pi/2), vjust = 40, color = "black") +
+  annotate("text", x = pi/2, y = Inf, label = expression(pi/2), vjust = 40, color = "black")+
+  theme_minimal()
+
+ggsave("omega_DistanceShore_levels.png",plot=combined_plot,path="baseline3_50m",width = 10, height = 6, units = "in")
+
+```
+
+
+
+## Response models with splines of ExpShip
+
+
+### Response models based on baseline1
+
+```{r fit response1}
+
+
+par0 <- c(0,0,1,4,0)
+
+
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,
+                 tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 omega=~s(AngleNormal,k=5,bs="cs"))
+
+
+# Fit response with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response1_sp_50m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,N),
+                                               "nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,N),rep(NA,4))),coeff_fe=factor(rep(NA,5)),
+                                                                                      log_lambda=factor(c("tau.s(ExpShip)",NA,
+                                                                                                          "nu.s(ExpShip)",NA,NA))))
+
+
+new_coeff_re=c(rep(0,2),baseline1_50m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],rep(0,2),
+               baseline1_50m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline1_50m$coeff_re()[paste("omega.s(AngleNormal).",1:4,sep=""),1])
+new_lambda=c(1,baseline1_50m$lambda()["tau.s(ID)",1],1,baseline1_50m$lambda()["nu.s(ID)",1],
+             baseline1_50m$lambda()["omega.s(AngleNormal)",1])
+response1_sp_50m$update_coeff_re(new_coeff_re)
+response1_sp_50m$update_coeff_fe(baseline1_50m$coeff_fe()[,1])
+
+response1_sp_50m$update_lambda(new_lambda)
+
+response1_sp_50m$fit()
+
+
+
+# Fit response with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response1_sp_75m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,N),
+                                               "nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,N),rep(NA,4))),coeff_fe=factor(rep(NA,5)),
+                                                                                      log_lambda=factor(c("tau.s(ExpShip)",NA,
+                                                                                                          "nu.s(ExpShip)",NA,NA))))
+
+
+new_coeff_re=c(rep(0,2),baseline1_75m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],rep(0,2),
+               baseline1_75m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline1_75m$coeff_re()[paste("omega.s(AngleNormal).",1:4,sep=""),1])
+new_lambda=c(1,baseline1_75m$lambda()["tau.s(ID)",1],1,baseline1_75m$lambda()["nu.s(ID)",1],
+             baseline1_75m$lambda()["omega.s(AngleNormal)",1])
+response1_sp_75m$update_coeff_re(new_coeff_re)
+response1_sp_75m$update_coeff_fe(baseline1_75m$coeff_fe()[,1])
+
+response1_sp_75m$update_lambda(new_lambda)
+
+response1_sp_75m$fit()
+
+
+
+
+# Fit response with 50m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response1_sp_100m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,N),
+                                               "nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,N),rep(NA,4))),coeff_fe=factor(rep(NA,5)),
+                                                                                      log_lambda=factor(c("tau.s(ExpShip)",NA,
+                                                                                                          "nu.s(ExpShip)",NA,NA))))
+
+
+new_coeff_re=c(rep(0,2),baseline1_100m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],rep(0,2),
+               baseline1_100m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline1_100m$coeff_re()[paste("omega.s(AngleNormal).",1:4,sep=""),1])
+new_lambda=c(1,baseline1_100m$lambda()["tau.s(ID)",1],1,baseline1_100m$lambda()["nu.s(ID)",1],
+             baseline1_100m$lambda()["omega.s(AngleNormal)",1])
+response1_sp_100m$update_coeff_re(new_coeff_re)
+response1_sp_100m$update_coeff_fe(baseline1_100m$coeff_fe()[,1])
+
+response1_sp_100m$update_lambda(new_lambda)
+
+response1_sp_100m$fit()
+```
+
+```{r get results response1}
+
+estimates_res1_sp_50m=as.list(response1_sp_50m$tmb_rep(),what="Est")
+std_res1_sp_50m=as.list(response1_sp_50m$tmb_rep(),what="Std")
+
+estimates_res1_sp_75m=as.list(response1_sp_75m$tmb_rep(),what="Est")
+std_res1_sp_75m=as.list(response1_sp_75m$tmb_rep(),what="Std")
+
+estimates_res1_sp_100m=as.list(response1_sp_100m$tmb_rep(),what="Est")
+std_res1_sp_100m=as.list(response1_sp_100m$tmb_rep(),what="Std")
+
+#plot parameters
+xmin=list("AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShip"="Distance to ship")
+
+
+plots_res1_sp_50m=response1_sp_50m$get_all_plots(baseline=baseline1_50m,xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,
+                            model_name="response1_sp_50m",show_CI="pointwise",save=TRUE)
+plots_res1_sp_75m=response1_sp_75m$get_all_plots(baseline=baseline1_75m,xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,
+                            model_name="response1_sp_75m",show_CI="pointwise",save=TRUE)
+plots_res1_sp_100m=response1_sp_100m$get_all_plots(baseline=baseline1_100m,xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,
+                            model_name="response1_sp_100m",show_CI="pointwise",save=TRUE)
+
+```
+
+
+```{r estimates on parameter scale response1}
+
+post_coeff_res1_sp_50m=response1_sp_50m$post_coeff(n_post=1000)
+post_par_res1_sp_50m=list("tau0"=exp(post_coeff_res1_sp_50m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res1_sp_50m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res1_sp_50m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res1_sp_50m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res1_sp_50m$log_lambda[,2])))
+mean_par_res1_sp_50m=lapply(post_par_res1_sp_50m,mean)
+sd_par_res1_sp_50m=lapply(post_par_res1_sp_50m,sd)
+
+post_coeff_res1_sp_75m=response1_sp_75m$post_coeff(n_post=1000)
+post_par_res1_sp_75m=list("tau0"=exp(post_coeff_res1_sp_75m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res1_sp_75m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res1_sp_75m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res1_sp_75m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res1_sp_75m$log_lambda[,2])))
+mean_par_res1_sp_75m=lapply(post_par_res1_sp_75m,mean)
+sd_par_res1_sp_75m=lapply(post_par_res1_sp_75m,sd)
+
+post_coeff_res1_sp_100m=response1_sp_100m$post_coeff(n_post=1000)
+post_par_res1_sp_100m=list("tau0"=exp(post_coeff_res1_sp_100m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res1_sp_100m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res1_sp_100m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res1_sp_100m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res1_sp_100m$log_lambda[,2])))
+mean_par_res1_sp_100m=lapply(post_par_res1_sp_100m,mean)
+sd_par_res1_sp_100m=lapply(post_par_res1_sp_100m,sd)
+
+```
+
+
+### Response model with splines of ExpShip based on baseline2
+
+```{r fit response2}
+
+par0 <- c(0,0,1,4,0)
+
+#model formula
+formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(AngleNormal,DistanceShore,k=c(5,5),bs="cs"))
+    
+
+
+# Fit response with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response2_sp_50m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c(1:2,rep(NA,N),3:4,rep(NA,N),rep(NA,24))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c("tau.s(ExpShip)",NA,"nu.s(ExpShip)",NA,rep(NA,4)))))
+
+
+new_coeff_re=c(rep(0,2),baseline2_50m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],
+               rep(0,2),baseline2_50m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline2_50m$coeff_re()[paste("omega.ti(DistanceShore).",1:4,sep=""),1],
+               baseline2_50m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline2_50m$coeff_re()[paste("omega.ti(AngleNormal,DistanceShore).",1:16,sep=""),1])
+new_lambda=c(1,baseline2_50m$lambda()["tau.s(ID)",1],1,baseline2_50m$lambda()["nu.s(ID)",1],baseline2_50m$lambda()[3:6,1])
+response2_sp_50m$update_coeff_re(new_coeff_re)
+response2_sp_50m$update_coeff_fe(baseline2_50m$coeff_fe()[,1])
+
+response2_sp_50m$update_lambda(new_lambda)
+
+response2_sp_50m$fit()
+
+
+
+# Fit response with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response2_sp_75m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c(1:2,rep(NA,N),3:4,rep(NA,N),rep(NA,24))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c("tau.s(ExpShip)",NA,"nu.s(ExpShip)",NA,rep(NA,4)))))
+
+
+new_coeff_re=c(rep(0,2),baseline2_75m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],
+               rep(0,2),baseline2_75m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline2_75m$coeff_re()[paste("omega.ti(DistanceShore).",1:4,sep=""),1],
+               baseline2_75m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline2_75m$coeff_re()[paste("omega.ti(AngleNormal,DistanceShore).",1:16,sep=""),1])
+new_lambda=c(1,baseline2_75m$lambda()["tau.s(ID)",1],1,baseline2_75m$lambda()["nu.s(ID)",1],baseline2_75m$lambda()[3:6,1])
+response2_sp_75m$update_coeff_re(new_coeff_re)
+response2_sp_75m$update_coeff_fe(baseline2_75m$coeff_fe()[,1])
+
+response2_sp_75m$update_lambda(new_lambda)
+
+response2_sp_75m$fit()
+
+
+
+# Fit response with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response2_sp_100m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"),
+                    map=list(coeff_re=factor(c(1:2,rep(NA,N),3:4,rep(NA,N),rep(NA,24))),coeff_fe=factor(rep(NA,5)),
+                             log_lambda=factor(c("tau.s(ExpShip)",NA,"nu.s(ExpShip)",NA,rep(NA,4)))))
+
+
+new_coeff_re=c(rep(0,2),baseline2_100m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],
+               rep(0,2),baseline2_100m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline2_100m$coeff_re()[paste("omega.ti(DistanceShore).",1:4,sep=""),1],
+               baseline2_100m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline2_100m$coeff_re()[paste("omega.ti(AngleNormal,DistanceShore).",1:16,sep=""),1])
+new_lambda=c(1,baseline2_100m$lambda()["tau.s(ID)",1],1,baseline2_100m$lambda()["nu.s(ID)",1],baseline2_100m$lambda()[3:6,1])
+response2_sp_100m$update_coeff_re(new_coeff_re)
+response2_sp_100m$update_coeff_fe(baseline2_100m$coeff_fe()[,1])
+
+response2_sp_100m$update_lambda(new_lambda)
+
+response2_sp_100m$fit()
+```
+
+
+```{r get results response2}
+estimates_res2_50m=as.list(response2_sp_50m$tmb_rep(),what="Est")
+std_res2_50m=as.list(response2_sp_50m$tmb_rep(),what="Std")
+
+estimates_res2_75m=as.list(response2_sp_75m$tmb_rep(),what="Est")
+std_res2_75m=as.list(response2_sp_75m$tmb_rep(),what="Std")
+
+estimates_res2_100m=as.list(response2_sp_100m$tmb_rep(),what="Est")
+std_res2_100m=as.list(response2_sp_100m$tmb_rep(),what="Std")
+
+#plot parameters
+xmin=list("AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShip"="Distance to ship")
+
+plot_res2_sp_50m=response2_sp_50m$get_all_plots(baseline=baseline2_50m,model_name="response2_sp_50m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plot_res2_sp_75m=response2_sp_75m$get_all_plots(baseline=baseline2_75m,model_name="response2_sp_75m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plot_res2_sp_100m=response2_sp_100m$get_all_plots(baseline=baseline2_100m,model_name="response2_sp_100m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+```
+
+
+```{r}
+
+post_coeff_res2_sp_50m=response2_sp_50m$post_coeff(n_post=1000)
+post_par_res2_sp_50m=list("tau0"=exp(post_coeff_res2_sp_50m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res2_sp_50m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res2_sp_50m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res2_sp_50m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res2_sp_50m$log_lambda[,2])))
+mean_par_res2_sp_50m=lapply(post_par_res2_sp_50m,mean)
+sd_par_res2_sp_50m=lapply(post_par_res2_sp_50m,sd)
+
+post_coeff_res2_sp_75m=response2_sp_75m$post_coeff(n_post=1000)
+post_par_res2_sp_75m=list("tau0"=exp(post_coeff_res2_sp_75m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res2_sp_75m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res2_sp_75m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res2_sp_75m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res2_sp_75m$log_lambda[,2])))
+mean_par_res2_sp_75m=lapply(post_par_res2_sp_75m,mean)
+sd_par_res2_sp_75m=lapply(post_par_res2_sp_75m,sd)
+
+post_coeff_res2_sp_100m=response2_sp_100m$post_coeff(n_post=1000)
+post_par_res2_sp_100m=list("tau0"=exp(post_coeff_res2_sp_100m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res2_sp_100m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res2_sp_100m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res2_sp_100m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res2_sp_100m$log_lambda[,2])))
+mean_par_res2_sp_100m=lapply(post_par_res2_sp_100m,mean)
+sd_par_res2_sp_100m=lapply(post_par_res2_sp_100m,sd)
+
+
+
+```
+
+### Response model with splines of ExpShip based on baseline3
+
+```{r fit response3}
+
+#initialize parameters
+par0=c(0,0,1,4,0)
+
+#define model
+formulas <- list(mu1=~1,mu2=~1,tau =~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 nu=~s(ExpShip,k=3,bs="cs")+s(ID,bs="re"),
+                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=c(5,5),bs="cs"))
+
+
+#Fit response with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response3_sp_50m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,N),"nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,N),rep(NA,24))),coeff_fe=factor(rep(NA,5)),log_lambda=factor(c("tau.s(ExpShip)",NA,"nu.s(ExpShip)",NA,rep(NA,4)))))
+
+
+new_coeff_re=c(rep(0,2),baseline3_50m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],
+               rep(0,2),baseline3_50m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline3_50m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline3_50m$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+               baseline3_50m$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
+new_lambda=c(1,baseline3_50m$lambda()["tau.s(ID)",1],1,baseline3_50m$lambda()["nu.s(ID)",1],baseline3_50m$lambda()[3:6,1])
+response3_sp_50m$update_coeff_re(new_coeff_re)
+response3_sp_50m$update_coeff_fe(baseline3_50m$coeff_fe()[,1])
+
+response3_sp_50m$update_lambda(new_lambda)
+response3_sp_50m$fit()
+
+
+
+#Fit response with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response3_sp_75m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,N),"nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,N),rep(NA,24))),coeff_fe=factor(rep(NA,5)),log_lambda=factor(c("tau.s(ExpShip)",NA,"nu.s(ExpShip)",NA,rep(NA,4)))))
+
+
+new_coeff_re=c(rep(0,2),baseline3_75m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],
+               rep(0,2),baseline3_75m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline3_75m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline3_75m$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+               baseline3_75m$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
+new_lambda=c(1,baseline3_75m$lambda()["tau.s(ID)",1],1,baseline3_75m$lambda()["nu.s(ID)",1],baseline3_75m$lambda()[3:6,1])
+response3_sp_75m$update_coeff_re(new_coeff_re)
+response3_sp_75m$update_coeff_fe(baseline3_75m$coeff_fe()[,1])
+
+response3_sp_75m$update_lambda(new_lambda)
+response3_sp_75m$fit()
+
+
+#Fit response with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response3_sp_100m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c("tau.s(ExpShip).1","tau.s(ExpShip).2",rep(NA,N),"nu.s(ExpShip).1","nu.s(ExpShip).2",rep(NA,N),rep(NA,24))),coeff_fe=factor(rep(NA,5)),log_lambda=factor(c("tau.s(ExpShip)",NA,"nu.s(ExpShip)",NA,rep(NA,4)))))
+
+
+new_coeff_re=c(rep(0,2),baseline3_100m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],
+               rep(0,2),baseline3_100m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline3_100m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline3_100m$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+               baseline3_100m$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
+new_lambda=c(1,baseline3_100m$lambda()["tau.s(ID)",1],1,baseline3_100m$lambda()["nu.s(ID)",1],baseline3_100m$lambda()[3:6,1])
+response3_sp_100m$update_coeff_re(new_coeff_re)
+response3_sp_100m$update_coeff_fe(baseline3_100m$coeff_fe()[,1])
+
+response3_sp_100m$update_lambda(new_lambda)
+response3_sp_100m$fit()
+```
+
+
+```{r get results response3}
+estimates_res3_sp_50m=as.list(response3_sp_50m$tmb_rep(),what="Est")
+std_res3_sp_50m=as.list(response3_sp_50m$tmb_rep(),what="Std")
+
+estimates_res3_sp_75m=as.list(response3_sp_75m$tmb_rep(),what="Est")
+std_res3_sp_75m=as.list(response3_sp_75m$tmb_rep(),what="Std")
+
+estimates_res3_sp_100m=as.list(response3_sp_100m$tmb_rep(),what="Est")
+std_res3_sp_100m=as.list(response3_sp_100m$tmb_rep(),what="Std")
+
+
+#plot parameters
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi,"ExpShip"=1/45)
+xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/3)
+link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
+
+
+plot_res3_sp_50m=response3_sp_50m$get_all_plots(baseline=baseline3_50m,model_name="response3_sp_50m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plot_res3_sp_75m=response3_sp_75m$get_all_plots(baseline=baseline3_75m,model_name="response3_sp_75m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plot_res3_sp_100m=response3_sp_100m$get_all_plots(baseline=baseline3_100m,model_name="response3_sp_100m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+```
+
+```{r estimates on parameter scale response3}
+
+post_coeff_res3_sp_50m=response3_sp_50m$post_coeff(n_post=1000)
+post_par_res3_sp_50m=list("tau0"=exp(post_coeff_res3_sp_50m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res3_sp_50m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res3_sp_50m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res3_sp_50m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res3_sp_50m$log_lambda[,2])))
+mean_par_res3_sp_50m=lapply(post_par_res3_sp_50m,mean)
+sd_par_res3_sp_50m=lapply(post_par_res3_sp_50m,sd)
+
+post_coeff_res3_sp_75m=response3_sp_75m$post_coeff(n_post=1000)
+post_par_res3_sp_75m=list("tau0"=exp(post_coeff_res3_sp_75m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res3_sp_75m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res3_sp_75m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res3_sp_75m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res3_sp_75m$log_lambda[,2])))
+mean_par_res3_sp_75m=lapply(post_par_res3_sp_75m,mean)
+sd_par_res3_sp_75m=lapply(post_par_res3_sp_75m,sd)
+
+post_coeff_res3_sp_100m=response3_sp_100m$post_coeff(n_post=1000)
+post_par_res3_sp_100m=list("tau0"=exp(post_coeff_res3_sp_100m$coeff_fe[,"tau.(Intercept)"]),
+              "nu0"=exp(post_coeff_res3_sp_100m$coeff_fe[,"nu.(Intercept)"]),
+              "omega0"=post_coeff_res3_sp_100m$coeff_fe[,"omega.(Intercept)"],
+              "sigma_tau"=1/sqrt(exp(post_coeff_res3_sp_100m$log_lambda[,1])),
+              "sigma_nu"=1/sqrt(exp(post_coeff_res3_sp_100m$log_lambda[,2])))
+mean_par_res3_sp_100m=lapply(post_par_res3_sp_100m,mean)
+sd_par_res3_sp_100m=lapply(post_par_res3_sp_100m,sd)
+
+
+```
+
+
+
+
+
+### Response model with exponential of ExpShip based on baseline2
+
+
+```{r}
+
+par0=c(0,0,1,4,0)
+
+#define model
+formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
+                 nu=~ExpShip+s(ID,bs="re"),
+                 omega=~ti(DistanceShore,k=5,bs="cs")+ti(AngleNormal,k=5,bs="cs")+ti(AngleNormal,DistanceShore,k=c(5,5),bs="cs"))
+
+
+
+# Fit response with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response2_exp_50m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c(rep(NA,12),rep(NA,24))),coeff_fe=factor(c(NA,NA,NA,1,NA,2,NA)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA))))
+
+new_coeff_fe=c(baseline2_50m$coeff_fe()[1:3,1],0,baseline2_50m$coeff_fe()[4,1],0,baseline2_50m$coeff_fe()[5,1])
+new_coeff_re=c(baseline2_50m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],baseline2_50m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline2_50m$coeff_re()[paste("omega.ti(DistanceShore).",1:4,sep=""),1],
+               baseline2_50m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline2_50m$coeff_re()[paste("omega.ti(AngleNormal,DistanceShore).",1:16,sep=""),1])
+new_lambda=c(baseline2_50m$lambda()["tau.s(ID)",1],baseline2_50m$lambda()["nu.s(ID)",1],baseline2_50m$lambda()[3:6,1])
+response2_exp_50m$update_coeff_re(new_coeff_re)
+response2_exp_50m$update_coeff_fe(new_coeff_fe)
+
+response2_exp_50m$update_lambda(new_lambda)
+
+response2_exp_50m$fit()
+
+
+# Fit response with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response2_exp_75m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c(rep(NA,12),rep(NA,24))),coeff_fe=factor(c(NA,NA,NA,1,NA,2,NA)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA))))
+
+new_coeff_fe=c(baseline2_75m$coeff_fe()[1:3,1],0,baseline2_75m$coeff_fe()[4,1],0,baseline2_75m$coeff_fe()[5,1])
+new_coeff_re=c(baseline2_75m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],baseline2_75m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline2_75m$coeff_re()[paste("omega.ti(DistanceShore).",1:4,sep=""),1],
+               baseline2_75m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline2_75m$coeff_re()[paste("omega.ti(AngleNormal,DistanceShore).",1:16,sep=""),1])
+new_lambda=c(baseline2_75m$lambda()["tau.s(ID)",1],baseline2_75m$lambda()["nu.s(ID)",1],baseline2_75m$lambda()[3:6,1])
+response2_exp_75m$update_coeff_re(new_coeff_re)
+response2_exp_75m$update_coeff_fe(new_coeff_fe)
+
+response2_exp_75m$update_lambda(new_lambda)
+
+response2_exp_75m$fit()
+
+
+# Fit response with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response2_exp_100m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c(rep(NA,12),rep(NA,24))),coeff_fe=factor(c(NA,NA,NA,1,NA,2,NA)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA))))
+
+new_coeff_fe=c(baseline2_100m$coeff_fe()[1:3,1],0,baseline2_100m$coeff_fe()[4,1],0,baseline2_100m$coeff_fe()[5,1])
+new_coeff_re=c(baseline2_100m$coeff_re()[paste("tau.s(ID).",1:N,sep=""),1],baseline2_100m$coeff_re()[paste("nu.s(ID).",1:N,sep=""),1],
+               baseline2_100m$coeff_re()[paste("omega.ti(DistanceShore).",1:4,sep=""),1],
+               baseline2_100m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline2_100m$coeff_re()[paste("omega.ti(AngleNormal,DistanceShore).",1:16,sep=""),1])
+new_lambda=c(baseline2_100m$lambda()["tau.s(ID)",1],baseline2_100m$lambda()["nu.s(ID)",1],baseline2_100m$lambda()[3:6,1])
+response2_exp_100m$update_coeff_re(new_coeff_re)
+response2_exp_100m$update_coeff_fe(new_coeff_fe)
+
+response2_exp_100m$update_lambda(new_lambda)
+
+response2_exp_100m$fit()
+```
+
+```{r}
+estimates_res2_exp_50m=as.list(response2_exp_50m$tmb_rep(),what="Est")
+std_res2_exp_50m=as.list(response2_exp_50m$tmb_rep(),what="Std")
+
+estimates_res2_exp_75m=as.list(response2_exp_75m$tmb_rep(),what="Est")
+std_res2_exp_75m=as.list(response2_exp_75m$tmb_rep(),what="Std")
+
+estimates_res2_exp_100m=as.list(response2_exp_100m$tmb_rep(),what="Est")
+std_res2_exp_100m=as.list(response2_exp_100m$tmb_rep(),what="Std")
+
+
+
+#plot parameters
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi,"ExpShip"=1/60)
+xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/5)
+link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
+
+
+plots_res2_exp=response2_exp_50m$get_all_plots(baseline=baseline2_50m,model_name="response2_exp_50m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+plots_res2_exp_75m=response2_exp_75m$get_all_plots(baseline=baseline2_75m,model_name="response2_exp_75m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+plots_res2_exp_100m=response2_exp_100m$get_all_plots(baseline=baseline2_100m,model_name="response2_exp_100m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+
+```
+
+
+
+
+
+### Response model with exponential of ExpShip based on baseline3
+
+
+```{r}
+
+
+par0=c(0,0,1,4,0)
+
+#define model
+formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
+                 nu=~ExpShip+s(ID,bs="re"),
+                 omega=~ti(AngleNormal,k=5,bs="cs")+ti(ExpShore,k=5,bs="cs")+ti(AngleNormal,ExpShore,k=c(5,5),bs="cs"))
+
+
+# Fit response with 50m measurement error
+sigma_obs=0.05
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response3_exp_50m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c(rep(NA,12),rep(NA,24))),coeff_fe=factor(c(NA,NA,NA,1,NA,2,NA)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA))))
+
+new_coeff_fe=c(baseline3_50m$coeff_fe()[1:3,1],0,baseline3_50m$coeff_fe()[4,1],0,baseline3_50m$coeff_fe()[5,1])
+new_coeff_re=c(baseline3_50m$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],baseline3_50m$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+               baseline3_50m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline3_50m$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+               baseline3_50m$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
+new_lambda=c(baseline3_50m$lambda()["tau.s(ID)",1],baseline3_50m$lambda()["nu.s(ID)",1],baseline3_50m$lambda()[3:6,1])
+response3_exp_50m$update_coeff_re(new_coeff_re)
+response3_exp_50m$update_coeff_fe(new_coeff_fe)
+
+response3_exp_50m$update_lambda(new_lambda)
+response3_exp_50m$fit()
+
+
+# Fit response with 75m measurement error
+sigma_obs=0.075
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response3_exp_75m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c(rep(NA,12),rep(NA,24))),coeff_fe=factor(c(NA,NA,NA,1,NA,2,NA)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA))))
+
+new_coeff_fe=c(baseline3_75m$coeff_fe()[1:3,1],0,baseline3_75m$coeff_fe()[4,1],0,baseline3_75m$coeff_fe()[5,1])
+new_coeff_re=c(baseline3_75m$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],baseline3_75m$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+               baseline3_75m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline3_75m$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+               baseline3_75m$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
+new_lambda=c(baseline3_75m$lambda()["tau.s(ID)",1],baseline3_75m$lambda()["nu.s(ID)",1],baseline3_75m$lambda()[3:6,1])
+response3_exp_75m$update_coeff_re(new_coeff_re)
+response3_exp_75m$update_coeff_fe(new_coeff_fe)
+
+response3_exp_75m$update_lambda(new_lambda)
+response3_exp_75m$fit()
+
+
+
+# Fit response with 100m measurement error
+sigma_obs=0.1
+H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+response3_exp_100m<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM",
+                    response = c("x","y"),par0 = par0,fixpar=c("mu1","mu2"),other_data=list("H"=H),
+                    map=list(coeff_re=factor(c(rep(NA,12),rep(NA,24))),coeff_fe=factor(c(NA,NA,NA,1,NA,2,NA)),
+                             log_lambda=factor(c(NA,NA,NA,NA,NA,NA))))
+
+new_coeff_fe=c(baseline3_100m$coeff_fe()[1:3,1],0,baseline3_100m$coeff_fe()[4,1],0,baseline3_100m$coeff_fe()[5,1])
+new_coeff_re=c(baseline3_100m$coeff_re()[paste("tau.s(ID).",1:6,sep=""),1],baseline3_100m$coeff_re()[paste("nu.s(ID).",1:6,sep=""),1],
+               baseline3_100m$coeff_re()[paste("omega.ti(AngleNormal).",1:4,sep=""),1],
+               baseline3_100m$coeff_re()[paste("omega.ti(ExpShore).",1:4,sep=""),1],
+               baseline3_100m$coeff_re()[paste("omega.ti(AngleNormal,ExpShore).",1:16,sep=""),1])
+new_lambda=c(baseline3_100m$lambda()["tau.s(ID)",1],baseline3_100m$lambda()["nu.s(ID)",1],baseline3_100m$lambda()[3:6,1])
+response3_exp_100m$update_coeff_re(new_coeff_re)
+response3_exp_100m$update_coeff_fe(new_coeff_fe)
+
+response3_exp_100m$update_lambda(new_lambda)
+response3_exp_100m$fit()
+```
+
+```{r}
+estimates_res3_exp_50m=as.list(response3_exp_50m$tmb_rep(),what="Est")
+std_res3_exp_50m=as.list(response3_exp_50m$tmb_rep(),what="Std")
+
+estimates_res3_exp_75m=as.list(response3_exp_75m$tmb_rep(),what="Est")
+std_res3_exp_75m=as.list(response3_exp_75m$tmb_rep(),what="Std")
+
+estimates_res3_exp_100m=as.list(response3_exp_100m$tmb_rep(),what="Est")
+std_res3_exp_100m=as.list(response3_exp_100m$tmb_rep(),what="Std")
+
+#plot parameters
+xmin=list("ExpShore"=1/D_up,"AngleNormal"=-pi,"ExpShip"=1/60)
+xmax=list("ExpShore"=1/D_low,"AngleNormal"=pi,"ExpShip"=1/5)
+link=list("ExpShore"=(\(x) 1/x),"ExpShip"=(\(x) 1/x))
+xlabel=list("ExpShore"="Distance to shore","ExpShip"="Distance to ship")
+
+
+plots_res3_exp_50m=response3_exp_50m$get_all_plots(baseline=baseline3_50m,model_name="response3_exp_50m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plots_res3_exp_75m=response3_exp_75m$get_all_plots(baseline=baseline3_75m,model_name="response3_exp_75m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+plots_res3_exp_100m=response3_exp_100m$get_all_plots(baseline=baseline3_100m,model_name="response3_exp_100m",xmin=xmin,
+                            xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise",save=TRUE)
+
+```
+

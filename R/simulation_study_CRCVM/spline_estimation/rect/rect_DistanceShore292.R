@@ -153,7 +153,7 @@ data=add_covs(data)
 
 #only estimate if observed Distances to shore include the interval [0.5,5]
 
-if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
+if (min(data$DistanceShore)>D_low+0.2 | max(data$DistanceShore)<D_up-0.2) {
   stop("Observed distance to shore are irrelevant with the fixed knots")
 }
 
@@ -191,7 +191,7 @@ sdev_values=as.numeric(sdev)
 coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c(coeff_values,sdev_values))
 
 #true values of the coeffs
-true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:SP_DF[1]*SP_DF[2]],0,0,
+true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:(SP_DF[1]*SP_DF[2])],0,0,
                             log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(m1$sp)))
 
 coeffs_df=cbind(coeffs_df,true_df)

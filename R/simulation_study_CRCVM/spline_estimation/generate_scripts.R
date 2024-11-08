@@ -6,8 +6,9 @@
 #
 # Date:     2024-05-03
 #
-# Script Name:    generate multiple scripts for estimations within three domains:
-# rectangular, circular, fjords
+# Script Name:    generate 200 scripts for estimations within three domains:
+# rectangular, circular, fjords with hyperparameters set up defined in the scripts 
+# 'set_uo_rect','set_up_circ','set_up_fjords'
 #
 # Script Description:
 #
@@ -16,7 +17,8 @@
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-seeds=1:300
+N_SCRIPTS=200
+seeds=1:N_SCRIPTS
 script_ExpShore<-readLines("base_script_ExpShore.R")
 script_DistanceShore<-readLines("base_script_DistanceShore.R")
 

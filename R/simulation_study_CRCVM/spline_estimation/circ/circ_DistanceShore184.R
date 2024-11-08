@@ -3,14 +3,18 @@
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-domain_name="circ"
-par_dir=dirname(getwd())
-set_up_file=paste("set_up_",domain_name,".R",sep="")
-source(file.path(par_dir,set_up_file))     #get set up for simulation study
-source(file.path(dirname(par_dir),"CVM_functions.R"))  #get functions to simulate trajectories
-library(smoothSDE)          #sde models
+library(here)               # To get root of git repo
+library(smoothSDE)          #to compute nearest shore point
 library(foreach)            #foreach loop
 library(doParallel)         #parallel computing
+
+
+domain_name="circ"
+par_dir=here("R","simulation_study_CRCVM","spline_estimation",domain_name)
+set_up_file=paste("set_up_",domain_name,".R",sep="")
+source(file.path(par_dir,set_up_file))     #get set up for simulation study
+source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
+
 
 seed= 184
 set.seed(seed)
@@ -36,7 +40,7 @@ data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv
   ftau_constant=function(cov_data) {
     return (exp(true_log_tau[i]))
   }
-  res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
+  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_splines,fnu=fnu_constant,
                       log_sigma_obs=log(SIGMA_OBS),v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
   
   data_sim=res$sim
@@ -151,7 +155,7 @@ add_covs=function(data) {
 
 data=add_covs(data)
 
-#only estimate if observed Distances to shore include the interval [0.5,5]
+#only estimate if observed Distances to shore include the interval [D_low,D_up]
 
 if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
   stop("Observed distance to shore are irrelevant with the fixed knots")
@@ -191,10 +195,11 @@ sdev_values=as.numeric(sdev)
 coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),"estimate"=c(coeff_values,sdev_values))
 
 #true values of the coeffs
-true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:SP_DF[1]*SP_DF[2]],0,0,
+true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:(SP_DF[1]*SP_DF[2])],0,0,
                             log(TAU_0),log(NU_0),sp_coeff_Dshore[1],SIGMA_TAU,SIGMA_NU,1/sqrt(m1$sp)))
 
 coeffs_df=cbind(coeffs_df,true_df)
 
-write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
+write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",
+SP_DF[1],"-",SP_DF[2],"spdf_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
 

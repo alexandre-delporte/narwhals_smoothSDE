@@ -2,14 +2,18 @@
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-domain_name="rect"
-par_dir=dirname(getwd())
-set_up_file=paste("set_up_",domain_name,".R",sep="")
-source(file.path(par_dir,set_up_file))     #get set up for simulation study
-source(file.path(dirname(par_dir),"CVM_functions.R"))  #get functions to simulate trajectories
-library(smoothSDE)          #sde models
+library(here)               # To get root of git repo
+library(smoothSDE)          #to compute nearest shore point
 library(foreach)            #foreach loop
 library(doParallel)         #parallel computing
+
+
+domain_name="rect"
+par_dir=here("R","simulation_study_CRCVM","spline_estimation",domain_name)
+set_up_file=paste("set_up_",domain_name,".R",sep="")
+source(file.path(par_dir,set_up_file))     #get set up for simulation study
+source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
+
 
 seed= 124
 set.seed(seed)
@@ -153,7 +157,7 @@ data=add_covs(data)
 
 #only estimate if observed Distances to shore include the interval [D_low,D_up]
 
-if (min(data$DistanceShore)>D_low | max(data$DistanceShore)<D_up) {
+if (min(data$DistanceShore)>D_low+0.2 | max(data$DistanceShore)<D_up-0.2) {
   stop("Observed distance to shore are irrelevant with the fixed knots")
 }
 
@@ -196,6 +200,5 @@ true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_ExpShore[2:(SP_DF[1]*SP_DF[2])
 
 coeffs_df=cbind(coeffs_df,true_df)
 
-write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_ExpShore",seed,".csv",sep=""), row.names=FALSE)
-
-
+write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",
+                          SP_DF[1],"-",SP_DF[2],"spdf_ExpShore",seed,".csv",sep=""), row.names=FALSE)
