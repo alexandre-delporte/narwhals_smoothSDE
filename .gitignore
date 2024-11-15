@@ -1,3 +1,6 @@
+#ignore large files
+/Data/raw_data
+
 #ignore results of simulation study, only keep the code to reproduce the results
 /R/simulation_study_CRCVM/spline_estimation/*.csv
 /R/simulation_study_CRCVM/spline_estimation/*.png
