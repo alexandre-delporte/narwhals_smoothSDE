@@ -1,0 +1,793 @@
+---
+title: "simulation_study_spline"
+author: "Alexandre Delporte"
+date: "2024-12-01"
+output: html_document
+---
+
+This is a simulation study dedicated to the estimation of the parameters in our CRCVM SDE model.
+We try different framework to decide which one we choose for the calculations on the university clusters.
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(here)
+library(sf)
+library(smoothSDE)
+library(doParallel)
+library(ggplot2)
+library(dplyr)
+library(mgcv)
+
+#get functions to simulate trajectories
+source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  
+
+
+```
+
+
+
+# Simple framework : no random effects 
+
+
+
+## Define hyperparameters 
+
+
+```{r hyperparameters}
+N_ID=6
+TMAX=1*24
+SP_DF=c(7,4)
+TAU_0=1.5
+NU_0=4
+DMIN=0.5
+DELTA=1/360
+PAR0_RACVM=c(0,0,1,1,0)
+SIGMA_OBS_low=0.01
+SIGMA_OBS_high=0.04
+BY=30
+
+```
+
+```{r initial positions}
+
+seed=100
+set.seed(seed)
+# Set the path to the directory containing the data
+greenland_data_path <- here("Data","preprocessed_data","greenland")
+
+#get the land geometry from shapefile
+border<-st_read(file.path(greenland_data_path,"updated_scoresby_sound_utm.shp"))
+border <- st_transform(border, crs = "+init=EPSG:32626 +units=km")
+
+v0=c(0,0)
+
+#generate random initial points
+x0=matrix(rep(NA,N_ID*2),ncol=2)
+colnames(x0)=c("x1","x2")
+
+i=1
+while (i<=N_ID) {
+  #choose location uniformly in the map
+  x=c(runif(1,min=430,max=500),runif(1,min=7760,max=7900))
+  if (!(is_in_land(st_point(x),border))) {
+    p=nearest_boundary_point(st_point(x),border)
+    Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
+    #keep it as initial position if it is at least 50 metres away from the shore
+    if (Dshore>DMIN && Dshore<1) {
+      x0[i,]=x
+      i=i+1
+    }
+  }
+}
+
+
+```
+
+
+## Define SDE parameters
+
+
+```{r model parameters}
+# Time steps ----------------
+
+
+#high frequency time points
+times=seq(0,TMAX,by=DELTA)
+
+n_obs=length(times)-1
+
+
+# Defintion of smooth parameter omega ----------
+
+fomega_cubic=function(cov_data,a=2,D0=0.5,D1=0.8,sigma_theta=pi/8,sigma_D=0.3,b=5){
+  Dshore=cov_data$DistanceShore
+  theta=cov_data$theta
+  if (is.null(Dshore)){
+    Dshore=1/cov_data$Ishore
+  }
+  
+  a*theta*(theta-pi/2)*(theta+pi/2)*exp(-Dshore/D0)/Dshore+
+      b*(exp(-1/2*(((theta+pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2))-
+           exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2)))
+}
+
+
+ftau_constant=function(cov_data) {
+  TAU_0
+}
+
+fnu_constant=function(cov_data) {
+  NU_0
+}
+
+
+```
+
+## Simulate true trajectories
+
+```{r,cache=TRUE}
+
+# Generate samples ---------------
+
+cores=detectCores()
+cl <- makeCluster(6) #not to overload your computer
+registerDoParallel(cl)
+
+
+
+data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+  
+  set.seed((seed-1)*N_ID+i)
+
+  
+  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic,fnu=fnu_constant,
+                      log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
+  
+  data_sim=res$sim
+  data_sim$ID=factor(rep(i,length(data_sim$y1)))
+  data_sim
+}
+
+#stop cluster
+stopCluster(cl)
+
+```
+
+## Remove trajectories that reached land
+
+```{r}
+
+# Points that reached land ---------------
+count=0
+remove_ID=c()
+for (id in unique(data$ID)) {
+  id_data=data[data$ID==id,]
+  if (nrow(id_data) < n_obs) {
+    count=count+1
+    remove_ID=c(remove_ID,id)
+    cat("ID",id,"reached land","\n",sep=" ")
+  }
+}
+
+cat(count/N_ID*100,"percent of the trajectories reached land","\n")
+
+
+data_sub=data %>%  filter(!(ID %in% remove_ID))
+
+
+
+```
+
+## Add noise to get observed trajectories
+
+```{r}
+# add noise
+low_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_low^2,2)))
+high_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_high^2,2)))
+observed_data_le=data_sub
+observed_data_le[,c("y1","y2")]=data_sub[,c("y1","y2")]+low_noise
+observed_data_he=data_sub
+observed_data_he[,c("y1","y2")]=data_sub[,c("y1","y2")]+high_noise
+
+#subsample
+data_lf_he=observed_data_he[seq(1,length(data_sub$time),by=BY),]
+data_lf_le=observed_data_le[seq(1,length(data_sub$time),by=BY),]
+data_hf_le=observed_data_le[seq(1,length(data_sub$time),by=6),]
+data_hf_he=observed_data_he[seq(1,length(data_sub$time),by=6),]
+
+
+# Save plot of the trajectories ------------
+
+plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
+  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
+  geom_point(data=data_lf_he,mapping=aes(y1,y2,col=ID),size=0.1)+
+  geom_path(data=data_lf_he,mapping=aes(y1,y2,col=ID),size=0.1)+
+  geom_point(data = data%>% filter(!duplicated(ID)),
+             aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
+  xlab("x") + ylab("y")
+
+ggsave(filename=paste("plot_","border","_",TMAX,"h_",N_ID,"ID_",DMIN,"km",seed,".png",sep=""),plot=plot,width=10,height=5)
+
+```
+
+## Compute covariates from observations
+
+
+```{r}
+
+
+# Add covariates to data -----------
+
+signed_angle <- function(u, v) {
+  #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
+  # as in 
+  # https://math.stackexchange.com/questions/529555/signed-angle-between-2-vectors
+  u <- matrix(u, ncol = 2)
+  v <- matrix(v, ncol = 2)
+  if (nrow(u) != nrow(v)) stop("u and v must have the same number of 
+                                  rows")
+  result <- as.numeric(atan2(v[,2], v[,1]) - atan2(u[,2], u[,1]))
+  ind1 <- which(result > pi)
+  ind2 <- which(result <= -pi)
+  result[ind1] <- result[ind1] - 2*pi
+  result[ind2] <- result[ind2] + 2*pi
+  return(result) 
+} 
+
+add_covs=function(data) {
+  #data has at least columns "time","y1" "y2", "p1","p2"
+  #this function new data frame with three more columns "theta", "DistanceShore" and "ExpShore"
+  
+  new_data=data
+  #observed deviation angles
+  n=length(new_data$time)
+  
+  new_data$theta=rep(NA,n)
+  
+  for (id in unique(new_data$ID)) {
+    
+    #filter data with specific id
+    sub_ind=(new_data$ID==id)
+    sub_data=new_data[sub_ind,]
+    n_sub=length(sub_data$time)
+    
+    #time steps
+    dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
+    
+    #step lengths
+    dx=sub_data[2:n_sub,"y1"]-sub_data[1:(n_sub-1),"y1"]
+    dy=sub_data[2:n_sub,"y2"]-sub_data[1:(n_sub-1),"y2"]
+    
+    #matrix of empirical velocity
+    vexp_df=cbind(dx/dtimes,dy/dtimes)
+    
+    #nearest points on shore
+    sub_data=cbind(sub_data,nearest_boundary_points(as.matrix(sub_data[,c("y1","y2")]),border))
+    
+    #matrix of normal vectors
+    normal=as.matrix(sub_data[2:n_sub,c("y1","y2")]-sub_data[2:n_sub,c("p1","p2")])
+    
+    #angle between velocity and normal vector
+    theta_coast=signed_angle(normal,vexp_df)
+    
+    #adjust lengths 
+    theta_coast=c(theta_coast,1) 
+    
+    new_data[sub_ind,"theta"]=theta_coast
+    
+    Dshore=rep(0,n_sub)
+    for (i in 1:n_sub) {
+      y1=sub_data[i,"y1"]
+      y2=sub_data[i,"y2"]
+      if (!(is_in_land(st_point(c(y1,y2)),border))) {
+        p1=sub_data[i,"p1"]
+        p2=sub_data[i,"p2"]
+        Dshore[i]=sqrt((y1-p1)^2+(y2-p2)^2)
+      }
+    }
+    new_data[sub_ind,"DistanceShore"]=Dshore
+    
+    
+  }
+  
+  return(new_data)
+}
+
+
+```
+
+```{r}
+data_lf_he=add_covs(data_lf_he)
+data_hf_le=add_covs(data_hf_le)
+data_lf_le=add_covs(data_lf_le)
+data_hf_he=add_covs(data_hf_he)
+```
+
+
+```{r}
+
+plot_Dshore=ggplot(data=data_lf_he)+geom_point(aes(x=time,y=DistanceShore,col=ID),size=1,alpha=0.5)+
+  geom_line(aes(x=time,y=DistanceShore,col=ID),size=1,alpha=0.2)+facet_wrap(~ID)+
+  theme_minimal()
+
+plot_Dshore
+
+```
+
+```{r}
+
+ggplot(data_lf_he)+geom_histogram(aes(x=DistanceShore),bins=30)+facet_wrap(~ID)+theme_minimal()
+quantile(data_lf$DistanceShore)
+```
+
+```{r}
+
+
+data_lf_he$angular_velocity=as.vector(sapply(unique(data_sub$ID),function(id){
+  c(NA,diff(data_lf_he[data_lf_he$ID==id,"theta"])/diff(data_lf_he[data_lf_he$ID==id,"time"]))}))
+  
+  
+plot_angular_velocity=ggplot(data=data_lf_he)+geom_point(aes(x=time,y=angular_velocity,col=ID),size=1,alpha=0.5)+
+  geom_line(aes(x=time,y=angular_velocity,col=ID),size=1,alpha=0.2)+facet_wrap(~ID)+
+  theme_minimal()
+plot_angular_velocity
+
+
+
+
+```
+
+
+```{r}
+
+ggplot(data_lf_he)+geom_histogram(aes(x=angular_velocity),bins=30)+facet_wrap(~ID)+theme_minimal()
+quantile(data_lf_he$angular_velocity,na.rm=TRUE)
+
+```
+
+
+```{r}
+data_lf_he$speed=as.vector(sapply(unique(data_sub$ID),function(id) {c(NA,sqrt(diff(data_lf_he[data_lf_he$ID==id,"y1"])^2+diff(data_lf_he[data_lf_he$ID==id,"y2"])^2)
+                                                                      /diff(data_lf_he[data_lf_he$ID==id,"time"]))}))
+                                  
+ggplot(data_lf_he)+geom_histogram(aes(x=speed),bins=30)+facet_wrap(~ID)+theme_minimal()
+quantile(data_lf_he$speed,na.rm=TRUE)
+```
+
+## Estimate CTCRW
+
+### low frequency high error
+
+First we estimate $\tau$ and $\nu$ while ignoring the spatial constraints that are included in $\omega$.
+We only keep 2 of the twelve trajectories.
+
+
+```{r fit sde model with splines,cache=TRUE}
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+
+ctcrw_lf_he<- SDE$new(formulas = formulas,data =data_lf_he[data_lf_he$ID %in% c(1,2,3),],type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#fit
+ctcrw_lf_he$fit(method="BFGS")
+```
+```{r}
+ctcrw_lf_he$get_all_plots()
+exp(as.list(ctcrw_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+It seems that the estimate for $\tau$ is biaised. While $\nu$ is well estimated, 
+$\tau$ seems to be significantly underestimated. The reason is probably that some of the turns in the trajectories that are due to the parameter $\omega$ are attributed to a lower persistence since we do not model $\omega$ here. This is indeed in agreement with the results we get from fitting a CTCRW to the narwhal data. The trajectories from the fitted model seemed Here, if we play with the number of trajectories used for the estimation, we see that for some trajectories we are able to get both $\tau$ and $\nu$ right. The parameter $\sigma_{obs}$ for the measurement error is also well estimated.
+
+
+### Low frequency low error
+
+```{r fit sde model with splines,cache=TRUE}
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+
+ctcrw_lf_le<- SDE$new(formulas = formulas,data =data_lf_le[data_lf_le$ID %in% c(1,2,3),],type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+
+#fit
+ctcrw_lf_le$fit(method="BFGS")
+```
+```{r}
+ctcrw_lf_le$get_all_plots()
+exp(as.list(ctcrw_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+We are still estimating $\nu$ and $\sigma_{obs}$ right, but $\tau$ is also still underestimated. Thus, reducing the measurement error does not help get a better estimate of $\tau$ here.
+
+### High frequency low error
+
+```{r fit sde model with splines,cache=TRUE}
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+
+ctcrw_hf_le<- SDE$new(formulas = formulas,data =data_hf_le,type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+
+#fit
+ctcrw_hf_le$fit(method="BFGS")
+```
+```{r}
+ctcrw_hf_le$get_all_plots()
+
+exp(as.list(ctcrw_hf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+The estimate is slightly less biased here, but still increasing the resolution of the data does not really help to correct the biais on $\tau$.
+
+### High frequency high error
+
+If we take all the data points, we get numerical errors during the estimation with a non definite positive Hessian matrix.
+
+```{r fit sde model with splines,cache=TRUE}
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+
+ctcrw_hf_he<- SDE$new(formulas = formulas,data =data_hf_he[data_hf_he$ID %in% c(1,2,3),],type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#fit
+ctcrw_hf_he$fit(method="BFGS")
+```
+```{r}
+ctcrw_hf_he$get_all_plots()
+
+exp(as.list(ctcrw_hf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+Whether we have low error or high error, we still have a biased estimate of $\tau$.
+We now introduce the parameter $\omega$ in the model.
+
+
+## Estimate RACVM with splines
+
+Now we can try to add parameter $\omega$ in the model.
+We are limited by the RAM of the computer that is why we would need to do this on the university clusters with longer or higher frequency trajectories.
+We need to fix the smoothing penalties otherwise they are either estimated to very high or very low values meaning that numerical errors occurred.
+
+First, we get good values for the smoothing penalty by approximating the true surface with splines.
+
+```{r}
+# Splines smooth for omega -------------------- 
+n <- 100000
+SP_DF=5
+
+#sample theta and DistanceShore points in the domain
+theta <- runif(n,-pi,pi);
+DistanceShore <- runif(n,0.1,2)
+samples=data.frame(theta=theta,DistanceShore=DistanceShore)
+
+#define grid of values
+theta_v <- seq(-pi,pi,length=30)
+Dshore_v<- seq(0.2,8,length=30)
+pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
+
+
+#points on the surface perturbed by gaussian noise
+f <- fomega_cubic(samples)
+y <- f+0.1*rnorm(n)
+
+
+#fit with bivariate splines te
+m1 <- gam(y~te(theta,DistanceShore,k=SP_DF),knots=list(theta=seq(-pi,pi,len=SP_DF),
+                                                       DistanceShore=seq(0.02,7,len=SP_DF)))
+
+ExpShore=1/DistanceShore
+
+#fit with bivariate splines te
+m2 <- gam(y~te(theta,ExpShore,k=SP_DF),knots=list(theta=seq(-pi,pi,len=SP_DF),
+                                                  ExpShore=seq(1/8,1/0.2,len=SP_DF)))
+
+
+fomega_cubic_splines=function(cov_data) {
+  
+  if (is.null(cov_data$ExpShore)){
+    omega=predict(m1,newdata=cov_data)
+  }
+  else if (is.null(cov_data$DistanceShore)){
+    omega=predict(m2,newdata=cov_data)
+  }
+  
+  return(as.numeric(omega))
+}
+
+m1$sp
+```
+
+
+ ### Low frequency high error
+
+```{r fit sde model with splines,cache=TRUE}
+
+cropped_data=data_lf_he[data_lf_he$ID %in% 1:3,]
+
+H=array(rep(SIGMA_OBS_high^2*diag(2),length(cropped_data$time)),dim=c(2,2,length(cropped_data$time)))
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+
+
+crcvm_splines_lf_he<- SDE$new(formulas = formulas,data = cropped_data,type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+crcvm_splines_lf_he$update_map(list("log_lambda"=factor(rep(NA,2))))
+crcvm_splines_lf_he$update_lambda(c(10^-7,10^-13))
+#fit
+crcvm_splines_lf_he$fit(method="BFGS")
+```
+
+```{r plot estimates}
+
+crcvm_splines_lf_he$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+
+exp(as.list(crcvm_splines_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+
+We are clearly underestimating the magnitude of the rotation $\omega$ near $-\pi$ and $\pi$. This is indeed very similar to the result we got for the narwhal GPS data. We are well estimating $\nu$ and $\sigma_{obs}$, and we corrected the bias in $\tau$ compared to the estimate we got for the CTCRW on the same data.
+
+
+
+### Low frequency low error
+
+```{r fit sde model with splines,cache=TRUE}
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=c(10,5),bs="cs"))
+
+
+crcvm_splines_lf_le<- SDE$new(formulas = formulas,data = data_lf_le,type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+
+crcvm_splines_lf_le$update_map(list("log_lambda"=factor(rep(NA,2))))
+crcvm_splines_lf_le$update_lambda(c(10^-12,10^-12))
+#fit
+crcvm_splines_lf_le$fit(method="BFGS")
+```
+
+```{r plot estimates}
+
+crcvm_splines_lf_le$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+
+exp(as.list(ctcrw_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+Again, having low measurement error is not really of any help in the estimation. It is probably even more difficult to estimate since errors can occur in the matrix inversions in the Kalman filter when the coefficients in the covariance matrix are too close to $0$.
+
+### High frequency high error
+
+```{r fit sde model high frequency,cache=TRUE}
+
+
+
+cropped_data=data_hf_he[data_hf_he$ID %in% 2:2,]
+
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+
+
+crcvm_splines_hf_he<- SDE$new(formulas = formulas,data = cropped_data,type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#initialize smoothing penalties and re variances
+new_lambda=c(10^-6,10^-4)
+crcvm_splines_hf_he$update_lambda(new_lambda)
+
+
+crcvm_splines_hf_he$update_map(list(log_lambda=factor(c(NA,NA))))
+
+#fit
+crcvm_splines_hf_he$fit(method="BFGS")
+```
+
+
+```{r}
+
+plot_results_hf=crcvm_splines_hf$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+
+plot_results_hf
+
+```
+
+
+
+For high frequency data, we are able to get $\tau$ and $\nu$ right, but we are still underestimating $\omega$.
+Now we force the parametrization of the surface for $\omega$ with a new SDE model in smoothSDE (called \texttt{CRCVM_SSM}. $\omega$ is a cubic function of the angle $\theta$, with an exponential factor.
+
+### High frequency low error
+
+```{r fit sde model high frequency,cache=TRUE}
+
+
+
+cropped_data=data_hf_he[data_hf_le$ID %in% 1,]
+
+H=array(rep(SIGMA_OBS^2*diag(2),length(data_hf$time)),dim=c(2,2,length(data_hf$time)))
+
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+
+
+crcvm_splines_hf<- SDE$new(formulas = formulas,data = data_hf,type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("H"=H))
+
+#initialize smoothing penalties and re variances
+new_lambda=c(exp(-1),exp(-1))
+crcvm_splines_hf$update_lambda(new_lambda)
+
+
+crcvm_splines_hf$update_map(list(log_lambda=factor(c(NA,NA))))
+
+#fit
+crcvm_splines_hf$fit(method="BFGS")
+```
+
+
+```{r}
+
+plot_results_hf=crcvm_splines_hf$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+
+plot_results_hf
+
+```
+
+
+
+## Estimation with fixed cubic function of angle
+
+### Low frequency high error
+
+We will fix the new parameters that are introduced in the model, and estimate the others, that is $\tau$ and $\nu$.
+These new parameters might be chosen based on the observed distance to shore and observed angular velocity in the data.
+
+```{r}
+H=array(rep(0.03^2*diag(2),length(data_lf_he$time)),dim=c(2,2,length(data_lf_he$time)))
+# Estimate from simulated data ------------------
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+crcvm_cubic_lf_he<- SDE$new(formulas = formulas,data = data_lf_he[data_lf_he$DistanceShore>0.01,],type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,1,5,0.5,0.8,0.3,pi/8),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("log_sigma_obs0"=log(0.02)))
+#fit
+crcvm_cubic_lf_he$fit(method="BFGS")
+```
+
+```{r}
+
+crcvm_cubic_lf_he$get_all_plots(show_CI="simultaneous")
+exp(as.list(crcvm_cubic_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+We are unable to estimate $\tau$ while fixing $\omega$. $\tau$ is totally biased and underestimated, even more than when we neglected the constraints and used a simple CTCRW..
+
+### Low frequency low error 
+
+```{r}
+H=array(rep(0.007^2*diag(2),length(data_lf_le$time)),dim=c(2,2,length(data_lf_le$time)))
+# Estimate from simulated data ------------------
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+crcvm_cubic_lf_le<- SDE$new(formulas = formulas,data = data_lf_le,type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1.5,4,1,5,1,0.8,0.2,pi/8),fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+#fit
+crcvm_cubic_lf_le$fit(method="BFGS")
+```
+```{r}
+
+crcvm_cubic_lf_le$get_all_plots(show_CI="simultaneous")
+exp(as.list(crcvm_cubic_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+Let's now try with high frequency data.
+
+### High frequency high error
+
+```{r}
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+crcvm_cubic_hf_he<- SDE$new(formulas = formulas,data = data_hf_he[data,type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 =c(1,1,1,5,0.5,0.8,0.3,pi/8),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#fit
+crcvm_cubic_hf_he$fit(method="BFGS")
+```
+
+```{r}
+crcvm_cubic_hf_he$get_all_plots()
+exp(as.list(crcvm_cubic_hf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+### High frequency low error
+
+```{r}
+
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+crcvm_cubic_hf_le<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% 4:5,],type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,40,5,0.15,0.8,0.2,pi/8),fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+
+#fit
+crcvm_cubic_hf_le$fit(method="BFGS")
+```
+
+```{r}
+crcvm_cubic_hf_le$get_all_plots()
+exp(as.list(crcvm_cubic_hf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+```{r}
+# Definition of parameters tau and nu ----------------
+tau_re=rnorm(N_ID,mean=0,sd=SIGMA_TAU)
+nu_re=rnorm(N_ID,mean=0,sd=SIGMA_NU)
+true_log_nu=nu_re+log(NU_0)
+
+
+ftau_gaussian=function(cov_data,sigma_bump=0.5,sigma_dip=0.5,tau0=TAU_0,dtau_bump=1.5,dtau_dip=0) {
+  #cov_data : dataframe of covariates with column for angle theta
+  #sigma_bump : width of the bumps at -pi/2 and pi/2
+  #sigma_dip : width of the dip at 0
+  #tau0 : base value of tau
+  #dtau_bump : height of the bump
+  #dtau_dip : depth of the dip
+  
+  theta=cov_data$theta
+  bump1 <- dtau_bump*exp(-((theta - pi/2)^2) / (2 * sigma_bump^2))
+  bump2 <- dtau_bump*exp(-((theta + pi/2)^2) / (2 * sigma_bump^2))
+  dip<- dtau_dip*exp(-((theta)^2) / (2 * sigma_dip^2))
+  tau=tau0+bump1+bump2-dip
+  
+  return (tau)
+}
+
+```
+

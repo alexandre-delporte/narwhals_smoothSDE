@@ -1,2 +1,5 @@
 Data/**/* filter=lfs diff=lfs merge=lfs -text
 Library/**/* filter=lfs diff=lfs merge=lfs -text
+/Data !text !filter !merge !diff
+/Library !text !filter !merge !diff
+Data/preprocessed_data/narwhals/narwhals_positions.dbf !text !filter !merge !diff

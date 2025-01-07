@@ -150,7 +150,7 @@ First preprocessing steps include :
 \item keeping only 2018 data and adding a time since tagging column 
 \item converting distance to ship and distance to shore to km and adding an ExpShip column defined as the inverse of the \texttt{Dist\_Ship} column when the narwhals are in line of sight from the boat.\texttt{ExpShip} is a proxy for sound exposure level (SEL).
 \item Renaming the "Ind" column to "ID" for clarity and converting it to factors.
-\item Converting column "Type" in factor with levels trial and intertrial, and adding two columns "ExpShipT" and "ExpShipI" for exposure to shio during trial and intertrial separately
+\item Converting column "Type" in factor with levels trial and intertrial, and adding two columns "ExpShipT" and "ExpShipI" for exposure to ship during trial and intertrial separately
 \item Converting column "Posixct" to POSIXct format for date and time
 \end{itemize}
 
@@ -437,7 +437,6 @@ ggsave(path=plots_folder,"speed_histo.png", plot = speed_histo)
 ## Filter horizontal speed
 
 ```{=tex}
-Anormal values of the speed may indicate outliers to remove from the data.  Here we clearly see some outliers in the histogram.
 We thus decide to filter by setting a threshold of $20$ km/h for horizontal speed.
 ```
 
@@ -523,8 +522,8 @@ Only two time steps exceed $4$h.
 ```
 
 
-## Time steps distribution during exposure vs no exposure 
-
+## Time steps distribution during exposure vs no exposure
+ 
 
 ## Plot all GPS tracks (without interpolation) on a map
 
@@ -553,7 +552,7 @@ map=milne_land_map +
              aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
-ggsave(path=plots_folder,filename="all_narwhals_tracks.png", 
+ggsave(path=plots_folder,filename="all_narwhals_tracks.pdf", 
        plot = map,width=10,height=5)
 
 #animated map with gganimate
@@ -566,6 +565,7 @@ animation=animate(animate_map,renderer = gifski_renderer())
 anim_save(path=plots_folder,filename="all_narwhals_tracks.gif", 
           animation = animation,width=10,height=5)
 ```
+
 
 ```{r display map , fig.cap="All narwhal tracks"}
 map
@@ -596,13 +596,13 @@ preprocessed_greenland_data_path <- here(file.path("Data","preprocessed_data", "
 #get land polygons
 scoresby_sound_utm<-st_read(file.path(preprocessed_greenland_data_path,"scoresby_sound_utm.shp"))
 
+scoresby_sound_utm=st_transform(scoresby_sound_utm,crs= "+init=EPSG:32626 +units=km")
 ```
 
 ## Plot scoresby sound land
 
 ```{r plot coastline and land}
-plot_land=ggplot()+geom_sf(data=scoresby_sound_utm$geometry,fill="grey",col="brown")+
-  coord_sf(datum=st_crs(32626))
+plot_land=ggplot()+geom_sf(data=scoresby_sound_utm$geometry,fill="grey",col="brown")
 ```
 
 ```{r display land , fig.cap="Land polygons"}
@@ -729,7 +729,6 @@ cat("Percentage of points on land with distance from osm land polygons : \n",
 ## Check points on land on a map
 
 Some points that appear on land on the map don't have distance to shore 0. This may be due to the map inaccuracy.
-If we compute the distance to shore based on the map, as done in res_land, we get more points on the land.
 
 ```{r check original points on land}
 plot_original_inland_pts=ggplot()+geom_sf(data=scoresby_sound_utm$geometry,fill="grey")+
@@ -1405,11 +1404,15 @@ write.csv(dataAE,file.path(preprocessed_narwhal_data_path,"DataAE.csv"))
 cropped_data=dataprep[dataprep$time>12,]
 pExpShip=ggplot(cropped_data,aes(time,ExpShip,col=ID))+geom_line(color="black")+
   facet_grid(ID~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
-  theme(legend.position="none")+xlab("Time (h)")+ylab("Exposure to ship")
+  xlab("Time (h)")+ylab("Exposure to ship")+
+   theme(
+    axis.text = element_text(size = 12),   # Increase tick size
+    axis.title = element_text(size = 16)  # Increase label size
+  )
 
 
 
-ggsave(path=plots_folder,"realExpShip_through_time.png", plot=pExpShip)
+ggsave(path=plots_folder,"realExpShip_through_time.pdf", plot=pExpShip)
 ```
 
 ```{r display pExp, fig.cap="Measured exposure to ship through time"}

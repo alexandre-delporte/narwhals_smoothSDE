@@ -146,43 +146,54 @@ sim_CVM=function(mu1,mu2,beta,sigma,v0,x0,times,log_sigma_obs=NULL,verbose=FALSE
 }
 
 
-
-#' @description Compute nearest shore point 
+#' Compute nearest point on the shoreline
 #' 
-#' @param point the location from which we want to compute the nearest shore point (as given by st_point)
-#' @param coastline sf object (list of polygons) defining the land or the coastline
-#' @return vector of coordinates of the nearest point on the shore
+#' @param point the location from which we want to find the nearest point on land
+#' @param land sf object (list of polygons) defining the land
+#' @return matrix with on row and two columns that are the coordinates of the nearest point in land
+#' 
+#' @export
 
-nearest_shore_point=function(point,coastline) {
+nearest_boundary_points <- function(points, land) {
   
-  # Initialize variables to store the minimum distance and nearest point
-  min_distance <- Inf
-  nearest_point <- NULL
+  nearest_points=matrix(0,ncol=2,nrow=nrow(points))
+  colnames(nearest_points)=c("p1","p2")
   
+  for (i in 1:nrow(nearest_points)) {
+    
+    point=st_point(points[i,])
+    
+    # Initialize variables to store the minimum distance and nearest boundary point
+    min_distance <- Inf
+    nearest_point <- NULL
   
-  # Iterate over each polygon in coastline
-  for (j in 1:length(coastline$geometry)) {
-    
-    # Get the current polygon
-    polygon <- coastline$geometry[[j]]
-    
-    
-    distance <- st_distance(point, polygon)
-    
-    candidate=st_nearest_points(point,polygon)
-    
-    if (!st_is_empty(candidate)) {
-    
-      coordinates=st_coordinates(candidate)[2,c("X","Y")]
-    
-      if (distance < min_distance) {
-        min_distance=distance
-        nearest_point=coordinates
+    # Iterate over each polygon in land
+    for (j in 1:length(land$geometry)) {
+      
+      # Get the boundary of the current polygon
+      boundary <- st_boundary(land$geometry[[j]])
+      
+      # Calculate distance and nearest point to the boundary
+      distance <- st_distance(point, boundary)
+      candidate <- st_nearest_points(point, boundary)
+      
+      # Ensure that the candidate is not empty
+      if (!st_is_empty(candidate)) {
+        coordinates <- st_coordinates(candidate)[2, c("X", "Y")]
+        
+        # Update the nearest point if this boundary point is closer
+        if (distance < min_distance) {
+          min_distance <- distance
+          nearest_point <- coordinates
+        }
       }
     }
+    nearest_points[i,]=nearest_point
   }
-  return (as.matrix(nearest_point))
+    
+  return(as.matrix(nearest_points))
 }
+
 
 
 #' @description Check whether a point is on land or not
@@ -224,11 +235,17 @@ get_shore_distances=function(df,response,land) {
     #position in km
     pos=as.numeric(positions[i,])
     
-    #project
-    proj=c(nearest_shore_point(st_point(1000*pos),land)/1000)
+    if (is_in_land(pos,land)) {
+      Dshore=c(Dshore,0)
+    }
+    else {
     
-    #distance
-    Dshore=c(Dshore,sqrt((pos[1]-proj[1])^2+(pos[2]-proj[2])^2))
+      #project
+      proj=c(nearest_boundary_point(st_point(pos),land))
+      
+      #distance
+      Dshore=c(Dshore,sqrt((pos[1]-proj[1])^2+(pos[2]-proj[2])^2))
+    }
   }
   return (Dshore)
 }
@@ -597,7 +614,7 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
     }
     
     #nearest shore point
-    p=c(nearest_shore_point(st_point(xmoins),land))
+    p=as.vector(nearest_boundary_points(matrix(xmoins,ncol=2),land))
     
     #normal vector
     normal=xmoins-p
@@ -607,7 +624,7 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
     
     
     #if point is already on the land, stop simulation
-    if (Dshore==0) {
+    if (is_in_land(st_point(xmoins),land)) {
       data_sim$time=times[1:(i-1)]
       l=list("sim"=data_sim[1:(i-2),c("y1","y2","time")],"shore"=data_shore[2:(i-1),])
       cat("Stopped : process reached land ! \n")
@@ -694,6 +711,76 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
   l=list("sim"=data_sim[1:(n-1),c("y1","y2","time")],"shore"=data_shore[2:n,])
   return (l)
 }
+
+
+
+#' @description Simulate from a 2D reflected CVM (as in Hanks2017- reflected SDE)
+#' 
+#' @param mu1 first component of the drift parameter, scalar 
+#' @param mu2 second component of the drift parameter, scalar
+#' @param beta autocorrelation parameter, scalar 
+#' @param sigma volatility parameter, scalar
+#' @param x0 initial velocity
+#' @param v0 initial location
+#' @param h constant time step between samples
+#' @param Tmax maximum time of sample in hours
+#' @param land sf object (list of polygons) defining the land
+#' @param coastline sf object (list of polygons and lines) defining the coastline or land
+#' @param verbose if TRUE, display computations along the way.
+#' @return dataframe with dim (n,3) where n is the length of 'times' argument and columns "x1", "x2" are the sampled
+#' observations (with or without noise) and "times" is the time of the samples
+
+sim_HANKSreflected=function(mu1,mu2,beta,sigma,x0,v0,h,Tmax,land,verbose=FALSE) {
+  
+  N=floor(Tmax/h)
+  
+  #initialization
+  x1=as.numeric(x0+h*v0)
+  x=data.frame("y1"=c(x0[1],x1[1]),"y2"=c(x0[2],x1[2]))
+  
+  #drift
+  mu=c(mu1,mu2)
+  
+  #progress bar
+  if (!(verbose)) {
+    pb <- progress_bar$new(
+      format = "[:bar] :percent",
+      total = N, clear = FALSE, width = 60)
+  }
+  
+  for (i in 2:N) {
+    
+    if (!(verbose)) {
+      pb$tick()
+    }
+    
+    xprev1=as.numeric(x[i,])
+    xprev2=as.numeric(x[i-1,])
+    
+    if (verbose) {
+      cat("previous position :",xprev1,"\n")
+    }
+    w=mvrnorm(1,mu =c(0,0), Sigma =h^3*sigma^2*diag(2))
+    xtilde=xprev1*(2-beta*h)+xprev2*(beta*h-1)+beta*h*h*mu+w
+    
+    if ((is_in_land(st_point(c(xtilde)),land))) {
+      if (verbose) {
+        cat("new position ",xtilde,"is in LAND \n")
+      }
+      projection=as.vector(nearest_boundary_points(matrix(st_point(xtilde),ncol=2),land))
+      xtilde=projection
+    }
+    
+    x=rbind(x,c(xtilde))
+  }
+  
+  x$time=seq(0,N*h,by=h)
+  return (x)
+}
+
+
+
+
 
 
 

@@ -1,0 +1,28 @@
+
+Dear authors,
+
+I found this article interesting and overall easy to follow. You clearly described the study and data, and I enjoyed reading about your proposed solution. I think your main contributions are the observation that distance/angles relative to shore can be used to induce boundary effects in the movement process, and the integration of this idea into the correlated velocity model. The varying coefficients framework seems like an appropriate approach for this problem. My main concern with your method is that you do not propagate the uncertainty from the baseline model to the response model. Underestimating the uncertainty could lead someone to deduce that there is a clear deviation from baseline (i.e., the animals' behaviour was disturbed) when this is not the case. This goes against your claim that you are giving "a conservative estimate of the effect of the noise exposure" on page 5. I also have a few smaller questions/comments about your application of splines (choice of basis, fixed smoothing penalty). Please find my comments below.
+
+- p4: "The land geometry for the specific region..." If I understand correctly, you first tried using land maps from OpenStreetMap, but finally decided to use the Google Earth Engine API for higher accuracy. If that's the case, I would recommend presenting the Google Earth approach directly at the start of the paragraph.
+
+- p5: Just above Figure 1, shouldn't the interval be open either at pi or -pi (depending on whether you work on (-pi, pi] or [-pi, pi))? Same comment under Equation 7 on page 8.
+
+- Fig 2: The figure labels are small and hard to read.
+
+- p9 and Fig 4: I think you should mention more explicitly in text and in the caption that Figure 4 is showing simulated data. Please consider replacing "sampled trajectories" by "simulated trajectories" in the text for clarity.
+
+- Figure 4: This is great! I am often frustrated when papers about stochastic processes don't show the types of patterns that arise from a proposed model. This figure is very helpful to make sense of the formulation. Please make the labels a little larger for readability, though.
+
+- p 12, under Equation 12: It seems that you don't explicitly account for the cyclical nature of the angular covariate. Shouldn't you be using a cyclical spline (e.g., "cc" in mgcv syntax) for this?
+
+- p12: The text under Equation 14 seems to imply that you first estimate the baseline parameters (e.g., tau0, nu0, etc), and then ustimate deviation parameters (alpha_tau and alpha_nu) while treating baseline parameters as known. This doesn't seem to properly propagate uncertainty about the baseline parameters onto inferences about the deviation parameters, which could affect your conclusions (e.g., whether there seems to be a clear deviation from baseline behaviour, as you claim in Section 6.2 based on confidence intervals). I think you should consider estimating all parameters jointly to circumvent this problem, or at the very least discuss the implications of your approach. You briefly mention this on page 17, but it should be discussed earlier and in more detail. 
+
+- Table 1: I am not sure that it is necessary/helpful to report estimates for the spline coefficients, as they aren't meaningful when taken separately. It might be more useful to report some summary of the discrepancy between the true smooth function and the estimated smooth function.
+
+- p16: Can you please spell out why setting "the degree of freedom of the marginal splines to 5" leads to "a total number of 25 degrees of freedom?
+
+- p16: You fixed the smoothing penalties to 1 for the 2d tensor spline modelling the relationship between the angular velocity and covariates. This seems like a strong assumption, can you please clarify why you did this rather than estimating the smoothing penalty, and how you chose this specific value of 1?
+
+- p16, above Table 2: You should probably remind the readers here that tau0 is the population mean for the persistence parameter. 
+
+- Figure 5: Labels could be larger for readability.
