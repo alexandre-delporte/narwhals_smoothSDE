@@ -12,6 +12,7 @@
 # Code to process the shapefile dowloaded from https://osmdata.openstreetmap.de/data/land-polygons.html
 # We only keep polygons for Scoresby Sound region, and project it in UTM coordinate North zone 26
 #
+
 # SETUP ------------------------------------
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space

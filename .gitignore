@@ -1,5 +1,8 @@
 #ignore large files
 /Data/raw_data
+/Reviews
+/Library
+/QGIS
 
 #ignore results of simulation study, only keep the code to reproduce the results
 /R/simulation_study_CRCVM/spline_estimation/*.csv
