@@ -6,7 +6,7 @@
 #
 # Date:     2024-05-03
 #
-# Script Name:    generate 200 scripts for estimations within three domains:
+# Script Name:    generate scripts for estimations within three domains:
 # rectangular, circular, fjords with hyperparameters set up defined in the scripts 
 # 'set_uo_rect','set_up_circ','set_up_fjords'
 #
@@ -17,9 +17,9 @@
 cat("\014")                 # Clears the console
 rm(list = ls())             # Remove all variables of the work space
 
-N_SCRIPTS=200
+N_SCRIPTS=100
 seeds=1:N_SCRIPTS
-script_ExpShore<-readLines("base_script_ExpShore.R")
+script_Ishore<-readLines("base_script_Ishore.R")
 script_DistanceShore<-readLines("base_script_DistanceShore.R")
 
 domains=c("rect","circ","fjords")
@@ -32,25 +32,25 @@ for (domain in domains) {
   }
   
   # Find the line numbers containing "domain_name=", assuming there's only one
-  line_ExpShore<- grep("domain_name=", script_ExpShore)
+  line_Ishore<- grep("domain_name=", script_Ishore)
   line_DistanceShore <- grep("domain_name=", script_DistanceShore)
   
   # Change the next character
-  script_ExpShore[line_ExpShore] <- paste('domain_name="',domain,'"',sep="")
+  script_Ishore[line_Ishore] <- paste('domain_name="',domain,'"',sep="")
   script_DistanceShore[line_DistanceShore] <-  paste('domain_name="',domain,'"',sep="")
   
   for (seed in seeds) {
     # Find the line numbers containing "seed=", assuming there's only one
-    line_ExpShore<- grep("seed=", script_ExpShore)
+    line_Ishore<- grep("seed=", script_Ishore)
     line_DistanceShore <- grep("seed=", script_DistanceShore)
     
     # Change the next character
-    script_ExpShore[line_ExpShore] <- paste("seed=",seed)
+    script_Ishore[line_Ishore] <- paste("seed=",seed)
     script_DistanceShore[line_DistanceShore] <-  paste("seed=",seed)
     
   
     # Rewrite the modified script back
-    writeLines(script_ExpShore[-c(1:14)],file.path(domain,paste(domain,"_ExpShore",seed,".R",sep="")))
+    writeLines(script_Ishore[-c(1:14)],file.path(domain,paste(domain,"_Ishore",seed,".R",sep="")))
     writeLines(script_DistanceShore[-c(1:14)],file.path(domain,paste(domain,"_DistanceShore",seed,".R",sep="")))
   }
 }

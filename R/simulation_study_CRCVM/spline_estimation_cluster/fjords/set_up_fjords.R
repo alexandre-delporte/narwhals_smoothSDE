@@ -43,25 +43,28 @@ for (line in lines) {
 greenland_data_path <- here("Data","preprocessed_data","greenland")
 
 #get the land and coastline geometries from the geojson file
-border<-st_read(file.path(greenland_data_path,"updated_scoresbysound_utm.shp"))
-st_crs(border)="+init=EPSG:32626"
+border<-st_read(file.path(greenland_data_path,"updated_scoresby_sound_utm.shp"))
+border<- st_transform(border,crs="+init=EPSG:32626 +units=km")
 
 v0=c(0,0)
 
 #generate random initial points
-x0=matrix(rep(NA,N_ID*2),ncol=2)
+x0=matrix(rep(NA,N_ID_HIGH*2),ncol=2)
 colnames(x0)=c("x1","x2")
 
+
 i=1
-while (i<=N_ID) {
+while (i<=N_ID_HIGH) {
   #choose location uniformly in the map
   x=c(runif(1,min=430,max=500),runif(1,min=7760,max=7900))
-  p=nearest_shore_point(st_point(x),border)
-  Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
-  #keep it as initial position if it is at least 50 metres away from the shore
-  if (Dshore>DMIN & Dshore<DMAX) {
-    x0[i,]=x
-    i=i+1
+  if (!(is_in_land(st_point(x),border))) {
+    p=nearest_boundary_point(st_point(x),border)
+    Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
+    #keep it as initial position if it is at least 50 metres away from the shore
+    if (Dshore>DMIN && Dshore<DMAX) {
+      x0[i,]=x
+      i=i+1
+    }
   }
 }
 
@@ -73,14 +76,9 @@ times=seq(0,TMAX,by=DELTA)
 
 n_obs=length(times)-1
 
-# Measurement error -------------
-
-H=array(rep(SIGMA_OBS^2*diag(2),n_obs*N_ID/BY),dim=c(2,2,n_obs*N_ID/BY))
-
-
 # Definition of parameters tau and nu ----------------
-tau_re=rnorm(N_ID,mean=0,sd=SIGMA_TAU)
-nu_re=rnorm(N_ID,mean=0,sd=SIGMA_NU)
+tau_re=rnorm(N_ID_HIGH,mean=0,sd=SIGMA_TAU)
+nu_re=rnorm(N_ID_HIGH,mean=0,sd=SIGMA_NU)
 true_log_tau=tau_re+log(TAU_0)
 true_log_nu=nu_re+log(NU_0)
 
@@ -88,7 +86,7 @@ true_log_nu=nu_re+log(NU_0)
 
 # Defintion of smooth parameter omega ----------
 
-fomega_cubic=function(cov_data,a=A,D0=D0,D1=D1,sigma_theta=SIGMA_THETA,sigma_D=SIGMA_D,b=B){
+fomega_cubic=function(cov_data,a,D0,D1,sigma_theta,sigma_D,b){
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -101,15 +99,15 @@ fomega_cubic=function(cov_data,a=A,D0=D0,D1=D1,sigma_theta=SIGMA_THETA,sigma_D=S
 }
 
 
+fomega=function(cov_data) {fomega_cubic(cov_data,A,D0,D1,SIGMA_THETA,SIGMA_D,B)} 
+
 
 # Approximation of smooth omega with tensor splines -----------------------
 
 n <- 100000                           #number of observations
-D_low=D0/2
-D_up=D0+3
 
 theta <- runif(n,-pi,pi)            #sample theta
-DistanceShore <- runif(n,D_low,D_up)     #sample DistanceShore
+DistanceShore <- runif(n,D_LOW,D_UP)     #sample DistanceShore
 
 samples=data.frame(theta=theta,DistanceShore=DistanceShore)  
 
@@ -119,7 +117,7 @@ Dshore_v<- seq(0.1,7,length=30)
 pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 # true values of the function over this grid
-truth <- matrix(fomega_cubic(pr),30,30)
+truth <- matrix(fomega(pr),30,30)
 
 #points on the surface perturbed by gaussian noise
 f <- fomega(samples)
@@ -130,7 +128,7 @@ persp(theta_v,Dshore_v,truth);
 title("truth")
 
 
-Ishore=ifelse(DistanceShore>D_LOW,1/DistanceShore,1/D_LOW)
+Ishore=ifelse(DistanceShore<D_LOW,1/D_LOW,ifelse(DistanceShore>D_UP,0,1/DistanceShore))
 
 #fit with bivariate splines te of Ishore
 m <- gam(y~te(theta,Ishore,k=SP_DF,bs="cs"))

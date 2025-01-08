@@ -40,7 +40,7 @@ data=foreach (i=1:N_ID_HIGH,.combine='rbind',.packages=c("progress","MASS","sf",
   ftau_constant=function(cov_data) {
     return (exp(true_log_tau[i]))
   }
-  res=sim_theta_CRCVM(ftau=ftau_constant,fomega=fomega_cubic,fnu=fnu_constant,
+  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,
                       log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
   
   data_sim=res$sim
@@ -63,7 +63,7 @@ for (id in unique(data$ID)) {
   }
 }
 
-cat(count/N_ID*100,"percent of the samples reached land")
+cat(count/N_ID_HIGH*100,"percent of the samples reached land")
 
 if (count>0) {
   stop("At least one trajectory reached land.")
@@ -73,16 +73,16 @@ if (count>0) {
 # add noise
 low_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_LOW^2,2)))
 high_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_HIGH^2,2)))
-observed_data_le=data_sim
-observed_data_le[,c("y1","y2")]=data_sim[,c("y1","y2")]+low_noise
-observed_data_he=data_sim
-observed_data_he[,c("y1","y2")]=data_sim[,c("y1","y2")]+high_noise
+observed_data_le=data
+observed_data_le[,c("y1","y2")]=data[,c("y1","y2")]+low_noise
+observed_data_he=data
+observed_data_he[,c("y1","y2")]=data[,c("y1","y2")]+high_noise
 
 # subsample
-data_lf_he=observed_data_he[seq(1,length(data_sim$time),by=BY_LF),]
-data_lf_le=observed_data_le[seq(1,length(data_sim$time),by=BY_LF),]
-data_hf_le=observed_data_le[seq(1,length(data_sim$time),by=BY_HF),]
-data_hf_he=observed_data_he[seq(1,length(data_sim$time),by=BY_HF),]
+data_lf_he=observed_data_he[seq(1,length(data$time),by=BY_LF),]
+data_lf_le=observed_data_le[seq(1,length(data$time),by=BY_LF),]
+data_hf_le=observed_data_le[seq(1,length(data$time),by=BY_HF),]
+data_hf_he=observed_data_he[seq(1,length(data$time),by=BY_HF),]
 
 
 # Save plot of the trajectories
@@ -95,7 +95,8 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey",border="black")+
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
-ggsave(filename=paste("simulated_trajectories_","seed",seed,sapply(strsplit(hyperparams_file,"\\.")),".png",sep=""),plot=plot,width=10,height=5)
+ggsave(filename=paste("simulated_trajectories_","seed",seed,
+                      sapply(strsplit(hyperparams_file,"\\."),'[',1),".png",sep=""),plot=plot,width=10,height=5)
 
 if (count>0) {
   stop("Stop : at least one trajectory reached the shore.")
@@ -172,7 +173,7 @@ add_covs=function(data) {
       }
     }
     new_data[sub_ind,"DistanceShore"]=Dshore
-    new_data[sub_ind,"Ishore"]=ifelse(Dshore>D_LOW,1/Dshore,1/D_LOW)
+    new_data[sub_ind,"Ishore"]=ifelse(Dshore<D_LOW,1/D_LOW,ifelse(Dshore>D_UP,0,1/Dshore))
   }
   
   return(new_data)
@@ -197,7 +198,7 @@ formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
 ### High number of ID
 ctcrw_lf_he_hID<- SDE$new(formulas = formulas,data = data_lf_he,type = "CTCRW",
                 response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 new_lambda=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2)
@@ -209,7 +210,7 @@ ctcrw_lf_he_hID$fit(method="BFGS")
 ### Low number of ID
 ctcrw_lf_he_lID<- SDE$new(formulas = formulas,data = data_lf_he[data_lf_he$ID %in% 1:N_ID_LOW,],type = "CTCRW",
                              response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                             other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                             other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 ctcrw_lf_he_lID$update_lambda(new_lambda)
@@ -222,7 +223,7 @@ ctcrw_lf_he_lID$fit(method="BFGS")
 ### High number of ID
 ctcrw_lf_le_hID<- SDE$new(formulas = formulas,data = data_lf_le,type = "CTCRW",
                              response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                             other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                             other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 ctcrw_lf_le_hID$update_lambda(new_lambda)
@@ -233,7 +234,7 @@ ctcrw_lf_le_hID$fit(method="BFGS")
 ### Low number of ID
 ctcrw_lf_le_lID<- SDE$new(formulas = formulas,data = data_lf_le[data_lf_le$ID %in% 1:N_ID_LOW,],type = "CTCRW",
                           response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 ctcrw_lf_le_lID$update_lambda(new_lambda)
@@ -248,7 +249,7 @@ ctcrw_lf_le_lID$fit(method="BFGS")
 ### High number of ID
 ctcrw_hf_he_hID<- SDE$new(formulas = formulas,data = data_hf_he,type = "CTCRW",
                           response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 ctcrw_hf_he_hID$update_lambda(new_lambda)
@@ -259,7 +260,7 @@ ctcrw_hf_he_hID$fit(method="BFGS")
 ### Low number of ID
 ctcrw_hf_he_lID<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_he$ID %in% 1:N_ID_LOW,],type = "CTCRW",
                           response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 new_lambda=c(exp(4),exp(4))
@@ -274,7 +275,7 @@ ctcrw_hf_he_lID$fit(method="BFGS")
 ### High number of ID
 ctcrw_hf_le_hID<- SDE$new(formulas = formulas,data = data_hf_le,type = "CTCRW",
                           response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 ctcrw_hf_le_hID$update_lambda(new_lambda)
@@ -285,7 +286,7 @@ ctcrw_hf_le_hID$fit(method="BFGS")
 ### Low number of ID
 ctcrw_hf_le_lID<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% 1:N_ID_LOW,],type = "CTCRW",
                           response = c("y1","y2"),par0 = PAR0[1:4],fixpar=c("mu1","mu2"),
-                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS_0)))
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize re variances
 new_lambda=c(exp(4),exp(4))
@@ -306,25 +307,28 @@ formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
 
 ### High number of ID
 
-crcvm_lf_he_hID<- SDE$new(formulas = formulas,data = data_lf_he_hID,type = "RACVM_SSM",
+crcvm_lf_he_hID<- SDE$new(formulas = formulas,data = data_lf_he,type = "RACVM_SSM",
                 response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                 other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize smoothing penalties and re variances
 new_lambda=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2,lambda_splines)
 crcvm_lf_he_hID$update_lambda(new_lambda)
+new_map=list("log_lambda"=factor(c(1,2,NA,NA)))
+crcvm_lf_he_hID$update_map(new_map)
 
 #fit
 crcvm_lf_he_hID$fit(method="BFGS")
 
 ### Low number of ID
 
-crcvm_lf_he_lID<- SDE$new(formulas = formulas,data = data_lf_he_lID,type = "RACVM_SSM",
+crcvm_lf_he_lID<- SDE$new(formulas = formulas,data = data_lf_he[data_lf_he$ID %in% 1:N_ID_LOW,],type = "RACVM_SSM",
                           response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                           other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize smoothing penalties and re variances
 crcvm_lf_he_lID$update_lambda(new_lambda)
+crcvm_lf_he_lID$update_map(new_map)
 
 #fit
 crcvm_lf_he_lID$fit(method="BFGS")
@@ -334,24 +338,26 @@ crcvm_lf_he_lID$fit(method="BFGS")
 
 ### High number of ID
 
-crcvm_lf_le_hID<- SDE$new(formulas = formulas,data = data_lf_le_hID,type = "RACVM_SSM",
+crcvm_lf_le_hID<- SDE$new(formulas = formulas,data = data_lf_le,type = "RACVM_SSM",
                           response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                           other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize smoothing penalties and re variances
 crcvm_lf_le_hID$update_lambda(new_lambda)
+crcvm_lf_le_hID$update_map(new_map)
 
 #fit
 crcvm_lf_le_hID$fit(method="BFGS")
 
 ### Low number of ID
 
-crcvm_lf_le_lID<- SDE$new(formulas = formulas,data = data_lf_le_lID,type = "RACVM_SSM",
+crcvm_lf_le_lID<- SDE$new(formulas = formulas,data = data_lf_le[data_lf_le$ID %in% 1:N_ID_LOW,],type = "RACVM_SSM",
                           response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                           other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize smoothing penalties and re variances
 crcvm_lf_le_lID$update_lambda(new_lambda)
+crcvm_lf_le_lID$update_map(new_map)
 
 #fit
 crcvm_lf_le_lID$fit(method="BFGS")
@@ -360,35 +366,63 @@ crcvm_lf_le_lID$fit(method="BFGS")
 
 ### High number of ID
 
-crcvm_hf_he_hID<- SDE$new(formulas = formulas,data = data_hf_he_hID,type = "RACVM_SSM",
+crcvm_hf_he_hID<- SDE$new(formulas = formulas,data = data_hf_he,type = "RACVM_SSM",
                           response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                           other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize smoothing penalties and re variances
 crcvm_hf_he_hID$update_lambda(new_lambda)
+crcvm_hf_he_hID$update_map(new_map)
 
 #fit
 crcvm_hf_he_hID$fit(method="BFGS")
 
 ### Low number of ID
 
-crcvm_hf_he_lID<- SDE$new(formulas = formulas,data = data_hf_he_lID,type = "RACVM_SSM",
+crcvm_hf_he_lID<- SDE$new(formulas = formulas,data = data_hf_he[data_hf_he$ID %in% 1:N_ID_LOW,],type = "RACVM_SSM",
                           response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
                           other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
 
 #initialize smoothing penalties and re variances
 crcvm_hf_he_lID$update_lambda(new_lambda)
+crcvm_hf_he_lID$update_map(new_map)
 
 #fit
 crcvm_hf_he_lID$fit(method="BFGS")
 
+## High frequency low error -------
 
+
+crcvm_hf_le_hID<- SDE$new(formulas = formulas,data = data_hf_le,type = "RACVM_SSM",
+                          response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
+
+#initialize smoothing penalties and re variances
+crcvm_hf_le_hID$update_lambda(new_lambda)
+crcvm_hf_le_hID$update_map(new_map)
+
+#fit
+crcvm_hf_le_hID$fit(method="BFGS")
+
+### Low number of ID
+
+crcvm_hf_le_lID<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% 1:N_ID_LOW,],type = "RACVM_SSM",
+                          response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
+                          other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
+
+#initialize smoothing penalties and re variances
+crcvm_hf_le_lID$update_lambda(new_lambda)
+crcvm_hf_le_lID$update_map(new_map)
+
+#fit
+crcvm_hf_le_lID$fit(method="BFGS")
 
 
 # Write estimated parameters in csv files -----------------------------
 
 write_estimates_csv=function(model,name) {
   
+  #coeffs
   coeffs=rbind(model$coeff_re(),model$coeff_fe()) #re and fe coeffs
   
   coeff_names=rownames(coeffs)
@@ -396,56 +430,61 @@ write_estimates_csv=function(model,name) {
   
   #standard deviation of random effects
   sdev=model$sdev()
-  sdev_names=rownames(sdev_ctcrw_lf_he_hID)
+  sdev_names=rownames(sdev)
   sdev_values=as.numeric(sdev)
   
+  #measurement error
+  log_sigma_obs_value=as.list(model$tmb_rep(),what="Est")$log_sigma_obs
+  
   #create dataframe
-  coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names)),
-                                       "estimate"=c(coeff_values,sdev_values))
+  coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
+                                       "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
   
   write.csv(coeffs_df,name, row.names=FALSE)
   
 }
 ## CTCRW -----------
 
+hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
+
 ### Low frequency high error ---
 
 #### High number of ID
 write_estimates_csv(ctcrw_lf_he_hID,paste("result_",domain_name,"ctcrw_lf_he_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 #### Low number of ID
 write_estimates_csv(ctcrw_lf_he_lID,paste("result_",domain_name,"ctcrw_lf_he_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 ### Low frequency low error ---
 
 #### High number of ID
 write_estimates_csv(ctcrw_lf_le_hID,paste("result_",domain_name,"ctcrw_lf_le_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 #### Low number of ID
 write_estimates_csv(ctcrw_lf_le_lID,paste("result_",domain_name,"ctcrw_lf_le_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 
 ### High frequency high error ----
 
 #### High number of ID
 write_estimates_csv(ctcrw_hf_he_hID,paste("result_",domain_name,"ctcrw_hf_he_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 #### Low number of ID
 write_estimates_csv(ctcrw_hf_he_lID,paste("result_",domain_name,"ctcrw_hf_he_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 ### High frequency low error ----
 
 #### High number of ID
 write_estimates_csv(ctcrw_hf_le_hID,paste("result_",domain_name,"ctcrw_hf_le_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 #### Low number of ID
 write_estimates_csv(ctcrw_hf_le_lID,paste("result_",domain_name,"ctcrw_hf_le_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 
 # CRCVM
@@ -455,201 +494,78 @@ write_estimates_csv(ctcrw_hf_le_lID,paste("result_",domain_name,"ctcrw_hf_le_lID
 
 #### High number of ID
 write_estimates_csv(crcvm_lf_he_hID,paste("result_",domain_name,"crcvm_lf_he_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 #### Low number of ID
 write_estimates_csv(crcvm_lf_he_lID,paste("result_",domain_name,"crcvm_lf_he_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 ### Low frequency low error ---
 
 #### High number of ID
 write_estimates_csv(crcvm_lf_le_hID,paste("result_",domain_name,"crcvm_lf_le_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 #### Low number of ID
 write_estimates_csv(crcvm_lf_le_lID,paste("result_",domain_name,"crcvm_lf_le_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 
 ### High frequency high error ----
 
 #### High number of ID
 write_estimates_csv(crcvm_hf_he_hID,paste("result_",domain_name,"crcvm_hf_he_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 #### Low number of ID
 write_estimates_csv(crcvm_hf_he_lID,paste("result_",domain_name,"crcvm_hf_he_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 ### High frequency low error ----
 
 #### High number of ID
 write_estimates_csv(crcvm_hf_le_hID,paste("result_",domain_name,"crcvm_hf_le_hID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 #### Low number of ID
 write_estimates_csv(crcvm_hf_le_lID,paste("result_",domain_name,"crcvm_hf_le_lID_","seed",seed,
-                                          sapply(strsplit(hyperparams_file,"\\.")),".csv",sep=""))
+                                          hyper_params_file_name,".csv",sep=""))
 
 
 
+# Save spline surface estimates ---------------
 
-
-# Get estimated parameters for RACVM-----------------------------
-
-
-## Low frequency high error ------------
-
-### High number of ID
-coeffs_crcvm_lf_he_hID=rbind(crcvm_lf_he_hID$coeff_re(),crcvm_lf_he_hID$coeff_fe()) #re and fe coeffs
-
-coeff_names_crcvm_hID=rownames(coeffs_lf_he_hID)
-coeff_values_crcvm_lf_he_hID=as.numeric(coeffs_crcvm_lf_he_hID)
-
-#standard deviation of random effects
-sdev_crcvm_lf_he_hID=sdev_crcvm_lf_he_hID$sdev()
-sdev_names_crcvm=rownames(sdev_crcvm_lf_he_hID)
-sdev_values_crcvm_lf_he_hID=as.numeric(sdev_crcvm_lf_he_hID)
-
-#create dataframe
-coeffs_df_crcvm_lf_he_hID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_hID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_lf_he_hID,sdev_values_crcvm_lf_he_hID))
-
-### Low number of ID
-
-coeffs_crcvm_lf_he_lID=rbind(crcvm_lf_he_lID$coeff_re(),crcvm_lf_he_lID$coeff_fe()) #re and fe coeffs
-
-coeff_names_crcvm_lID=rownames(coeffs_lf_he_lID)
-coeff_values_crcvm_lf_he_lID=as.numeric(coeffs_crcvm_lf_he_lID)
-
-#standard deviation of random effects
-sdev_crcvm_lf_he_lID=sdev_crcvm_lf_he_lID$sdev()
-sdev_values_crcvm_lf_he_lID=as.numeric(sdev_crcvm_lf_he_lID)
-
-#create dataframe
-coeffs_df_crcvm_lf_he_lID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_lID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_lf_he_lID,sdev_values_crcvm_lf_he_lID))
-
-
-
-## Low frequency low error ------------
-
-### High number of ID
-coeffs_crcvm_lf_le_hID=rbind(crcvm_lf_le_hID$coeff_re(),crcvm_lf_le_hID$coeff_fe()) #re and fe coeffs
-
-coeff_values_crcvm_lf_le_hID=as.numeric(coeffs_crcvm_lf_le_hID)
-
-#standard deviation of random effects
-sdev_crcvm_lf_le_hID=sdev_crcvm_lf_le_hID$sdev()
-sdev_values_crcvm_lf_le_hID=as.numeric(sdev_crcvm_lf_le_hID)
-
-#create dataframe
-coeffs_df_crcvm_lf_le_hID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_hID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_lf_le_hID,sdev_values_crcvm_lf_le_hID))
-
-### Low number of ID
-
-coeffs_crcvm_lf_le_lID=rbind(crcvm_lf_le_lID$coeff_re(),crcvm_lf_le_lID$coeff_fe()) #re and fe coeffs
-
-coeff_values_crcvm_lf_le_lID=as.numeric(coeffs_crcvm_lf_le_lID)
-
-#standard deviation of random effects
-sdev_crcvm_lf_le_lID=sdev_crcvm_lf_le_lID$sdev()
-sdev_values_crcvm_lf_le_lID=as.numeric(sdev_crcvm_lf_le_lID)
-
-#create dataframe
-coeffs_df_crcvm_lf_le_lID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_lID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_lf_le_lID,sdev_values_crcvm_lf_le_lID))
-
-
-
-
-## High frequency high error ------------
-
-### High number of ID
-coeffs_crcvm_hf_he_hID=rbind(crcvm_hf_he_hID$coeff_re(),crcvm_hf_he_hID$coeff_fe()) #re and fe coeffs
-
-coeff_values_crcvm_hf_he_hID=as.numeric(coeffs_crcvm_hf_he_hID)
-
-#standard deviation of random effects
-sdev_crcvm_hf_he_hID=sdev_crcvm_hf_he_hID$sdev()
-sdev_values_crcvm_hf_he_hID=as.numeric(sdev_crcvm_hf_he_hID)
-
-#create dataframe
-coeffs_df_crcvm_hf_he_hID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_hID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_hf_he_hID,sdev_values_crcvm_hf_he_hID))
-
-### Low number of ID
-
-coeffs_crcvm_hf_he_lID=rbind(crcvm_hf_he_lID$coeff_re(),crcvm_hf_he_lID$coeff_fe()) #re and fe coeffs
-
-coeff_values_crcvm_hf_he_lID=as.numeric(coeffs_crcvm_hf_he_lID)
-
-#standard deviation of random effects
-sdev_crcvm_hf_he_lID=sdev_crcvm_hf_he_lID$sdev()
-sdev_values_crcvm_hf_he_lID=as.numeric(sdev_crcvm_hf_he_lID)
-
-#create dataframe
-coeffs_df_crcvm_hf_he_lID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_lID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_hf_he_lID,sdev_values_crcvm_hf_he_lID))
-
-
-
-## High frequency low error ------------
-
-### High number of ID
-coeffs_crcvm_hf_le_hID=rbind(crcvm_hf_le_hID$coeff_re(),crcvm_hf_le_hID$coeff_fe()) #re and fe coeffs
-
-coeff_values_crcvm_hf_le_hID=as.numeric(coeffs_crcvm_hf_le_hID)
-
-#standard deviation of random effects
-sdev_crcvm_hf_le_hID=sdev_crcvm_hf_le_hID$sdev()
-sdev_values_crcvm_hf_le_hID=as.numeric(sdev_crcvm_hf_le_hID)
-
-#create dataframe
-coeffs_df_crcvm_hf_le_hID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_hID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_hf_le_hID,sdev_values_crcvm_hf_le_hID))
-
-### Low number of ID
-
-coeffs_crcvm_hf_le_lID=rbind(crcvm_hf_le_lID$coeff_re(),crcvm_hf_le_lID$coeff_fe()) #re and fe coeffs
-
-coeff_values_crcvm_hf_le_lID=as.numeric(coeffs_crcvm_hf_le_lID)
-
-#standard deviation of random effects
-sdev_crcvm_hf_le_lID=sdev_crcvm_hf_le_lID$sdev()
-sdev_values_crcvm_hf_le_lID=as.numeric(sdev_crcvm_hf_le_lID)
-
-#create dataframe
-coeffs_df_crcvm_hf_le_lID=data.frame("coeff_name"=factor(c(coeff_names_crcvm_lID,sdev_names_crcvm)),
-                                     "estimate"=c(coeff_values_crcvm_hf_le_lID,sdev_values_crcvm_hf_le_lID))
-
-
-
-# Plot spline estimates ---------------
-
+write_surface=function(model,name) {
+  
+  
+  plots=model$get_all_plots(link=list("Ishore"=(\(x) 1/x)))
+  
+  surface=plots$fe_omega_theta_Ishore
+  
+  Dshore_values = as.numeric(surface$x$data[[1]]$x)
+  theta_values = as.numeric(surface$x$data[[1]]$y)
+  omega_values = as.numeric(surface$x$data[[1]]$z)
+  
+  data_surface=expand.grid(Dshore = Dshore_values, theta = theta_values)
+  data_surface=as.vector(omega_values)
+  
+  write.csv(data_surface,name, row.names=FALSE)
+  
+}
 ## Low frequency high error
 
-plots_crcvm_lf_he_lID=crcvm_lf_he_hID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
 
-plots_crcvm_lf_he_hID=crcvm_lf_he_lID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
+write_surface(crcvm_lf_he_hID,"surface_crcvm_lf_he_hID.csv")
+write_surface(crcvm_lf_he_lID,"surface_crcvm_lf_he_lID.csv")
 
 
 # Low frequency low error
 
-
-plots_crcvm_lf_le_lID=crcvm_lf_le_hID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
-
-plots_crcvm_lf_le_hID=crcvm_lf_le_lID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
-
+write_surface(crcvm_lf_le_hID,"surface_crcvm_lf_le_hID.csv")
+write_surface(crcvm_lf_le_lID,"surface_crcvm_lf_le_lID.csv")
 
 ## High frequency high error
-plots_crcvm_hf_he_lID=crcvm_hf_he_lID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
-
-plots_crcvm_hf_he_hID=crcvm_hf_he_lID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
-
+write_surface(crcvm_hf_he_hID,"surface_crcvm_hf_he_hID.csv")
+write_surface(crcvm_hf_he_lID,"surface_crcvm_hf_he_lID.csv")
 
 ## High frequency low error
-plots_crcvm_hf_le_lID=crcvm_hf_le_lID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
-
-plots_crcvm_hf_le_hID=crcvm_hf_le_lID$plot_par(var="theta",par_name="omega",covs=data.frame("ID"="Asgeir","Ishore"=c(1/0.1,1/1,1/2.5)))
-
+write_surface(crcvm_hf_le_hID,"surface_crcvm_hf_le_hID.csv")
+write_surface(crcvm_hf_le_lID,"surface_crcvm_hf_le_lID.csv")

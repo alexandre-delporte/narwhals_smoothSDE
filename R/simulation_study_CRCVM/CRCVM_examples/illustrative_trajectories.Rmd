@@ -760,7 +760,7 @@ data_sim_rect_tanh=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS"
   
   set.seed((seed-1)*N+i)
   
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_minimal,fnu=fnu_constant,v0=v0,x0=x0[i,],
+  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_tanh,fnu=fnu_constant,v0=v0,x0=x0[i,],
                     times=times,land=rect_border,verbose=FALSE)
   
   data_sim=res$sim
@@ -794,7 +794,7 @@ ggplot() +
 The process is avoiding land by rotating when it approaches the boundary. 
 Now, to have trajectories that tends to remain close to the boundary and move along it we can use the function \texttt{fomega_cubic} instead.
 
-```{r simulate with omega cubic in rectangle,cache=TRUE}
+```{r simulate with omega cubic attractive in rectangle,cache=TRUE}
 
 fomega_cubic_rect_attractive=function(cov_data) {
   
@@ -846,7 +846,7 @@ ggplot() +
 We remove the attractive term in the function by taking parameter $b=0$.
 
 
-```{r simulate with omega cubic in rectangle,cache=TRUE}
+```{r simulate with omega cubic repulsive in rectangle,cache=TRUE}
 
 fomega_cubic_rect_repulsive=function(cov_data) {
   
@@ -962,6 +962,7 @@ registerDoParallel(cl)
 data_sim_rect_cubic_gaussian_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
   set.seed((seed-1)*N+i)
+  
   
   res=sim_CRCVM(ftau=ftau_gaussian,fomega=fomega_cubic_rect_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
                     times=times,land=rect_border,verbose=FALSE)

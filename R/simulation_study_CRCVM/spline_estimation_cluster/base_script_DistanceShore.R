@@ -9,8 +9,8 @@
 # Script Name:    base_script_DistanceShore.R
 #
 # Script Description: Base script for simulation study with DistanceShore covariate. 
-# Scripts to execute on the clusters for parameter estimation are generated from this script. BE CAREFUL WHEN
-# MODIFYING THIS SCRIPT
+# Scripts to execute on the clusters for parameter estimation are generated from this script. 
+# BE CAREFUL WHEN MODIFYING THIS SCRIPT
 #
 #
 # SETUP ------------------------------------
@@ -24,7 +24,7 @@ library(doParallel)         #parallel computing
 
 
 domain_name="rect"
-par_dir=here("R","simulation_study_CRCVM","spline_estimation",domain_name)
+par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
 set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories

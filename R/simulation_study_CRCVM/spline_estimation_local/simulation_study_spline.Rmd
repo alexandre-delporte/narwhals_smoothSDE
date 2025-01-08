@@ -359,6 +359,9 @@ data_lf_he$speed=as.vector(sapply(unique(data_sub$ID),function(id) {c(NA,sqrt(di
 ggplot(data_lf_he)+geom_histogram(aes(x=speed),bins=30)+facet_wrap(~ID)+theme_minimal()
 quantile(data_lf_he$speed,na.rm=TRUE)
 ```
+```{r}
+ggplot(data_lf_he)+geom_histogram(aes(x=theta),bins=30)+facet_wrap(~ID)+theme_minimal()
+```
 
 ## Estimate CTCRW
 
@@ -524,11 +527,10 @@ m1$sp
 
 ```{r fit sde model with splines,cache=TRUE}
 
-cropped_data=data_lf_he[data_lf_he$ID %in% 1:3,]
 
-H=array(rep(SIGMA_OBS_high^2*diag(2),length(cropped_data$time)),dim=c(2,2,length(cropped_data$time)))
+H=array(rep(SIGMA_OBS_high^2*diag(2),length(data_lf_he$time)),dim=c(2,2,length(data_lf_he$time)))
 
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
+formulas <- list(mu1=~1,mu2=~1,tau=~s(theta,k=8,bs="cc"),
                  nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 
 
@@ -536,8 +538,8 @@ crcvm_splines_lf_he<- SDE$new(formulas = formulas,data = cropped_data,type = "RA
                     response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(0.05)))
 
-crcvm_splines_lf_he$update_map(list("log_lambda"=factor(rep(NA,2))))
-crcvm_splines_lf_he$update_lambda(c(10^-7,10^-13))
+crcvm_splines_lf_he$update_map(list("log_lambda"=factor(c(1,rep(NA,2)))))
+crcvm_splines_lf_he$update_lambda(c(1,10^-7,10^-13))
 #fit
 crcvm_splines_lf_he$fit(method="BFGS")
 ```

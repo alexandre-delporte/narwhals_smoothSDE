@@ -10,7 +10,7 @@ library(doParallel)         #parallel computing
 
 
 domain_name="rect"
-par_dir=here("R","simulation_study_CRCVM","spline_estimation",domain_name)
+par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
 set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
@@ -200,6 +200,5 @@ true_df=data.frame("true"=c(tau_re,nu_re,sp_coeff_Dshore[2:(SP_DF[1]*SP_DF[2])],
 
 coeffs_df=cbind(coeffs_df,true_df)
 
-write.csv(coeffs_df,paste("result_",domain_name,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",
-SP_DF[1],"-",SP_DF[2],"spdf_DistanceShore",seed,".csv",sep=""), row.names=FALSE)
+write.csv(coeffs_df,paste("result_",domain_name,"_DistanceShore_",hyperparams_file,"_",seed,".csv",sep=""), row.names=FALSE)
 
