@@ -9,7 +9,7 @@
 # Script Name:    set_up_fjords.R
 #
 # Script Description: Set up of the simulation study for the CRCVM within 
-# a Scoresby Sound fjords system
+# Scoresby Sound fjords system
 #
 #
 # SETUP ------------------------------------
@@ -27,8 +27,8 @@ library(smoothSDE)          #to compute nearest shore point
 # READ HYPERPARAMETERS FILE
 
 # Read hyperparameters from a user specified file
-hyperparams_file <- "hyperparams_file.txt"  # Update this with a bash variable
-path=here("R","simulation_study_CRCVM","spline_estimation")
+hyperparams_file <- "hyperparams_set1.txt"  # Update this with a bash variable
+path=here("R","simulation_study_CRCVM","spline_estimation_cluster")
 
 # Read the file and evaluate each line
 lines <- readLines(file.path(path,hyperparams_file))
@@ -40,12 +40,11 @@ for (line in lines) {
 
 
 # Set the path to the directory containing the data
-greenland_data_path <- file.path("/home","delporta","Documents","Research","Projects","narwhals_smoothSDE","Data","Greenland")
+greenland_data_path <- here("Data","preprocessed_data","greenland")
 
 #get the land and coastline geometries from the geojson file
-border<-st_read(file.path(greenland_data_path,"land_utm.shp"))
+border<-st_read(file.path(greenland_data_path,"updated_scoresbysound_utm.shp"))
 st_crs(border)="+init=EPSG:32626"
-border<-st_make_valid(border)
 
 v0=c(0,0)
 
@@ -60,7 +59,7 @@ while (i<=N_ID) {
   p=nearest_shore_point(st_point(x),border)
   Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
   #keep it as initial position if it is at least 50 metres away from the shore
-  if (Dshore>DMIN) {
+  if (Dshore>DMIN & Dshore<DMAX) {
     x0[i,]=x
     i=i+1
   }
@@ -89,15 +88,16 @@ true_log_nu=nu_re+log(NU_0)
 
 # Defintion of smooth parameter omega ----------
 
-fomega=function(cov_data,D0=0.5,omega0=60*pi,lambda=1.5,kappa=0.2) {
+fomega_cubic=function(cov_data,a=A,D0=D0,D1=D1,sigma_theta=SIGMA_THETA,sigma_D=SIGMA_D,b=B){
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
-    Dshore=1/cov_data$ExpShore
+    Dshore=1/cov_data$Ishore
   }
-  coeff=exp(-kappa*(Dshore/D0)^2)
-  omega=omega0/2*(tanh(lambda*(theta+pi/2-atanh(-0.9)/lambda))+tanh(lambda*(theta-(pi/2-atanh(-0.9)/lambda))))*coeff
-  return(omega)
+  
+  a*theta*(theta-pi/2)*(theta+pi/2)*exp(-Dshore/D0)/Dshore+
+    b*(exp(-1/2*(((theta+pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2))-
+         exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2)))
 }
 
 
@@ -105,8 +105,8 @@ fomega=function(cov_data,D0=0.5,omega0=60*pi,lambda=1.5,kappa=0.2) {
 # Approximation of smooth omega with tensor splines -----------------------
 
 n <- 100000                           #number of observations
-D_low=1
-D_up=5
+D_low=D0/2
+D_up=D0+3
 
 theta <- runif(n,-pi,pi)            #sample theta
 DistanceShore <- runif(n,D_low,D_up)     #sample DistanceShore
@@ -119,7 +119,7 @@ Dshore_v<- seq(0.1,7,length=30)
 pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 # true values of the function over this grid
-truth <- matrix(fomega(pr),30,30)
+truth <- matrix(fomega_cubic(pr),30,30)
 
 #points on the surface perturbed by gaussian noise
 f <- fomega(samples)
@@ -130,45 +130,28 @@ persp(theta_v,Dshore_v,truth);
 title("truth")
 
 
-#fit with bivariate splines te fo DistanceShore
-knots_DistanceShore=list(theta=seq(-pi,pi,len=SP_DF[1]),DistanceShore=seq(D_low,D_up,len=SP_DF[2]))
-m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs="cs"),knots=knots_DistanceShore)
+Ishore=ifelse(DistanceShore>D_LOW,1/DistanceShore,1/D_LOW)
 
-#visualize
-vis.gam(m1);title("tensor product")
-
-df=data.frame("x"=theta,"z"=DistanceShore,"y"=y)
-fig <- plot_ly(df,type="scatter3d", x = ~x, y = ~z, z = ~y,mode="markers",marker=list(size=4))
-fig
-
-
-
-ExpShore=1/DistanceShore
-
-#fit with bivariate splines te of ExpShore
-knots_ExpShore=list(theta=seq(-pi,pi,len=SP_DF[1]),ExpShore=seq(1/D_up,1/D_low,len=SP_DF[2]))
-m2 <- gam(y~te(theta,ExpShore,k=SP_DF,bs="cs"),knots=knots_ExpShore)
+#fit with bivariate splines te of Ishore
+m <- gam(y~te(theta,Ishore,k=SP_DF,bs="cs"))
 
 
 #visualize
-vis.gam(m2);title("tensor product")
+vis.gam(m);title("tensor product")
 
 
-#get splines coefficients
+#get splines coefficients=
+sp_coeff=m$coefficients
 
-sp_coeff_Dshore=m1$coefficients
-sp_coeff_ExpShore=m2$coefficients
+
+#get smooothing penalties coefficients
+lambda_splines=m$sp
 
 
 #define spline smooth parameter omega
 fomega_splines=function(cov_data) {
   
-  if (is.null(cov_data$ExpShore)){
-    omega=predict(m1,newdata=cov_data)
-  }
-  else if (is.null(cov_data$DistanceShore)){
-    omega=predict(m2,newdata=cov_data)
-  }
+    omega=predict(m,newdata=cov_data)
   
   return(as.numeric(omega))
 }
@@ -176,13 +159,7 @@ fomega_splines=function(cov_data) {
 #k-th basis spline function for omega
 fomega_spline_basis=function(cov_data,k=5) {
   
-  if (is.null(cov_data$ExpShore)){
-    Xp=predict(m1, newdata = cov_data, type = "lpmatrix")
-    
-  }
-  else if (is.null(cov_data$DistanceShore)){
-    Xp=predict(m2, newdata = cov_data, type = "lpmatrix")
-  }
+  Xp=predict(m2, newdata = cov_data, type = "lpmatrix")
   coeffs=rep(0,ncol(Xp))
   coeffs[k]=1
   return(as.numeric(Xp%*%coeffs))
