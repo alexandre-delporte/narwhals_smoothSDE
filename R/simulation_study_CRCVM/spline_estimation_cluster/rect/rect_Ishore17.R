@@ -420,7 +420,7 @@ crcvm_hf_le_lID$fit(method="BFGS")
 
 # Write estimated parameters in csv files -----------------------------
 
-write_estimates_csv=function(model,name) {
+write_estimates_csv=function(model,model_name) {
   
   #coeffs
   coeffs=rbind(model$coeff_re(),model$coeff_fe()) #re and fe coeffs
@@ -440,7 +440,8 @@ write_estimates_csv=function(model,name) {
   coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
                                        "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
   
-  write.csv(coeffs_df,name, row.names=FALSE)
+  write.csv(coeffs_df,paste("result_",domain_name,"_",model_name,
+                            "_seed",seed,"_",hyper_params_file_name,".csv",sep=""), row.names=FALSE)
   
 }
 ## CTCRW -----------
@@ -450,41 +451,35 @@ hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 ### Low frequency high error ---
 
 #### High number of ID
-write_estimates_csv(ctcrw_lf_he_hID,paste("result_",domain_name,"ctcrw_lf_he_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_lf_he_hID,"ctcrw_lf_he_hID")
 
 #### Low number of ID
-write_estimates_csv(ctcrw_lf_he_lID,paste("result_",domain_name,"ctcrw_lf_he_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_lf_he_lID,"ctcrw_lf_he_lID")
 
 ### Low frequency low error ---
 
 #### High number of ID
-write_estimates_csv(ctcrw_lf_le_hID,paste("result_",domain_name,"ctcrw_lf_le_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_lf_le_hID,"ctcrw_lf_le_hID_")
+
 #### Low number of ID
-write_estimates_csv(ctcrw_lf_le_lID,paste("result_",domain_name,"ctcrw_lf_le_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_lf_le_lID,"ctcrw_lf_le_lID_")
 
 
 ### High frequency high error ----
 
 #### High number of ID
-write_estimates_csv(ctcrw_hf_he_hID,paste("result_",domain_name,"ctcrw_hf_he_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_hf_he_hID,"ctcrw_hf_he_hID")
 
 #### Low number of ID
-write_estimates_csv(ctcrw_hf_he_lID,paste("result_",domain_name,"ctcrw_hf_he_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_hf_he_lID,"ctcrw_hf_he_lID")
 
 ### High frequency low error ----
 
 #### High number of ID
-write_estimates_csv(ctcrw_hf_le_hID,paste("result_",domain_name,"ctcrw_hf_le_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_hf_le_hID,"ctcrw_hf_le_hID")
+
 #### Low number of ID
-write_estimates_csv(ctcrw_hf_le_lID,paste("result_",domain_name,"ctcrw_hf_le_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(ctcrw_hf_le_lID,"ctcrw_hf_le_lID")
 
 
 # CRCVM
@@ -493,47 +488,39 @@ write_estimates_csv(ctcrw_hf_le_lID,paste("result_",domain_name,"ctcrw_hf_le_lID
 ### Low frequency high error ---
 
 #### High number of ID
-write_estimates_csv(crcvm_lf_he_hID,paste("result_",domain_name,"crcvm_lf_he_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_lf_he_hID,"crcvm_lf_he_hID")
 
 #### Low number of ID
-write_estimates_csv(crcvm_lf_he_lID,paste("result_",domain_name,"crcvm_lf_he_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_lf_he_lID,"crcvm_lf_he_lID")
 
 ### Low frequency low error ---
 
 #### High number of ID
-write_estimates_csv(crcvm_lf_le_hID,paste("result_",domain_name,"crcvm_lf_le_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_lf_le_hID,"crcvm_lf_le_hID")
 #### Low number of ID
-write_estimates_csv(crcvm_lf_le_lID,paste("result_",domain_name,"crcvm_lf_le_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_lf_le_lID,"crcvm_lf_le_lID")
 
 
 ### High frequency high error ----
 
 #### High number of ID
-write_estimates_csv(crcvm_hf_he_hID,paste("result_",domain_name,"crcvm_hf_he_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_hf_he_hID,"crcvm_hf_he_hID")
 
 #### Low number of ID
-write_estimates_csv(crcvm_hf_he_lID,paste("result_",domain_name,"crcvm_hf_he_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_hf_he_lID,"crcvm_hf_he_lID")
 
 ### High frequency low error ----
 
 #### High number of ID
-write_estimates_csv(crcvm_hf_le_hID,paste("result_",domain_name,"crcvm_hf_le_hID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_hf_le_hID,"crcvm_hf_le_hID")
 #### Low number of ID
-write_estimates_csv(crcvm_hf_le_lID,paste("result_",domain_name,"crcvm_hf_le_lID_","seed",seed,
-                                          hyper_params_file_name,".csv",sep=""))
+write_estimates_csv(crcvm_hf_le_lID,"crcvm_hf_le_lID")
 
 
 
 # Save spline surface estimates ---------------
 
-write_surface=function(model,name) {
+write_surface=function(model,model_name) {
   
   
   plots=model$get_all_plots(link=list("Ishore"=(\(x) 1/x)))
@@ -547,25 +534,27 @@ write_surface=function(model,name) {
   data_surface=expand.grid(Dshore = Dshore_values, theta = theta_values)
   data_surface=as.vector(omega_values)
   
-  write.csv(data_surface,name, row.names=FALSE)
+  write.csv(data_surface,
+            paste("surface_",domain_name,"_",model_name,hyper_params_file_name,"_seed",seed,".csv"),
+            row.names=FALSE)
   
 }
 ## Low frequency high error
 
 
-write_surface(crcvm_lf_he_hID,"surface_crcvm_lf_he_hID.csv")
-write_surface(crcvm_lf_he_lID,"surface_crcvm_lf_he_lID.csv")
+write_surface(crcvm_lf_he_hID,"crcvm_lf_he_hID")
+write_surface(crcvm_lf_he_lID,"crcvm_lf_he_lID")
 
 
 # Low frequency low error
 
-write_surface(crcvm_lf_le_hID,"surface_crcvm_lf_le_hID.csv")
-write_surface(crcvm_lf_le_lID,"surface_crcvm_lf_le_lID.csv")
+write_surface(crcvm_lf_le_hID,"crcvm_lf_le_hID")
+write_surface(crcvm_lf_le_lID,"crcvm_lf_le_lID")
 
 ## High frequency high error
-write_surface(crcvm_hf_he_hID,"surface_crcvm_hf_he_hID.csv")
-write_surface(crcvm_hf_he_lID,"surface_crcvm_hf_he_lID.csv")
+write_surface(crcvm_hf_he_hID,"crcvm_hf_he_hID")
+write_surface(crcvm_hf_he_lID,"crcvm_hf_he_lID")
 
 ## High frequency low error
-write_surface(crcvm_hf_le_hID,"surface_crcvm_hf_le_hID.csv")
-write_surface(crcvm_hf_le_lID,"surface_crcvm_hf_le_lID.csv")
+write_surface(crcvm_hf_le_hID,"crcvm_hf_le_hID")
+write_surface(crcvm_hf_le_lID,"crcvm_hf_le_lID")

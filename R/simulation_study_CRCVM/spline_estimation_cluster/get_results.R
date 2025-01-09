@@ -22,142 +22,131 @@ library(tidyverse)
 
 
 domains=c("circ","rect","fjords")
-list_TMAX=c(12,60)
-covs=c("DistanceShore")
-list_N_ID=c(6,12)
-list_DMIN=c(1)
-SP_DF=c(3,3)
-D_low=1
-D_up=5
+hyperparams_files_list=list.files(pattern = ".*.txt")
 
 for (domain in domains) {
   
-  for (cov in covs) {
-  
-    for (TMAX in list_TMAX) {
-      
-      print(TMAX)
-      
-      for (N_ID in list_N_ID) {
-        
-        for (DMIN in list_DMIN) {
+  for (hyperparams_file in hyperparams_files_list) {
+          
+          # get name of hyperparameters file without extension
+          hyperparams_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
   
           # Read csv files ----------
-          pattern<- sprintf("result_%s_%dh_%dID_%dkm_%s[1-9][0-9]*",domain,TMAX,N_ID,DMIN,cov)
-          files<- list.files(path=domain,pattern = pattern)
+          pattern<- sprintf("^result_%s.*%s\\.csv$",domain,hyperparams_file_name)
+          result_files<- list.files(path=domain,pattern =pattern)
       
 
-          #bind all results in one dataframe 
-          all_df=data.frame("coeff_name"=NA,"estimate"=NA,"true"=NA)
+          #bind all results for each framework in a list of dataframes 
+          all_results=list()
           
           #loop over output result files
-          for (file in files) {
+          for (file in result_files) {
+            
+            # get framework type
+            split<- strsplit(file, "_")[[1]]
+            type=paste(split[3:6], collapse = "_")
             
             df=read.csv(file.path(domain,file))
-            n_row=length(df$true)
-            value=df[n_row-2,2]
-            if (value<0.75) {
-              all_df=rbind(all_df,df)
-            }
-          }
-          
-          # remove irrelevant rows
-          all_df=all_df[-1,]
-          all_df=subset(all_df,!(coeff_name %in% c("mu1.(Intercept)","mu2.(Intercept)","omega.te(theta,DistanceShore)")))
-          
-          #number of simulations and coeffs
-          N=length(files)
-          n_coeff=length(unique(all_df$coeff_name))
-          
-          # true values
-          true_values=all_df[1:n_coeff,"true"]
-          names(true_values)=unique(all_df$coeff_name)
-  
-          
-          #plot histograms
-          histo_tau_ID=ggplot(all_df[all_df$coeff_name %in% paste("tau.s(ID).",1:N_ID,sep=""),],aes(x=estimate))+ 
-            geom_histogram(aes(y=..density..), colour="black", fill="white")+
-            geom_density(alpha=.2, fill="#FF6666") +
-            geom_vline(aes(xintercept=true),color="blue", linetype="dashed", size=0.5)+
-            facet_wrap(~coeff_name)
-          
-          histo_nu_ID=ggplot(all_df[all_df$coeff_name %in% paste("nu.s(ID).",1:N_ID,sep=""),],aes(x=estimate))+ 
-            geom_histogram(aes(y=..density..), colour="black", fill="white")+
-            geom_density(alpha=.2, fill="#FF6666") +
-            geom_vline(aes(xintercept=true),color="blue", linetype="dashed", size=0.5)+
-            facet_wrap(~coeff_name)
-          
-          histo_omega_te=ggplot(all_df[all_df$coeff_name %in% paste(paste("omega.te(theta,",cov,").",sep=""),1:8,sep=""),],aes(x=estimate))+ 
-            geom_histogram(aes(y=..density..), colour="black", fill="white")+
-            geom_density(alpha=.2, fill="#FF6666") +
-            geom_vline(aes(xintercept=true),color="blue", linetype="dashed", size=0.5)+
-            facet_wrap(~coeff_name)
-          
-          histo_sigma=ggplot(all_df[all_df$coeff_name %in% c("tau.s(ID)","nu.s(ID)"),],aes(x=estimate))+ 
-            geom_histogram(aes(y=..density..), colour="black", fill="white")+
-            geom_density(alpha=.2, fill="#FF6666") +
-            geom_vline(aes(xintercept=true),color="blue", linetype="dashed", size=0.5)+
-            facet_wrap(~coeff_name)
-          
-          histo_intercepts=ggplot(all_df[all_df$coeff_name %in% c("tau.(Intercept)","nu.(Intercept)","omega.(Intercept)"),],aes(x=estimate))+ 
-            geom_histogram(aes(y=..density..), colour="black", fill="white")+
-            geom_density(alpha=.2, fill="#FF6666") +
-            geom_vline(aes(xintercept=true),color="blue", linetype="dashed", size=0.5)+
-            facet_wrap(~coeff_name)
-    
-          ggsave(filename=paste(paste("histo_tauID",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
-                 plot=histo_tau_ID,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo_nuID",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
-                 plot=histo_nu_ID,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo_omega.te",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
-                 plot=histo_omega_te,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo_sigma",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
-                 plot=histo_sigma,path=file.path(domain),width=10,height=5)
-          ggsave(filename=paste(paste("histo_intercepts",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".png",sep=""),
-                 plot=histo_intercepts,path=file.path(domain),width=10,height=5)
-  
-          # Mean, std error, bias and rmse ------------
-  
-          biais=c()
-          re_biais=c()
-          rmse=c()
-          mean=c()
-          sd=c()
-      
-          #loop over the coefficient names
-          for (name in unique(all_df$coeff_name)) {
-        
-            #all estimates for this coeff
-            estimates=all_df[all_df$coeff_name==name,"estimate"]
-           
-            #true value
-            true_value=true_values[name]
-         
-            biais=c(biais,1/N*sum(estimates-true_value))
-            rmse=c(rmse,sqrt(1/N*sum((estimates-true_value)^2)))
-            mean_value=1/N*sum(estimates)
-            mean=c(mean,mean_value)
-            sd=c(sd,sqrt(1/N*sum((estimates-mean_value)^2)))
-          
-            if (true_value==0) {
-              re_biais=c(re_biais,NA)
+            
+            if (type %in% names(all_results)) {
+              all_results[[type]]<- rbind(all_results[[type]],df)
             }
             else {
-                re_biais=c(re_biais,100*1/N*sum((estimates-true_value)/true_value))
+              all_results[[type]]<- df
             }
+          
           }
+          
+         
+          
+          #plot histograms for each parameter in each framework
+          for (type in names(all_results)) {
+            
+            
+            # histogram for random effects in tau
+            histo_tau_ID=ggplot(all_results[[type]][all_results$coeff_name %in% paste("tau.s(ID).",1:N_ID,sep=""),],aes(x=estimate))+ 
+              geom_histogram(aes(y=..density..), colour="black", fill="white")+
+              geom_density(alpha=.2, fill="#FF6666") +
+              facet_wrap(~coeff_name)
+            
+            # histogram for random effects in nu
+            histo_nu_ID=ggplot(all_results[all_results$coeff_name %in% paste("nu.s(ID).",1:N_ID,sep=""),],aes(x=estimate))+ 
+              geom_histogram(aes(y=..density..), colour="black", fill="white")+
+              geom_density(alpha=.2, fill="#FF6666") +
+              facet_wrap(~coeff_name)
+            
+            # histogram for standard deviation of random effects
+            histo_sigma_re=ggplot(all_results[all_results$coeff_name %in% c("tau.s(ID)","nu.s(ID)"),],aes(x=estimate))+ 
+              geom_histogram(aes(y=..density..), colour="black", fill="white")+
+              geom_density(alpha=.2, fill="#FF6666") +
+              facet_wrap(~coeff_name)
+            
+            # histogram for intercepts tau and nu
+            histo_intercepts=ggplot(all_results[all_results$coeff_name %in% c("tau.(Intercept)","nu.(Intercept)"),],aes(x=estimate))+ 
+              geom_histogram(aes(y=..density..), colour="black", fill="white")+
+              geom_density(alpha=.2, fill="#FF6666") +
+              facet_wrap(~coeff_name)
+            
+            # histogram for measurement error standard deviation
+            histo_sigma_obs=ggplot(all_results[all_results$coeff_name == "log_sigma_obs",],aes(x=estimate))+ 
+              geom_histogram(aes(y=..density..), colour="black", fill="white")+
+              geom_density(alpha=.2, fill="#FF6666") +
+              facet_wrap(~coeff_name)
+            
+            
 
-          #create the dataframe with results
-          results=data.frame("coeff_name"=unique(all_df$coeff_name),"true"=true_values,"mean"=mean,
-                             "sd"=sd,"biais"=biais,"re_biais"=re_biais,"rmse"=rmse)
-      
-      
-          p=ggplot()+geom_violin(data=all_df,aes(x=coeff_name,y=estimate,fill=coeff_name))+
-            xlab(" ")+labs(fill = "Estimated coefficients")+
-            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-            geom_point(data = all_df, aes(x = coeff_name, y = true), color = "red", size = 1,shape=4)
-      
-      
+            
+            ggsave(filename=paste("histo_",domain,"_",type,"_tauID",".png",sep=""),
+                   plot=histo_tau_ID,path=file.path(domain),width=10,height=5)
+            ggsave(filename=paste("histo_",domain,"_",type,"_nuID",".png",sep=""),
+                   plot=histo_nu_ID,path=file.path(domain),width=10,height=5)
+            ggsave(filename=paste("histo_",domain,"_",type,"_sigma_re",".png",sep=""),
+                   plot=histo_sigma_re,path=file.path(domain),width=10,height=5)
+            ggsave(filename=paste("histo_",domain,"_",type,"_sigma_obs",".png",sep=""),
+                   plot=histo_intercepts,path=file.path(domain),width=10,height=5)
+            
+          }
+          
+  
+          # Mean, std error and CI -----------
+          
+          all_parameter_estimates=list()
+          
+           #Loop over the frameworks 
+          for (type in names(all_results)) {
+            
+            # results for single framework
+            df=all_results[[type]]
+            #number of coeffs to estimate in single framework
+            n_coeffs=length(unique(df$coeff_name))
+            #number of simulations
+            n_sim=length(df$coeff_name)/n_coeffs
+            # dataframe for estimates
+            parameter_estimates_df=data.frame("coeff_name"=unique(all_results[[type]])$coeff_name,
+                                              "mean"=rep(0,n_coeffs),
+                                              "sd"=rep(0,n_coeffs),
+                                              "low"=rep(0,n_coeffs),
+                                              "up"=rep(0,n_coeffs))
+            
+            #loop over the coefficient names
+            for (coeff_name in unique(all_results[[type]]$coeff_name)) {
+            
+            #all estimates for this coeff
+            estimates=df[df$coeff_name==coeff_name,"estimate"]
+           
+            mean_value=1/n_sim*sum(estimates)
+            sd_value=sqrt(1/n_sim*sum((estimates-mean_value)^2))
+            
+            quantile=quantile(estimates,c(0.025,0.975))
+            
+            parameter_estimates_df[coeff_name,]=c(mean_value,sd_value,quantiles)
+          
+            }
+            
+          all_parameter_estimate[[type]]<-parameter_estimates_df
+          
+          }
+         
           #round values to 2 digits
           round_numeric <- function(x,digits=3) {
             if (is.numeric(x)) {
@@ -167,9 +156,13 @@ for (domain in domains) {
             }
           }
       
-          results=as.data.frame(lapply(results, round_numeric))
-      
-          write.csv(results, paste(paste("result_",domain,"_",TMAX,"h_",N_ID,"ID_",DMIN,"km_",cov,sep=""),".csv",sep=""), row.names=FALSE)
+          all_parameter_estimates=lapply(all_parameter_estimates, function(df) {as.data.frame(lapply(df, round_numeric))})
+          
+          for (type in names(all_parameter_estimates)) {
+            
+            write.csv(path=file.path(domain),all_parameter_estimates[[type]], 
+                      paste("result_",domain,"_",type,"_",hyperparams_file_name,".csv",sep=""),
+                      row.names=FALSE)
           
           
           #get the set up
