@@ -109,8 +109,15 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey",border="black")+
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
-ggsave(filename=paste("simulated_trajectories_","seed",seed,
-                      sapply(strsplit(hyperparams_file,"\\."),'[',1),".png",sep=""),plot=plot,width=10,height=5)
+hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
+
+#create directory to save the results
+if (!(dir.exists(file.path(par_dir,paste("results_",hyperparams_file_name,sep=""))))) {
+  dir.create(paste("results",hyperparams_file,sep=""))
+}
+
+ggsave(path=file.path("results_",hyper_params_file_name,sep=""),filename=paste("simulated_trajectories_","seed",seed,"_",
+                      hyper_params_file_name,".png",sep=""),plot=plot,width=10,height=5)
 
 if (count>0) {
   stop("Stop : at least one trajectory reached the shore.")
@@ -434,6 +441,8 @@ crcvm_hf_le_lID$fit(method="BFGS")
 
 # Write estimated parameters in csv files -----------------------------
 
+
+
 write_estimates_csv=function(model,model_name) {
   
   #coeffs
@@ -454,13 +463,14 @@ write_estimates_csv=function(model,model_name) {
   coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
                                        "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
   
-  write.csv(coeffs_df,paste("result_",domain_name,"_",model_name,
-                            "_seed",seed,"_",hyper_params_file_name,".csv",sep=""), row.names=FALSE)
+  # path for csv file
+  output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("estimates_", model_name, "_seed", seed, ".csv"))
+  
+  # Wwite the csv file
+  write.csv(coeffs_df, file = output_file, row.names = FALSE)
   
 }
 ## CTCRW -----------
-
-hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 
 ### Low frequency high error ---
 
@@ -548,8 +558,8 @@ write_surface=function(model,model_name) {
   data_surface=expand.grid(Dshore = Dshore_values, theta = theta_values)
   data_surface=as.vector(omega_values)
   
-  write.csv(data_surface,
-            paste("surface_",domain_name,"_",model_name,hyper_params_file_name,"_seed",seed,".csv"),
+  write.csv(data_surface,path=file.path(par_dir,paste("results_",hyper_params_file_name)),
+            paste("surface_",model_name,"_seed",seed,".csv"),
             row.names=FALSE)
   
 }

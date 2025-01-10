@@ -1,0 +1,6 @@
+"coeff_names","mean","sd","low","up"
+"tau.(Intercept)",0.156,0,0.156,0.156
+"nu.(Intercept)",2.984,0,2.984,2.984
+"tau.s(ID)",0.416,0,0.416,0.416
+"nu.s(ID)",0.201,0,0.201,0.201
+"sigma_obs",0,0,0,0
