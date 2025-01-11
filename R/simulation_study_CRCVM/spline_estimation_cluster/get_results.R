@@ -125,7 +125,7 @@ for (domain in domains) {
              plot=histo_sigma_re,width=10,height=5)
       ggsave(path=file.path(domain,paste("results_",hyperparams_file_name,sep="")),
       filename=paste("histo_",type,"_sigma_obs",".png",sep=""),
-             plot=histo_intercepts,width=10,height=5)
+             plot=histo_sigma_obs,width=10,height=5)
       
     }
     
@@ -212,5 +212,4 @@ for (domain in domains) {
       
     }
   }
-}
 
