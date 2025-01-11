@@ -449,13 +449,11 @@ write_estimates_csv=function(model,model_name) {
   coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
                                        "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
   
-  
   # path for csv file
   output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("estimates_", model_name, "_seed", seed, ".csv"))
   
   # Wwite the csv file
   write.csv(coeffs_df, file = output_file, row.names = FALSE)
-  
   
 }
 ## CTCRW -----------
@@ -549,8 +547,9 @@ write_surface=function(model,model_name) {
   # path for csv file
   output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("surface_", model_name, "_seed", seed, ".csv"))
   
-  # Wwite the csv file
-  write.csv(data_surface, file = output_file, row.names = FALSE)
+  
+  write.csv(output_file,
+            row.names=FALSE)
   
 }
 ## Low frequency high error

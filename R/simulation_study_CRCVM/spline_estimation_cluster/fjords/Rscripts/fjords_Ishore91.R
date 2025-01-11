@@ -98,11 +98,11 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey",border="black")+
 hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 
 #create directory to save the results
-if (!(dir.exists(file.path(par_dir,paste("results_",hyperparams_file_name))))) {
-  dir.create(paste("results",hyperparams_file))
+if (!(dir.exists(file.path(par_dir,paste("results_",hyper_params_file_name,sep=""))))) {
+  dir.create(file.path(par_dir,paste("results_",hyper_params_file_name,sep="")))
 }
 
-ggsave(path=file.path("results_",hyper_params_file_name),filename=paste("simulated_trajectories_","seed",seed,"_",
+ggsave(path=file.path(par_dir,paste("results_",hyper_params_file_name,sep="")),filename=paste("simulated_trajectories_","seed",seed,"_",
                       hyper_params_file_name,".png",sep=""),plot=plot,width=10,height=5)
 
 if (count>0) {
@@ -449,8 +449,11 @@ write_estimates_csv=function(model,model_name) {
   coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
                                        "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
   
-  write.csv(path=file.path(par_dir,paste("results_",hyper_params_file_name)),coeffs_df,paste("estimates_",model_name,
-                            "_seed",seed,".csv",sep=""), row.names=FALSE)
+  # path for csv file
+  output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("estimates_", model_name, "_seed", seed, ".csv"))
+  
+  # Wwite the csv file
+  write.csv(coeffs_df, file = output_file, row.names = FALSE)
   
 }
 ## CTCRW -----------
@@ -541,8 +544,11 @@ write_surface=function(model,model_name) {
   data_surface=expand.grid(Dshore = Dshore_values, theta = theta_values)
   data_surface=as.vector(omega_values)
   
-  write.csv(data_surface,path=file.path(par_dir,paste("results_",hyper_params_file_name)),
-            paste("surface_",model_name,"_seed",seed,".csv"),
+  # path for csv file
+  output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("surface_", model_name, "_seed", seed, ".csv"))
+  
+  
+  write.csv(output_file,
             row.names=FALSE)
   
 }
