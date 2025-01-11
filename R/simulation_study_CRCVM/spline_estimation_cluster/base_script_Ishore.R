@@ -112,11 +112,11 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey",border="black")+
 hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 
 #create directory to save the results
-if (!(dir.exists(file.path(par_dir,paste("results_",hyperparams_file_name,sep=""))))) {
-  dir.create(paste("results",hyperparams_file,sep=""))
+if (!(dir.exists(file.path(par_dir,paste("results_",hyper_params_file_name,sep=""))))) {
+  dir.create(file.path(par_dir,paste("results_",hyper_params_file_name,sep="")))
 }
 
-ggsave(path=file.path("results_",hyper_params_file_name,sep=""),filename=paste("simulated_trajectories_","seed",seed,"_",
+ggsave(path=file.path(par_dir,paste("results_",hyper_params_file_name,sep="")),filename=paste("simulated_trajectories_","seed",seed,"_",
                       hyper_params_file_name,".png",sep=""),plot=plot,width=10,height=5)
 
 if (count>0) {
@@ -558,8 +558,11 @@ write_surface=function(model,model_name) {
   data_surface=expand.grid(Dshore = Dshore_values, theta = theta_values)
   data_surface=as.vector(omega_values)
   
-  write.csv(data_surface,path=file.path(par_dir,paste("results_",hyper_params_file_name)),
-            paste("surface_",model_name,"_seed",seed,".csv"),
+  # path for csv file
+  output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("surface_", model_name, "_seed", seed, ".csv"))
+  
+  
+  write.csv(output_file,
             row.names=FALSE)
   
 }
