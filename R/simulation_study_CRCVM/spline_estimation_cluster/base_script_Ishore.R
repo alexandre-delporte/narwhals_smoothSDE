@@ -219,6 +219,9 @@ all_data=list("data_lf_he"=data_lf_he,"data_hf_le"=data_hf_le,"data_lf_le"=data_
 
 # Estimate from simulated data with CTCRW -----------------------------------------------------------
 
+cat("Estimating CTCRW parameters...\n")
+
+
 # Set up the parallel backend
 n_cores <- parallel::detectCores() - 1
 cl <- makeCluster(n_cores)
@@ -276,6 +279,7 @@ ctcrw_results <- foreach(
 
 stopCluster(cl)
 
+cat("Saving estimates in csv file...\n")
 
 # Write estimated parameters in csv files -----------------------------
 
@@ -333,6 +337,7 @@ write_estimates_csv(ctcrw_results,"ctcrw")
 
 # Estimate from simulated data with CRCVM  --------------------------------------------
 
+cat("Estimating CRCVM parameters.../n")
 
 # Set up the parallel backend
 n_cores <- parallel::detectCores() - 1
@@ -385,8 +390,10 @@ crcvm_results <- foreach(
 
 stopCluster(cl)
 
+cat("Saving estimates in csv file...\n")
+
 # Write estimates parameters in csv file
-write_estimates_csv(ctcrw_results,"ctcrw")
+write_estimates_csv(crcvm_results,"crcvm")
 
 # Save spline surface estimates
 
@@ -398,7 +405,6 @@ write_surface=function(results,model_type) {
   for (i in 1:n) {
     
     data_name=results[i,1][[1]]
-    print(data_name)
     settings=strsplit(data_name,"_")[[1]][2:3]
     
     for (j in 1:(p-1)) {
@@ -406,7 +412,6 @@ write_surface=function(results,model_type) {
       chain=ifelse(j==1,"hID","lID")
       model=results[i,j+1][[1]]
       model_name=paste(model_type,settings[1],settings[2],chain,sep="_")
-      print(model_name)
       
   
   
@@ -419,13 +424,14 @@ write_surface=function(results,model_type) {
       omega_values = as.numeric(surface$x$data[[1]]$z)
       
       data_surface=expand.grid(Dshore = Dshore_values, theta = theta_values)
-      data_surface=as.vector(omega_values)
+      data_surface$omega=as.vector(omega_values)
       
       # path for csv file
-      output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name), paste0("surface_", model_name, "_seed", seed, ".csv"))
+      output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name),
+                               paste0("surface_", model_name, "_seed", seed, ".csv"))
       
       
-      write.csv(output_file,
+      write.csv(data_surface,output_file,
                 row.names=FALSE)
     }
   }
