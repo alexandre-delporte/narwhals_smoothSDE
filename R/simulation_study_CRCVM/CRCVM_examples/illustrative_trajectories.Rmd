@@ -1340,11 +1340,6 @@ fomega_cubic_fjords_attractive<- function(cov_data){
  fomega_cubic(cov_data,a=1,D0=0.3,D1=0.8,sigma_theta=pi/8,sigma_D=0.5,b=5)
 }
 
-ftau_gaussian_fjords=function(cov_data) {
-  ftau_gaussian(cov_data,sigma_bump=0.4,sigma_dip=0.4,tau0=1,dtau_bump=1.5,dtau_dip=0.5
-                )
-  }
-
 # Generate samples ---------------
 cores=detectCores()
 cl <- makeCluster(6) 
@@ -1602,8 +1597,6 @@ ggplot(data=data_sim_fjords_cubic_advanced_gaussian_sub)+geom_point(aes(x=time,y
 Finally, we compare it to Hanks simulation technique for reflected SDE.
 
 ```{r simulate hanks reflected in rectangle,cache=TRUE}
-
-
 # Generate samples ---------------
 cores=detectCores()
 cl <- makeCluster(6) #not to overload your computer
@@ -1622,7 +1615,10 @@ data_sim_fjords_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MA
 
 #stop cluster
 stopCluster(cl)
+```
 
+
+```{r simulate hanks reflected in rectangle,cache=TRUE}
 ```
 
 
@@ -1647,13 +1643,13 @@ ggplot() +
 
 #Zoom on Fjords for the plot --------------------
 
-x.min= min(c(data_sim_fjords_cubic_repulsive_sub$y1,data_sim_fjords_cubic_attractive_sub$y1,
+x.min= min(c(data_sim_fjords_cubic_attractive_sub$y1,
              data_sim_fjords_hanks_sub$y1))-1
-x.max = max(c(data_sim_fjords_cubic_repulsive_sub$y1,data_sim_fjords_cubic_attractive_sub$y1,
+x.max = max(c(data_sim_fjords_cubic_attractive_sub$y1,
               data_sim_fjords_hanks_sub$y1))+1
-y.min = min(c(data_sim_fjords_cubic_repulsive_sub$y2,data_sim_fjords_cubic_attractive_sub$y2,
+y.min = min(c(data_sim_fjords_cubic_attractive_sub$y2,
               data_sim_fjords_hanks_sub$y2))-1
-y.max = max(c(data_sim_fjords_cubic_repulsive_sub$y2,data_sim_fjords_cubic_attractive_sub$y2,
+y.max = max(c(data_sim_fjords_cubic_attractive_sub$y2,
               data_sim_fjords_hanks_sub$y2))+1
 
 bbox <- st_bbox(c(xmin=x.min, xmax = x.max, ymin =y.min, ymax = y.max), 
@@ -1707,7 +1703,13 @@ create_plot <- function(domain, model) {
     geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
     theme_minimal() +
     xlab("x") + ylab("y") +
-    theme(legend.position = "none")  # Remove legend from individual plots
+    theme(legend.position = "none") +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 12),
+    legend.text = element_text(size = 16),
+    axis.title.y = element_text(angle = 0)  # Rotate the y-axis label and adjust horizontal justification
+  )
 }
 
 
@@ -1732,6 +1734,35 @@ ggsave("illustrative_trajectories.pdf", plot = final_plot, width = 14, height = 
 
 ```{r print final plot}
 final_plot
+
+```
+
+
+
+
+
+
+
+```{r}
+
+
+#plot only trajectory in fjords
+
+data_combined_fjords=data_combined[data_combined$domain=="Fjords",]
+
+# Create a list of plots
+plot_list <- lapply(seq_len(length(unique(data_combined$model))), function(i) {
+  model <- unique_combinations$model[i]
+  create_plot(domain="Fjords",model)
+})
+
+final_plot_fjords=ggarrange(plotlist=plot_list,
+                     ncol=1, nrow=2, common.legend = TRUE, legend="bottom",
+                     labels= c("shore-attractive CVM","shore-reflected CVM"))
+
+final_plot_fjords
+
+ggsave("illustrative_trajectories_fjords.pdf", plot = final_plot_fjords, width = 14, height = 14)
 
 ```
 

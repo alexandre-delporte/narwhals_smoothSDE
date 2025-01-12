@@ -219,7 +219,7 @@ all_data=list("data_lf_he"=data_lf_he,"data_hf_le"=data_hf_le,"data_lf_le"=data_
 
 # Estimate from simulated data with CTCRW -----------------------------------------------------------
 
-cat("Estimating CTCRW parameters...\n")
+cat("\n Estimating CTCRW parameters...\n")
 
 
 # Set up the parallel backend
@@ -232,7 +232,7 @@ formulas <- list(mu1 = ~1, mu2 = ~1, tau = ~s(ID, bs = "re"), nu = ~s(ID, bs = "
 new_lambda <- c(1 / SIGMA_TAU_0^2, 1 / SIGMA_NU_0^2)
 
 # Export necessary objects to the cluster
-clusterExport(cl, varlist = c("formulas", "new_lambda", "PAR0", "SIGMA_OBS0", "N_ID_LOW"))
+clusterExport(cl, varlist = c("formulas", "new_lambda", "PAR0", "SIGMA_OBS_LOW","SIGMA_OBS_HIGH","N_ID_LOW"))
 
 # Parallel execution
 ctcrw_results <- foreach(
@@ -242,6 +242,10 @@ ctcrw_results <- foreach(
 ) %dopar% {
   dataset <- all_data[[data_name]]
   
+  error_type=strsplit(data_name,"_")[[1]][3]
+  sigma_obs=ifelse(error_type=="le",SIGMA_OBS_LOW,SIGMA_OBS_HIGH)
+  H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
+
   # High number of IDs
   fit_high <- SDE$new(
     formulas = formulas,
@@ -250,13 +254,15 @@ ctcrw_results <- foreach(
     response = c("y1", "y2"),
     par0 = PAR0[1:4],
     fixpar = c("mu1", "mu2"),
-    other_data = list("log_sigma_obs0" = log(SIGMA_OBS0))
+    other_data = list("H" = H_high)
   )
   fit_high$update_lambda(new_lambda)
   fit_high$fit(method = "BFGS")
   
   # Low number of IDs
   dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
+  H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
+  
   fit_low <- SDE$new(
     formulas = formulas,
     data = dataset_low,
@@ -264,7 +270,7 @@ ctcrw_results <- foreach(
     response = c("y1", "y2"),
     par0 = PAR0[1:4],
     fixpar = c("mu1", "mu2"),
-    other_data = list("log_sigma_obs0" = log(SIGMA_OBS0))
+    other_data = list("H" = H_low)
   )
   fit_low$update_lambda(new_lambda)
   fit_low$fit(method = "BFGS")
@@ -337,7 +343,7 @@ write_estimates_csv(ctcrw_results,"ctcrw")
 
 # Estimate from simulated data with CRCVM  --------------------------------------------
 
-cat("Estimating CRCVM parameters.../n")
+cat("Estimating CRCVM parameters...\n")
 
 # Set up the parallel backend
 n_cores <- parallel::detectCores() - 1
@@ -351,7 +357,8 @@ new_lambda=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2,lambda_splines)
 new_map=list("log_lambda"=factor(c(1,2,NA,NA)))
 
 # Export necessary objects to the cluster
-clusterExport(cl, varlist = c("formulas", "new_lambda", "new_map", "PAR0", "SIGMA_OBS0", "N_ID_LOW", "SP_DF"))
+clusterExport(cl, varlist = c("formulas", "new_lambda", "new_map", "PAR0", "SIGMA_OBS_LOW",
+                              "SIGMA_OBS_HIGH", "N_ID_LOW", "SP_DF"))
 
 # Parallel execution
 crcvm_results <- foreach(
@@ -362,10 +369,14 @@ crcvm_results <- foreach(
 ) %dopar% {
   dataset <- all_data[[data_name]]
   
+  error_type=strsplit(data_name,"_")[[1]][3]
+  sigma_obs=ifelse(error_type=="le",SIGMA_OBS_LOW,SIGMA_OBS_HIGH)
+  H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
+  
   # High number of IDs
   fit_high <- SDE$new(formulas = formulas,data = dataset,type = "RACVM_SSM",
                       response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
-                      other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
+                      other_data=list("H"=H_high))
   
   fit_high$update_lambda(new_lambda)
   fit_high$update_map(new_map)
@@ -373,9 +384,11 @@ crcvm_results <- foreach(
   
   # Low number of IDs
   dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
+  H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
+  
   fit_low <- SDE$new(formulas = formulas,data = dataset_low,type = "RACVM_SSM",
                      response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
-                     other_data=list("log_sigma_obs0"=log(SIGMA_OBS0)))
+                     other_data=list("H"=H_low))
   fit_low$update_lambda(new_lambda)
   fit_low$update_map(new_map)
   fit_low$fit(method = "BFGS")
