@@ -113,7 +113,7 @@ samples=data.frame(theta=theta,DistanceShore=DistanceShore)
 
 #define grid of values
 theta_v <- seq(-pi,pi,length=30)
-Dshore_v<- seq(0.1,7,length=30)
+Dshore_v<- seq(D_LOW,D_UP,length=30)
 pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 # true values of the function over this grid

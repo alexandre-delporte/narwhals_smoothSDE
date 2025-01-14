@@ -8,7 +8,7 @@
 #
 # Script Name:    base_script_Ishore.R
 #
-# Script Description: Base script for simulation study in with Ishore covariate.. 
+# Script Description: Base script for simulation study with Ishore covariate.. 
 # Scripts to execute on the clusters for parameter estimation are generated from this script.
 #
 #
@@ -22,7 +22,8 @@ library(foreach)            #foreach loop
 library(doParallel)         #parallel computing
 
 
-domain_name="rect"
+
+domain_name="rect" #define domain
 par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
 set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
@@ -116,7 +117,8 @@ if (!(dir.exists(file.path(par_dir,paste("results_",hyper_params_file_name,sep="
   dir.create(file.path(par_dir,paste("results_",hyper_params_file_name,sep="")))
 }
 
-ggsave(path=file.path(par_dir,paste("results_",hyper_params_file_name,sep="")),filename=paste("simulated_trajectories_","seed",seed,"_",
+ggsave(path=file.path(par_dir,paste("results_",hyper_params_file_name,sep="")),
+       filename=paste("simulated_trajectories_","seed",seed,"_",
                       hyper_params_file_name,".png",sep=""),plot=plot,width=10,height=5)
 
 if (count>0) {
@@ -247,39 +249,44 @@ ctcrw_results <- foreach(
   H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
 
   # High number of IDs
-  fit_high <- SDE$new(
-    formulas = formulas,
-    data = dataset,
-    type = "CTCRW",
-    response = c("y1", "y2"),
-    par0 = PAR0[1:4],
-    fixpar = c("mu1", "mu2"),
-    other_data = list("H" = H_high)
-  )
-  fit_high$update_lambda(new_lambda)
-  fit_high$fit(method = "BFGS")
+  fit_sde<- function(data,H) {
+    
+    sde<- SDE$new(
+      formulas = formulas,
+      data = data,
+      type = "CTCRW",
+      response = c("y1", "y2"),
+      par0 = PAR0[1:4],
+      fixpar = c("mu1", "mu2"),
+      other_data = list("H" = H)
+    )
+    sde$update_lambda(new_lambda)
+    sde$fit(method = "BFGS")
+    
+    return(sde)
+  }
+  ctcrw_high<-try(fit_sde(dataset,H_high),silent=TRUE)
+  
+  if (inherits(ctcrw_high, "try-error")) {
+    message(paste("Error in fit with high nb of ID for dataset:", data_name, "\nError message:", ctcrw_high))
+  }
+  
   
   # Low number of IDs
   dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
   H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
   
-  fit_low <- SDE$new(
-    formulas = formulas,
-    data = dataset_low,
-    type = "CTCRW",
-    response = c("y1", "y2"),
-    par0 = PAR0[1:4],
-    fixpar = c("mu1", "mu2"),
-    other_data = list("H" = H_low)
-  )
-  fit_low$update_lambda(new_lambda)
-  fit_low$fit(method = "BFGS")
+  ctcrw_low<-try(fit_sde(dataset_low,H_low))
+  
+  if (inherits(ctcrw_low, "try-error")) {
+    message(paste("Error in fit with low nb of ID for dataset:", data_name, "\nError message:", ctcrw_low))
+  }
   
   # Combine results
   list(
     data_name = data_name,
-    fit_high = fit_high,
-    fit_low = fit_low
+    fit_high = ctcrw_high,
+    fit_low = ctcrw_low
   )
 }
 
@@ -374,24 +381,30 @@ crcvm_results <- foreach(
   H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
   
   # High number of IDs
-  fit_high <- SDE$new(formulas = formulas,data = dataset,type = "RACVM_SSM",
+  fit_sde<- function(data,H) {
+    sde <- SDE$new(formulas = formulas,data = data,type = "RACVM_SSM",
                       response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
-                      other_data=list("H"=H_high))
+                      other_data=list("H"=H))
   
-  fit_high$update_lambda(new_lambda)
-  fit_high$update_map(new_map)
-  fit_high$fit(method = "BFGS")
+    sde$update_lambda(new_lambda)
+    sde$update_map(new_map)
+    sde$fit(method = "BFGS")
+  }
+  crcvm_high<-try(fit_sde(dataset,H_high))
+  if (inherits(crcvm_high, "try-error")) {
+    message(paste("Error in fit with high nb of ID for dataset:", data_name, "\nError message:", crcvm_high))
+  }
+  
   
   # Low number of IDs
   dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
   H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
   
-  fit_low <- SDE$new(formulas = formulas,data = dataset_low,type = "RACVM_SSM",
-                     response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
-                     other_data=list("H"=H_low))
-  fit_low$update_lambda(new_lambda)
-  fit_low$update_map(new_map)
-  fit_low$fit(method = "BFGS")
+  crcvm_low<-try(fit_sde(dataset_low,H_low))
+  
+  if (inherits(crcvm_low, "try-error")) {
+    message(paste("Error in fit with low nb of ID for dataset:", data_name, "\nError message:", crcvm_low))
+  }
   
   # Combine results
   list(

@@ -42,7 +42,6 @@ for (domain in domains) {
     pattern<- sprintf("^estimates.*\\.csv$")
     result_files<- list.files(path=file.path(domain,paste0("results_",hyperparams_file_name)),pattern =pattern)
     
-    n_sim=length(result_files)/16 #16 is the number of different frameworks for one domain and one hyperparameters file
 
     #bind all results for each framework in a list of dataframes 
     all_results=list()
@@ -166,8 +165,10 @@ for (domain in domains) {
         #all estimates for this coeff
         fn=links[[coeff_name]]
         estimates=fn(df[df$coeff_name==coeff_name,"estimate"])
+        n_sim=length(estimates)
         
-       
+        
+       print(estimates)
         mean_value=1/n_sim*sum(estimates)
         sd_value=sqrt(1/n_sim*sum((estimates-mean_value)^2))
         
