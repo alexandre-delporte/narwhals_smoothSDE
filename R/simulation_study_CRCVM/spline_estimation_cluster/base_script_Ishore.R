@@ -23,14 +23,14 @@ library(doParallel)         #parallel computing
 
 
 
-domain_name="rect" #define domain
+domain_name="fjords"
 par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
 set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
 
 
-seed=1
+seed= 1
 set.seed(seed)
 
 
@@ -56,7 +56,7 @@ data=foreach (i=1:N_ID_HIGH,.combine='rbind',.packages=c("progress","MASS","sf",
     return (exp(true_log_tau[i]))
   }
   res=sim_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,
-                      log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
+                log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
   
   data_sim=res$sim
   data_sim$ID=factor(rep(i,length(data_sim$y1)))
@@ -156,53 +156,53 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
   results <- foreach(id = ids, .combine = rbind, .packages = c("sf"),
                      .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border",
                                  "D_LOW","D_UP")  ) %dopar% {
-    # Filter data for the current ID
-    sub_data <- data[data$ID == id, ]
-    n_sub <- nrow(sub_data)
-    
-    # Time steps
-    dtimes <- sub_data[2:n_sub, "time"] - sub_data[1:(n_sub - 1), "time"]
-    
-    # Step lengths
-    dx <- sub_data[2:n_sub, "y1"] - sub_data[1:(n_sub - 1), "y1"]
-    dy <- sub_data[2:n_sub, "y2"] - sub_data[1:(n_sub - 1), "y2"]
-    
-    # Empirical velocity
-    vexp_df <- cbind(dx / dtimes, dy / dtimes)
-    
-    # Nearest points on shore
-    sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("y1", "y2")]), border))
-    
-    # Normal vectors
-    normal <- as.matrix(sub_data[2:n_sub, c("y1", "y2")] - sub_data[2:n_sub, c("p1", "p2")])
-    
-    # Angle between velocity and normal vector
-    theta_coast <- signed_angle(normal, vexp_df)
-    theta_coast <- c(theta_coast, 1)  # Adjust length
-    
-    # Initialize DistanceShore
-    Dshore <- rep(0, n_sub)
-    
-    for (i in 1:n_sub) {
-      y1 <- sub_data[i, "y1"]
-      y2 <- sub_data[i, "y2"]
-      if (!is_in_land(st_point(c(y1, y2)), border)) {
-        p1 <- sub_data[i, "p1"]
-        p2 <- sub_data[i, "p2"]
-        Dshore[i] <- sqrt((y1 - p1)^2 + (y2 - p2)^2)
-      }
-    }
-    
-    # Calculate Ishore
-    Ishore <- ifelse(Dshore < D_LOW, 1 / D_LOW, ifelse(Dshore > D_UP, 0, 1 / Dshore))
-    
-    # Add columns to sub_data
-    sub_data$theta <- theta_coast
-    sub_data$DistanceShore <- Dshore
-    sub_data$Ishore <- Ishore
-    
-    return(sub_data)
-  }
+                                   # Filter data for the current ID
+                                   sub_data <- data[data$ID == id, ]
+                                   n_sub <- nrow(sub_data)
+                                   
+                                   # Time steps
+                                   dtimes <- sub_data[2:n_sub, "time"] - sub_data[1:(n_sub - 1), "time"]
+                                   
+                                   # Step lengths
+                                   dx <- sub_data[2:n_sub, "y1"] - sub_data[1:(n_sub - 1), "y1"]
+                                   dy <- sub_data[2:n_sub, "y2"] - sub_data[1:(n_sub - 1), "y2"]
+                                   
+                                   # Empirical velocity
+                                   vexp_df <- cbind(dx / dtimes, dy / dtimes)
+                                   
+                                   # Nearest points on shore
+                                   sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("y1", "y2")]), border))
+                                   
+                                   # Normal vectors
+                                   normal <- as.matrix(sub_data[2:n_sub, c("y1", "y2")] - sub_data[2:n_sub, c("p1", "p2")])
+                                   
+                                   # Angle between velocity and normal vector
+                                   theta_coast <- signed_angle(normal, vexp_df)
+                                   theta_coast <- c(theta_coast, 1)  # Adjust length
+                                   
+                                   # Initialize DistanceShore
+                                   Dshore <- rep(0, n_sub)
+                                   
+                                   for (i in 1:n_sub) {
+                                     y1 <- sub_data[i, "y1"]
+                                     y2 <- sub_data[i, "y2"]
+                                     if (!is_in_land(st_point(c(y1, y2)), border)) {
+                                       p1 <- sub_data[i, "p1"]
+                                       p2 <- sub_data[i, "p2"]
+                                       Dshore[i] <- sqrt((y1 - p1)^2 + (y2 - p2)^2)
+                                     }
+                                   }
+                                   
+                                   # Calculate Ishore
+                                   Ishore <- ifelse(Dshore < D_LOW, 1 / D_LOW, ifelse(Dshore > D_UP, 0, 1 / Dshore))
+                                   
+                                   # Add columns to sub_data
+                                   sub_data$theta <- theta_coast
+                                   sub_data$DistanceShore <- Dshore
+                                   sub_data$Ishore <- Ishore
+                                   
+                                   return(sub_data)
+                                 }
   
   # Stop the cluster
   stopCluster(cl)
@@ -230,11 +230,11 @@ cl <- makeCluster(n_cores)
 registerDoParallel(cl)
 
 # Parameters and formulas
-formulas <- list(mu1 = ~1, mu2 = ~1, tau = ~s(ID, bs = "re"), nu = ~s(ID, bs = "re"))
-new_lambda <- c(1 / SIGMA_TAU_0^2, 1 / SIGMA_NU_0^2)
+formulas_ctcrw <- list(mu1 = ~1, mu2 = ~1, tau = ~s(ID, bs = "re"), nu = ~s(ID, bs = "re"))
+new_lambda_ctcrw <- c(1 / SIGMA_TAU_0^2, 1 / SIGMA_NU_0^2)
 
 # Export necessary objects to the cluster
-clusterExport(cl, varlist = c("formulas", "new_lambda", "PAR0", "SIGMA_OBS_LOW","SIGMA_OBS_HIGH","N_ID_LOW"))
+clusterExport(cl, varlist = c("formulas_ctcrw", "new_lambda_ctcrw", "PAR0", "SIGMA_OBS_LOW","SIGMA_OBS_HIGH","N_ID_LOW"))
 
 # Parallel execution
 ctcrw_results <- foreach(
@@ -247,12 +247,12 @@ ctcrw_results <- foreach(
   error_type=strsplit(data_name,"_")[[1]][3]
   sigma_obs=ifelse(error_type=="le",SIGMA_OBS_LOW,SIGMA_OBS_HIGH)
   H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
-
+  
   # High number of IDs
-  fit_sde<- function(data,H) {
+  fit_ctcrw<- function(data,H) {
     
     sde<- SDE$new(
-      formulas = formulas,
+      formulas = formulas_ctcrw,
       data = data,
       type = "CTCRW",
       response = c("y1", "y2"),
@@ -260,12 +260,12 @@ ctcrw_results <- foreach(
       fixpar = c("mu1", "mu2"),
       other_data = list("H" = H)
     )
-    sde$update_lambda(new_lambda)
+    sde$update_lambda(new_lambda_ctcrw)
     sde$fit(method = "BFGS")
     
     return(sde)
   }
-  ctcrw_high<-try(fit_sde(dataset,H_high),silent=TRUE)
+  ctcrw_high<-try(fit_ctcrw(dataset,H_high),silent=TRUE)
   
   if (inherits(ctcrw_high, "try-error")) {
     message(paste("Error in fit with high nb of ID for dataset:", data_name, "\nError message:", ctcrw_high))
@@ -276,7 +276,7 @@ ctcrw_results <- foreach(
   dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
   H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
   
-  ctcrw_low<-try(fit_sde(dataset_low,H_low))
+  ctcrw_low<-try(fit_ctcrw(dataset_low,H_low))
   
   if (inherits(ctcrw_low, "try-error")) {
     message(paste("Error in fit with low nb of ID for dataset:", data_name, "\nError message:", ctcrw_low))
@@ -305,15 +305,20 @@ write_estimates_csv=function(results,model_type) {
   for (i in 1:n) {
     
     data_name=results[i,1][[1]]
-    print(data_name)
     settings=strsplit(data_name,"_")[[1]][2:3]
     
     for (j in 1:(p-1)) {
       
       chain=ifelse(j==1,"hID","lID")
       model=results[i,j+1][[1]]
+    
       model_name=paste(model_type,settings[1],settings[2],chain,sep="_")
-      print(model_name)
+      
+      # Check if model is a valid SDE and skip if not
+      if (!inherits(model, "SDE") || inherits(model, "try-error")) {
+        message(paste("Skipping invalid model ", model_name))
+        next
+      }
       
       #re and fe coeffs
       coeffs=rbind(model$coeff_re(),model$coeff_fe()) 
@@ -358,21 +363,20 @@ cl <- makeCluster(n_cores)
 registerDoParallel(cl)
 
 # Parameters and formulas
-formulas <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),omega=~te(theta,Ishore,k=SP_DF,bs="cs"))
-new_lambda=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2,lambda_splines)
-new_map=list("log_lambda"=factor(c(1,2,NA,NA)))
+formulas_crcvm <- list(mu1=~1,mu2=~1,tau=~s(ID,bs="re"),
+                       nu=~s(ID,bs="re"),omega=~te(theta,Ishore,k=SP_DF,bs="cs"))
+new_lambda_crcvm=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2,lambda_splines)
+new_map_crcvm=list("log_lambda"=factor(c(1,2,NA,NA)))
 
 # Export necessary objects to the cluster
-clusterExport(cl, varlist = c("formulas", "new_lambda", "new_map", "PAR0", "SIGMA_OBS_LOW",
+clusterExport(cl, varlist = c("formulas_crcvm", "new_lambda_crcvm", "new_map_crcvm", "PAR0", "SIGMA_OBS_LOW",
                               "SIGMA_OBS_HIGH", "N_ID_LOW", "SP_DF"))
 
 # Parallel execution
 crcvm_results <- foreach(
   data_name = names(all_data),
   .combine = rbind,
-  .packages = c("smoothSDE"), 
-  .export = c("formulas", "new_lambda", "new_map","SP_DF")
+  .packages = c("smoothSDE")
 ) %dopar% {
   dataset <- all_data[[data_name]]
   
@@ -381,16 +385,18 @@ crcvm_results <- foreach(
   H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
   
   # High number of IDs
-  fit_sde<- function(data,H) {
-    sde <- SDE$new(formulas = formulas,data = data,type = "RACVM_SSM",
-                      response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
-                      other_data=list("H"=H))
-  
-    sde$update_lambda(new_lambda)
-    sde$update_map(new_map)
+  fit_crcvm<- function(data,H) {
+    sde <- SDE$new(formulas = formulas_crcvm,data = data,type = "RACVM_SSM",
+                   response = c("y1","y2"),par0 = PAR0,fixpar=c("mu1","mu2"),
+                   other_data=list("H"=H))
+    
+    sde$update_lambda(new_lambda_crcvm)
+    sde$update_map(new_map_crcvm)
     sde$fit(method = "BFGS")
+    
+    return (sde)
   }
-  crcvm_high<-try(fit_sde(dataset,H_high))
+  crcvm_high<-try(fit_crcvm(dataset,H_high))
   if (inherits(crcvm_high, "try-error")) {
     message(paste("Error in fit with high nb of ID for dataset:", data_name, "\nError message:", crcvm_high))
   }
@@ -400,7 +406,7 @@ crcvm_results <- foreach(
   dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
   H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
   
-  crcvm_low<-try(fit_sde(dataset_low,H_low))
+  crcvm_low<-try(fit_crcvm(dataset_low,H_low))
   
   if (inherits(crcvm_low, "try-error")) {
     message(paste("Error in fit with low nb of ID for dataset:", data_name, "\nError message:", crcvm_low))
@@ -439,8 +445,7 @@ write_surface=function(results,model_type) {
       model=results[i,j+1][[1]]
       model_name=paste(model_type,settings[1],settings[2],chain,sep="_")
       
-  
-  
+      
       plots=model$get_all_plots(link=list("Ishore"=(\(x) 1/x)))
       
       surface=plots$fe_omega_theta_Ishore
@@ -464,3 +469,5 @@ write_surface=function(results,model_type) {
 }
 
 write_surface(crcvm_results,"crcvm")
+
+
