@@ -409,8 +409,8 @@ crcvm_results <- foreach(
   # Combine results
   list(
     data_name = data_name,
-    fit_high = fit_high,
-    fit_low = fit_low
+    fit_high = crcvm_high,
+    fit_low = crcvm_low
   )
 }
 
