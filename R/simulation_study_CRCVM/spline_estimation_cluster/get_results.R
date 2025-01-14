@@ -123,6 +123,9 @@ for (domain in domains) {
              filename=paste("histo_",type,"_sigma_re",".png",sep=""),
              plot=histo_sigma_re,width=10,height=5)
       ggsave(path=file.path(domain,paste("results_",hyperparams_file_name,sep="")),
+             filename=paste("histo_",type,"_intercepts",".png",sep=""),
+             plot=histo_intercepts,width=10,height=5)
+      ggsave(path=file.path(domain,paste("results_",hyperparams_file_name,sep="")),
       filename=paste("histo_",type,"_sigma_obs",".png",sep=""),
              plot=histo_sigma_obs,width=10,height=5)
       
@@ -205,7 +208,9 @@ for (domain in domains) {
       write.csv(df,output_file,
                 row.names=FALSE)
     }
-      
+    
+    
+    
       
       
       
