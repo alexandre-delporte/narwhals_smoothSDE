@@ -445,6 +445,11 @@ write_surface=function(results,model_type) {
       model=results[i,j+1][[1]]
       model_name=paste(model_type,settings[1],settings[2],chain,sep="_")
       
+      # Check if model is a valid SDE and skip if not
+      if (!inherits(model, "SDE") || inherits(model, "try-error")) {
+        message(paste("Skipping invalid model ", model_name))
+        next
+      }
       
       plots=model$get_all_plots(link=list("Ishore"=(\(x) 1/x)))
       
