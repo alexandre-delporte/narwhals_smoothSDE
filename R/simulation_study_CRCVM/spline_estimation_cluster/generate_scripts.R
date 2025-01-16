@@ -19,7 +19,8 @@ rm(list = ls())             # Remove all variables of the work space
 
 N_SCRIPTS=100
 seeds=1:N_SCRIPTS
-script_Ishore<-readLines("base_script_Ishore.R")
+base_script="base_script_parametric.R"
+script_Ishore<-readLines(base_script)
 
 domain="fjords"
 
@@ -45,7 +46,8 @@ script_Ishore[line_Ishore] <- paste('domain_name="',domain,'"',sep="")
     
   
     # Rewrite the modified script back
-    writeLines(script_Ishore[-c(1:14)],file.path(domain,"Rscripts",paste(domain,"_Ishore",seed,".R",sep="")))
+    type=strsplit(strsplit(base_script,"_")[[1]][3],"\\.")[[1]][1]
+    writeLines(script_Ishore[-c(1:14)],file.path(domain,"Rscripts",paste(domain,"_",type,seed,".R",sep="")))
   }
 
 
