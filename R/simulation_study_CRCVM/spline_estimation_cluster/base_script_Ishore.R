@@ -24,8 +24,9 @@ library(doParallel)         #parallel computing
 
 
 domain_name="fjords"
+type="Ishore"
 par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
-set_up_file=paste("set_up_",domain_name,".R",sep="")
+set_up_file=paste("set_up_",domain_name,"_",type,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
 
@@ -113,11 +114,11 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey")+
 hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 
 #create directory to save the results
-if (!(dir.exists(file.path(par_dir,paste("results_",hyper_params_file_name,sep=""))))) {
-  dir.create(file.path(par_dir,paste("results_",hyper_params_file_name,sep="")))
+if (!(dir.exists(file.path(par_dir,paste("results_","Ishore_",hyper_params_file_name,sep=""))))) {
+  dir.create(file.path(par_dir,paste("results_","Ishore_",hyper_params_file_name,sep="")))
 }
 
-ggsave(path=file.path(par_dir,paste("results_",hyper_params_file_name,sep="")),
+ggsave(path=file.path(par_dir,paste("results_","Ishore_",hyper_params_file_name,sep="")),
        filename=paste("simulated_trajectories_","seed",seed,"_",
                       hyper_params_file_name,".png",sep=""),plot=plot,width=10,height=5)
 
@@ -339,7 +340,7 @@ write_estimates_csv=function(results,model_type) {
                            "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
       
       # path for csv file
-      output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name),
+      output_file <- file.path(par_dir, paste0("results_","Ishore_",hyper_params_file_name),
                                paste0("estimates_", model_name, "_seed", seed, ".csv"))
       
       # Wwite the csv file
