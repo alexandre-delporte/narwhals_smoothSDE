@@ -563,7 +563,7 @@ sim_RACVM=function(mu1,mu2,beta,sigma,omega,v0,x0,times,log_sigma_obs=NULL,verbo
 #' - shore is a dataframe with columns "p1","p2" that are the coordinates of the nearest points to the shore (useful for the plots)
 
 
-sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=FALSE) {
+sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=FALSE,save_omega=FALSE) {
   
   #number of samples
   n=length(times)
@@ -592,6 +592,7 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
       total = n, clear = FALSE, width = 60)
   }
   
+  omegas=c()
   #loop over observation times
   for (i in 2:n) {
     
@@ -625,9 +626,15 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
     
     #if point is already on the land, stop simulation
     if (is_in_land(st_point(xmoins),land)) {
-      data_sim$time=times[1:(i-1)]
-      l=list("sim"=data_sim[1:(i-2),c("y1","y2","time")],"shore"=data_shore[2:(i-1),])
       cat("Stopped : process reached land ! \n")
+      data_sim$time=times[1:(i-1)]
+      if (save_omega) {
+        data_sim$omega=c(omegas,NA)
+        l=list("sim"=data_sim[1:(i-2),c("y1","y2","time","omega")],"shore"=data_shore[2:(i-1),])
+      }
+      else {
+        l=list("sim"=data_sim[1:(i-2),c("y1","y2","time")],"shore"=data_shore[2:(i-1),])
+      }
       return (l)
     }
     
@@ -641,6 +648,7 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
     cov_data=data.frame(DistanceShore=Dshore,theta=theta)
     tau=ftau(cov_data)
     omega=fomega(cov_data)
+    omegas=c(omegas,omega)
     nu=fnu(cov_data)
     sigma=2*nu/sqrt(pi*tau)
     
@@ -704,11 +712,19 @@ sim_CRCVM=function(ftau,fomega,fnu,log_sigma_obs=NULL,v0,x0,times,land,verbose=F
     }
     
     data_sim=rbind(data_sim,c(alpha[1],alpha[2],alpha[3],alpha[4],yobs[1],yobs[2]))
+    
   }
   
   data_sim$time=times
   
-  l=list("sim"=data_sim[1:(n-1),c("y1","y2","time")],"shore"=data_shore[2:n,])
+  if (save_omega) {
+    data_sim$omega=c(omegas,NA)
+    l=list("sim"=data_sim[1:(n-1),c("y1","y2","time","omega")],"shore"=data_shore[2:n,])
+  }
+  else {
+      l=list("sim"=data_sim[1:(n-1),c("y1","y2","time")],"shore"=data_shore[2:n,])
+    }
+
   return (l)
 }
 
