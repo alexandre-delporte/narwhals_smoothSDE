@@ -19,7 +19,8 @@ rm(list = ls())             # Remove all variables of the work space
 
 N_SCRIPTS=100
 seeds=1:N_SCRIPTS
-base_script="base_script_parametric.R"
+type="parametric"
+base_script=paste0("base_script_",type,".R")
 script_Ishore<-readLines(base_script)
 
 domain="fjords"
