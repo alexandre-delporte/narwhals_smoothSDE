@@ -2,6 +2,40 @@
 
 # Extract the current domain from generate_scripts.R
 DOMAIN=$(grep '^domain=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
+# Extract the current simulation study type
+TYPE=$(grep '^type=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
+# Extract the number of Rscripts to run
+NSCRIPTS=$(grep '^N_SCRIPTS=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
+
+echo "Current domain is $DOMAIN. Current simulation study type is $TYPE."
+
+while true; do
+    read -p "Do you want to continue? (yes/no): " answer
+    case $answer in
+        [Yy][Ee][Ss] ) 
+            break
+            ;;
+        [Nn][Oo] ) 
+            exit
+            ;;
+        * ) 
+            echo "Invalid input. Please type 'yes' or 'no'."
+            ;;
+    esac
+done
+
+# Ask the user for the number of cores
+read -p "Enter the number of cores for each job (max 64) " CORES
+# Ask the user for the waltime
+read -p "Enter the walltime (max 24:00:00 for 24h) "  WALLTIME
+# Ask the user for the range of scripts to execute
+read -p "There are $NSCRIPTS Rscripts to run. Enter the range of the scripts you want to run (e.g., 1-50, max 50 scripts)" RANGE
+
+# Extract kmin and kmax from the input
+kmin=$(echo "$RANGE" | cut -d '-' -f1)
+kmax=$(echo "$RANGE" | cut -d '-' -f2)
+
+
 
 # Check if DOMAIN is not empty
 if [[ -z "$DOMAIN" ]]; then
@@ -9,14 +43,14 @@ if [[ -z "$DOMAIN" ]]; then
     exit 1
 fi
 
-# Loop through values of k from 1 to 50
-for ((k=1; k<=50; k++))
+# Loop through values of the seed k
+for ((k=kmin; k<=kmax; k++))
 do
     # Set job name
-    job_name="${DOMAIN}_Ishore$k"
+    job_name="${DOMAIN}_${TYPE}$k"
 
     # Define the script path
-    script_path="${DOMAIN}/Rscripts/${DOMAIN}_Ishore$k.R"
+    script_path="${DOMAIN}/Rscripts/${DOMAIN}_${TYPE}$k.R"
 
     # Check if the R script exists
     if [[ ! -f "$script_path" ]]; then
@@ -31,7 +65,7 @@ do
     # Create the job submission script
     echo "#!/bin/bash" > "$job_script_path"
     echo "#OAR -n $job_name" >> "$job_script_path"
-    echo "#OAR -l /nodes=1/core=16,walltime=03:00:00" >> "$job_script_path"
+    echo "#OAR -l /nodes=1/core=$CORES,walltime=$WALLTIME" >> "$job_script_path"
     echo "#OAR --stdout $job_script_dir/$job_name.out" >> "$job_script_path"
     echo "#OAR --stderr $job_script_dir/$job_name.err" >> "$job_script_path"
     echo "#OAR --project pr-whales" >> "$job_script_path"
