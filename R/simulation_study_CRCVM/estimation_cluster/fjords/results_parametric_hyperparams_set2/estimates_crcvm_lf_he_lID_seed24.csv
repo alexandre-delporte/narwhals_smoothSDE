@@ -1,0 +1,10 @@
+"coeff_name","estimate"
+"tau.(Intercept)",0.195969325979023
+"nu.(Intercept)",1.34970652758811
+"a.(Intercept)",0.693147180559945
+"b.(Intercept)",1.6094379124341
+"D0.(Intercept)",-0.693147180559945
+"D1.(Intercept)",-0.22314355131421
+"sigma_D.(Intercept)",-1.20397280432594
+"sigma_theta.(Intercept)",-0.934711655830436
+"log_sigma_obs",0

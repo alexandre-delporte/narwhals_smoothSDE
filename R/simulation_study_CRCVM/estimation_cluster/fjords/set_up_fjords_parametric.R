@@ -28,7 +28,7 @@ library(smoothSDE)          #to compute nearest shore point
 
 # Read hyperparameters from a user specified file
 hyperparams_file <- "hyperparams_set2.txt"
-path=here("R","simulation_study_CRCVM","spline_estimation_cluster","fjords")
+path=here("R","simulation_study_CRCVM","estimation_cluster","fjords")
 
 # Read the file and evaluate each line
 lines <- readLines(file.path(path,hyperparams_file))
@@ -76,9 +76,16 @@ times=seq(0,TMAX,by=DELTA)
 
 n_obs=length(times)-1
 
+# Definition of parameters tau and nu ----------------
+tau_re=rnorm(N_ID_HIGH,mean=0,sd=SIGMA_TAU)
+nu_re=rnorm(N_ID_HIGH,mean=0,sd=SIGMA_NU)
+true_log_tau=tau_re+log(TAU_0)
+true_log_nu=nu_re+log(NU_0)
+
+
 # Defintion of smooth parameter omega ----------
 
-fomega_cubic=function(cov_data,a,D0,D1,sigma_theta,sigma_D,b){
+fomega_cubic=function(cov_data,a,b,D0,D1,sigma_D,sigma_theta){
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -91,5 +98,5 @@ fomega_cubic=function(cov_data,a,D0,D1,sigma_theta,sigma_D,b){
 }
 
 
-fomega=function(cov_data) {fomega_cubic(cov_data,A,D0,D1,SIGMA_THETA,SIGMA_D,B)} 
+fomega=function(cov_data) {fomega_cubic(cov_data,A,B,D0,D1,SIGMA_D,SIGMA_THETA)} 
 

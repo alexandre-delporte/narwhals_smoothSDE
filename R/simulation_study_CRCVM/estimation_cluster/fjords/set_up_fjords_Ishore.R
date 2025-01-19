@@ -28,7 +28,7 @@ library(smoothSDE)          #to compute nearest shore point
 
 # Read hyperparameters from a user specified file
 hyperparams_file <- "hyperparams_set1.txt"
-path=here("R","simulation_study_CRCVM","spline_estimation_cluster","fjords")
+path=here("R","simulation_study_CRCVM","estimation_cluster","fjords")
 
 # Read the file and evaluate each line
 lines <- readLines(file.path(path,hyperparams_file))

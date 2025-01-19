@@ -1,0 +1,4 @@
+"coeff_names","mean","sd","low","up"
+"tau.(Intercept)",1.507,0.168,1.238,1.823
+"nu.(Intercept)",3.993,0.191,3.696,4.438
+"log_sigma_obs",1000,0,1000,1000
