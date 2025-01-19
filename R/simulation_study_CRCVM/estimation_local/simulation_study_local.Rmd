@@ -8,8 +8,6 @@ output: html_document
 This is a simulation study dedicated to the estimation of the parameters in our CRCVM SDE model.
 We try different framework to decide which one we choose for the calculations on the university clusters.
 
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -23,6 +21,7 @@ library(doParallel)
 library(ggplot2)
 library(dplyr)
 library(mgcv)
+library(plotly)
 
 #get functions to simulate trajectories
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  
@@ -41,22 +40,41 @@ source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))
 
 ```{r hyperparameters}
 N_ID=6
-TMAX=1*24
-SP_DF=c(7,4)
-TAU_0=1.5
-NU_0=4
+
+TMAX=12
+DELTA=1/60/6
+
+SP_DF=c(5,5)
+
+TAU_0=1.3
+NU_0=4.6
+
 DMIN=0.5
-DELTA=1/360
+DMAX=1
+
 PAR0_RACVM=c(0,0,1,1,0)
-SIGMA_OBS_low=0.01
-SIGMA_OBS_high=0.04
-BY=30
+
+SIGMA_OBS_LOW=0.01
+SIGMA_OBS_HIGH=0.04
+
+BY_LF=5
+BY_HF=1
+
+D_LOW=0.05
+D_UP=3
+
+A=1
+D0=0.3
+D1=1.2
+SIGMA_THETA=pi/6
+SIGMA_D=1
+B=1
 
 ```
 
 ```{r initial positions}
 
-seed=100
+seed=42
 set.seed(seed)
 # Set the path to the directory containing the data
 greenland_data_path <- here("Data","preprocessed_data","greenland")
@@ -65,6 +83,8 @@ greenland_data_path <- here("Data","preprocessed_data","greenland")
 border<-st_read(file.path(greenland_data_path,"updated_scoresby_sound_utm.shp"))
 border <- st_transform(border, crs = "+init=EPSG:32626 +units=km")
 
+shrunk_border<-st_read(file.path(greenland_data_path,"shrunk_updated_scoresby_sound_utm.shp"))
+shrunk_border <- st_transform(border, crs = "+init=EPSG:32626 +units=km")
 v0=c(0,0)
 
 #generate random initial points
@@ -79,7 +99,7 @@ while (i<=N_ID) {
     p=nearest_boundary_point(st_point(x),border)
     Dshore=(x[1]-p[1])^2+(x[2]-p[2])^2
     #keep it as initial position if it is at least 50 metres away from the shore
-    if (Dshore>DMIN && Dshore<1) {
+    if (Dshore>DMIN && Dshore<DMAX) {
       x0[i,]=x
       i=i+1
     }
@@ -105,7 +125,7 @@ n_obs=length(times)-1
 
 # Defintion of smooth parameter omega ----------
 
-fomega_cubic=function(cov_data,a=2,D0=0.5,D1=0.8,sigma_theta=pi/8,sigma_D=0.3,b=5){
+fomega_cubic=function(cov_data,a,b,D0,D1,sigma_D,sigma_theta){
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -117,6 +137,10 @@ fomega_cubic=function(cov_data,a=2,D0=0.5,D1=0.8,sigma_theta=pi/8,sigma_D=0.3,b=
            exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2)))
 }
 
+
+fomega=function(cov_data) {
+  fomega_cubic(cov_data,A,B,D0,D1,SIGMA_D,SIGMA_THETA)
+}
 
 ftau_constant=function(cov_data) {
   TAU_0
@@ -146,11 +170,15 @@ data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv
   set.seed((seed-1)*N_ID+i)
 
   
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic,fnu=fnu_constant,
-                      log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
+  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,
+                      log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,
+                land=shrunk_border,verbose=FALSE,save_omega = TRUE)
   
   data_sim=res$sim
   data_sim$ID=factor(rep(i,length(data_sim$y1)))
+  data_shore=res$shore
+
+  data_sim=cbind(data_sim,data_shore)
   data_sim
 }
 
@@ -162,6 +190,7 @@ stopCluster(cl)
 ## Remove trajectories that reached land
 
 ```{r}
+
 
 # Points that reached land ---------------
 count=0
@@ -188,31 +217,33 @@ data_sub=data %>%  filter(!(ID %in% remove_ID))
 
 ```{r}
 # add noise
-low_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_low^2,2)))
-high_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_high^2,2)))
-observed_data_le=data_sub
+low_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_LOW^2,2)))
+high_noise=rmvn(n_obs,rep(0,2),diag(rep(SIGMA_OBS_HIGH^2,2)))
+observed_data_le=data_sub[,c("y1","y2","time","ID")]
 observed_data_le[,c("y1","y2")]=data_sub[,c("y1","y2")]+low_noise
-observed_data_he=data_sub
+observed_data_he=data_sub[,c("y1","y2","time","ID")]
 observed_data_he[,c("y1","y2")]=data_sub[,c("y1","y2")]+high_noise
 
 #subsample
-data_lf_he=observed_data_he[seq(1,length(data_sub$time),by=BY),]
-data_lf_le=observed_data_le[seq(1,length(data_sub$time),by=BY),]
-data_hf_le=observed_data_le[seq(1,length(data_sub$time),by=6),]
-data_hf_he=observed_data_he[seq(1,length(data_sub$time),by=6),]
+data_lf_he=observed_data_he[seq(1,length(data_sub$time),by=BY_LF),]
+data_lf_le=observed_data_le[seq(1,length(data_sub$time),by=BY_LF),]
+data_hf_le=observed_data_le[seq(1,length(data_sub$time),by=BY_HF),]
+data_hf_he=observed_data_he[seq(1,length(data_sub$time),by=BY_HF),]
 
 
 # Save plot of the trajectories ------------
 
 plot=ggplot()+geom_sf(data=border$geometry,fill="grey")+
   coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
+  geom_point(data=data_sub,mapping=aes(y1,y2,col=ID),size=0.1,alpha=0.2,shape=2)+
   geom_point(data=data_lf_he,mapping=aes(y1,y2,col=ID),size=0.1)+
   geom_path(data=data_lf_he,mapping=aes(y1,y2,col=ID),size=0.1)+
   geom_point(data = data%>% filter(!duplicated(ID)),
              aes(x = y1, y = y2), shape = 3, size = 4, col = "red")+
   xlab("x") + ylab("y")
 
-ggsave(filename=paste("plot_","border","_",TMAX,"h_",N_ID,"ID_",DMIN,"km",seed,".png",sep=""),plot=plot,width=10,height=5)
+
+ggsave(filename="plot_trajectories.pdf",plot=plot,width=10,height=5)
 
 ```
 
@@ -240,73 +271,113 @@ signed_angle <- function(u, v) {
   return(result) 
 } 
 
-add_covs=function(data) {
-  #data has at least columns "time","y1" "y2", "p1","p2"
-  #this function new data frame with three more columns "theta", "DistanceShore" and "ExpShore"
-  
-  new_data=data
-  #observed deviation angles
-  n=length(new_data$time)
-  
-  new_data$theta=rep(NA,n)
-  
-  for (id in unique(new_data$ID)) {
-    
-    #filter data with specific id
-    sub_ind=(new_data$ID==id)
-    sub_data=new_data[sub_ind,]
-    n_sub=length(sub_data$time)
-    
-    #time steps
-    dtimes=sub_data[2:n_sub,"time"]-sub_data[1:(n_sub-1),"time"]
-    
-    #step lengths
-    dx=sub_data[2:n_sub,"y1"]-sub_data[1:(n_sub-1),"y1"]
-    dy=sub_data[2:n_sub,"y2"]-sub_data[1:(n_sub-1),"y2"]
-    
-    #matrix of empirical velocity
-    vexp_df=cbind(dx/dtimes,dy/dtimes)
-    
-    #nearest points on shore
-    sub_data=cbind(sub_data,nearest_boundary_points(as.matrix(sub_data[,c("y1","y2")]),border))
-    
-    #matrix of normal vectors
-    normal=as.matrix(sub_data[2:n_sub,c("y1","y2")]-sub_data[2:n_sub,c("p1","p2")])
-    
-    #angle between velocity and normal vector
-    theta_coast=signed_angle(normal,vexp_df)
-    
-    #adjust lengths 
-    theta_coast=c(theta_coast,1) 
-    
-    new_data[sub_ind,"theta"]=theta_coast
-    
-    Dshore=rep(0,n_sub)
-    for (i in 1:n_sub) {
-      y1=sub_data[i,"y1"]
-      y2=sub_data[i,"y2"]
-      if (!(is_in_land(st_point(c(y1,y2)),border))) {
-        p1=sub_data[i,"p1"]
-        p2=sub_data[i,"p2"]
-        Dshore[i]=sqrt((y1-p1)^2+(y2-p2)^2)
-      }
-    }
-    new_data[sub_ind,"DistanceShore"]=Dshore
-    
-    
+  # Function to calculate rolling average
+rolling_average <- function(data, window) {
+  n <- nrow(data)
+  result <- matrix(NA, n, ncol(data))  # Initialize result matrix with NA
+  colnames(result) <- colnames(data)
+
+  for (i in seq_len(n)) {
+    # Define the range for the current window
+    start <- max(1, i - floor(window / 2))
+    end <- min(n, i + floor(window / 2))
+    result[i, ] <- colMeans(data[start:end, , drop = FALSE])  # Compute column means
   }
-  
-  return(new_data)
+  return(result)
 }
 
+
+add_covs_parallel <- function(data,add="all",window=1,n_cores = parallel::detectCores() - 1) {
+  # Setup parallel backend
+  cl <- makeCluster(n_cores)
+  registerDoParallel(cl)
+  
+  # Split data by ID
+  ids <- unique(data$ID)
+  
+  # Process each ID in parallel
+  results <- foreach(id = ids, .combine = rbind, .packages = c("sf"),
+                     .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border",
+                                 "D_LOW","D_UP","rolling_average")  ) %dopar% {
+    # Filter data for the current ID
+    sub_data <- data[data$ID == id, ]
+    n_sub <- nrow(sub_data)
+    
+    # Time steps
+    dtimes <- sub_data[2:n_sub, "time"] - sub_data[1:(n_sub - 1), "time"]
+    
+    # Step lengths
+    dx <- sub_data[2:n_sub, "y1"] - sub_data[1:(n_sub - 1), "y1"]
+    dy <- sub_data[2:n_sub, "y2"] - sub_data[1:(n_sub - 1), "y2"]
+    
+    # Empirical velocity
+    vexp_df <- cbind(dx / dtimes, dy / dtimes) 
+    
+
+    vexp_avg <- rolling_average(vexp_df, window)
+
+    # Nearest points on shore
+    sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("y1", "y2")]), border))
+    
+    # Normal vectors
+    normal <- as.matrix(sub_data[2:n_sub, c("y1", "y2")] - sub_data[2:n_sub, c("p1", "p2")])
+    
+    # Angle between velocity and normal vector
+    theta_coast <- signed_angle(normal, vexp_avg)
+    theta_coast <- c(theta_coast, 1)  # Adjust length
+    
+    # Initialize DistanceShore
+    Dshore <- rep(0, n_sub)
+    
+    for (i in 1:n_sub) {
+      y1 <- sub_data[i, "y1"]
+      y2 <- sub_data[i, "y2"]
+      if (!is_in_land(st_point(c(y1, y2)), border)) {
+        p1 <- sub_data[i, "p1"]
+        p2 <- sub_data[i, "p2"]
+        Dshore[i] <- sqrt((y1 - p1)^2 + (y2 - p2)^2)
+      }
+    }
+    
+    Dshore_avg=as.vector(rolling_average(matrix(Dshore,ncol=1),window))
+    
+    # Calculate Ishore
+    Ishore_avg <- ifelse(Dshore_avg < D_LOW, 1 / D_LOW, ifelse(Dshore_avg > D_UP, 0, 1 / Dshore_avg))
+    
+    # Add columns to sub_data
+    if (add=="all") {
+      sub_data$theta <- theta_coast
+      sub_data$DistanceShore <- Dshore_avg
+      sub_data$Ishore <- Ishore_avg
+    }
+    else if (add=="theta") {
+      sub_data$theta <- theta_coast
+    }
+    else if (add=="DistanceShore") {
+      sub_data$DistanceShore <- Dshore
+      sub_data$Ishore <- Ishore
+        }
+  else {
+    stop("Options for argument add are \"all\",\"DistanceShore\" and \"theta\"")
+  }
+    
+    return(sub_data)
+  }
+  
+  # Stop the cluster
+  stopCluster(cl)
+  
+  return(results)
+}
 
 ```
 
 ```{r}
-data_lf_he=add_covs(data_lf_he)
-data_hf_le=add_covs(data_hf_le)
-data_lf_le=add_covs(data_lf_le)
-data_hf_he=add_covs(data_hf_he)
+#colnames(data)[8]="DistanceShore"
+data_lf_he=add_covs_parallel(data_lf_he,window=3)
+data_hf_le=add_covs_parallel(data_hf_le,window=3)
+data_lf_le=add_covs_parallel(data_lf_le,window=3)
+data_hf_he=add_covs_parallel(data_hf_he,window=3)
 ```
 
 
@@ -323,7 +394,7 @@ plot_Dshore
 ```{r}
 
 ggplot(data_lf_he)+geom_histogram(aes(x=DistanceShore),bins=30)+facet_wrap(~ID)+theme_minimal()
-quantile(data_lf$DistanceShore)
+quantile(data_lf_he$DistanceShore)
 ```
 
 ```{r}
@@ -375,8 +446,7 @@ We only keep 2 of the twelve trajectories.
 
 formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
 
-
-ctcrw_lf_he<- SDE$new(formulas = formulas,data =data_lf_he[data_lf_he$ID %in% c(1,2,3),],type = "CTCRW",
+ctcrw_lf_he<- SDE$new(formulas = formulas,data =data_lf_he[data_lf_he$ID %in% c(1,2,4,5),],type = "CTCRW",
                     response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(0.05)))
 
@@ -397,11 +467,11 @@ $\tau$ seems to be significantly underestimated. The reason is probably that som
 ```{r fit sde model with splines,cache=TRUE}
 
 
-formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1,omega=~1)
 
 
-ctcrw_lf_le<- SDE$new(formulas = formulas,data =data_lf_le[data_lf_le$ID %in% c(1,2,3),],type = "CTCRW",
-                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+ctcrw_lf_le<- SDE$new(formulas = formulas,data =data_lf_le[data_lf_le$ID %in% c(1:6),],type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = c(0,0,1,1,0),fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(0.03)))
 
 #fit
@@ -492,7 +562,7 @@ pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 
 #points on the surface perturbed by gaussian noise
-f <- fomega_cubic(samples)
+f <- fomega(samples)
 y <- f+0.1*rnorm(n)
 
 
@@ -528,25 +598,23 @@ m1$sp
 ```{r fit sde model with splines,cache=TRUE}
 
 
-H=array(rep(SIGMA_OBS_high^2*diag(2),length(data_lf_he$time)),dim=c(2,2,length(data_lf_he$time)))
-
-formulas <- list(mu1=~1,mu2=~1,tau=~s(theta,k=8,bs="cc"),
-                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs=c("cs")))
 
 
-crcvm_splines_lf_he<- SDE$new(formulas = formulas,data = cropped_data,type = "RACVM_SSM",
+crcvm_splines_lf_he<- SDE$new(formulas = formulas,data = data_lf_he,type = "RACVM_SSM",
                     response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(0.05)))
 
-crcvm_splines_lf_he$update_map(list("log_lambda"=factor(c(1,rep(NA,2)))))
-crcvm_splines_lf_he$update_lambda(c(1,10^-7,10^-13))
+crcvm_splines_lf_he$update_map(list("log_lambda"=factor(c(rep(NA,2)))))
+crcvm_splines_lf_he$update_lambda(m1$sp)
 #fit
 crcvm_splines_lf_he$fit(method="BFGS")
 ```
 
 ```{r plot estimates}
 
-crcvm_splines_lf_he$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+crcvm_splines_lf_he$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega))
 
 exp(as.list(crcvm_splines_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
 
@@ -554,6 +622,84 @@ exp(as.list(crcvm_splines_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
 
 
 We are clearly underestimating the magnitude of the rotation $\omega$ near $-\pi$ and $\pi$. This is indeed very similar to the result we got for the narwhal GPS data. We are well estimating $\nu$ and $\sigma_{obs}$, and we corrected the bias in $\tau$ compared to the estimate we got for the CTCRW on the same data.
+We can try to fit the true parametric function on the estimated spline surface.
+
+```{r}
+
+
+estimate_parametric_omega=function(model) {
+    
+    data=model$data()
+    
+    Dshore=seq(from=quantile(data$DistanceShore,0.5),to=quantile(data$DistanceShore,0.95),length.out=30)
+    theta=seq(from=-pi,to=pi,length.out=30)
+    grid<- as.data.frame(expand.grid(Dshore,theta))
+    colnames(grid) <- c("DistanceShore","theta")
+    grid$ID=1
+    
+    #get model matrices
+    mats=model$make_mat(new_data=grid)
+    X_fe=mats$X_fe
+    X_re=mats$X_re
+    
+    par_mat=model$par(new_data=grid,X_fe=X_fe,X_re=X_re)
+    
+    #matrix of values for surface plot
+    z=matrix(par_mat[,"omega"],30,30)
+    
+    data=grid
+    data$z=as.vector(z)
+    
+    
+    # Create the 3D surface plot using plot_ly
+    plot_splines<- plot_ly(x = ~theta, y = ~Dshore, z = ~z) %>%
+      add_surface() %>%
+      layout(title = "Predicted spline surface for omega",
+             scene = list(yaxis = list(title = "Distance to shore"),
+               xaxis = list(title = "theta")))
+    
+    
+    
+    fit_optim <- optim(par = c(0.1,2),
+                       fn = function(params) {
+                         
+                        # Compute predicted z values
+                        z_pred <- fomega_cubic(data,A,B,params[1],params[2],SIGMA_D,SIGMA_THETA)
+                         
+                         # Return sum of squared residuals
+                         sum((data$z - z_pred)^2)
+                       })
+    
+    
+    est_par=fit_optim$par
+    
+    # Compute the predicted values using the starting parameters
+    z_pred_starting <- fomega_cubic(grid,A,B,est_par[1],est_par[1],SIGMA_D,
+                                    SIGMA_THETA)
+    
+    # Reshape z_pred_starting to a matrix for plotting
+    z_pred_matrix <- matrix(z_pred_starting, nrow = length(Dshore), ncol = length(theta))
+    
+    
+    
+    # Create the 3D surface plot using plot_ly
+    plot_parametric <- plot_ly(x = ~theta, y = ~Dshore, z = ~z_pred_matrix) %>%
+      add_surface() %>%
+      layout(title = "Estimated parametric surface for omega",
+             scene = list(
+               yaxis = list(title = "Distance to shore"),
+               xaxis = list(title = "theta"),
+               zaxis = list(title = "Predicted z")
+             ))
+    
+    return (list("est_par"=est_par,"splines_surface"=plot_splines,"parametric_surface"=plot_parametric))
+    
+}
+
+estimate_parametric_omega(crcvm_splines_lf_he)
+
+```
+
 
 
 
@@ -561,26 +707,27 @@ We are clearly underestimating the magnitude of the rotation $\omega$ near $-\pi
 
 ```{r fit sde model with splines,cache=TRUE}
 
-formulas <- list(mu1=~1,mu2=~1,tau=~1,
-                 nu=~1,omega=~te(theta,DistanceShore,k=c(10,5),bs="cs"))
 
-
-crcvm_splines_lf_le<- SDE$new(formulas = formulas,data = data_lf_le,type = "RACVM_SSM",
+crcvm_splines_lf_le<- SDE$new(formulas = formulas,data = data_lf_le[data_lf_le$ID %in% c(1:6),],type = "RACVM_SSM",
                     response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
-                    other_data=list("log_sigma_obs0"=log(0.03)))
+                    other_data=list("log_sigma_obs0"=log(0.05)))
 
 crcvm_splines_lf_le$update_map(list("log_lambda"=factor(rep(NA,2))))
-crcvm_splines_lf_le$update_lambda(c(10^-12,10^-12))
+crcvm_splines_lf_le$update_lambda(m1$sp)
 #fit
 crcvm_splines_lf_le$fit(method="BFGS")
 ```
 
 ```{r plot estimates}
 
-crcvm_splines_lf_le$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+crcvm_splines_lf_le$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega))
 
-exp(as.list(ctcrw_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+exp(as.list(crcvm_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
 
+```
+
+```{r}
+estimate_parametric_omega(crcvm_splines_lf_le)
 ```
 
 Again, having low measurement error is not really of any help in the estimation. It is probably even more difficult to estimate since errors can occur in the matrix inversions in the Kalman filter when the coefficients in the covariance matrix are too close to $0$.
@@ -590,21 +737,16 @@ Again, having low measurement error is not really of any help in the estimation.
 ```{r fit sde model high frequency,cache=TRUE}
 
 
-
-cropped_data=data_hf_he[data_hf_he$ID %in% 2:2,]
-
-
-
 formulas <- list(mu1=~1,mu2=~1,tau=~1,
                  nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 
 
-crcvm_splines_hf_he<- SDE$new(formulas = formulas,data = cropped_data,type = "RACVM_SSM",
+crcvm_splines_hf_he<- SDE$new(formulas = formulas,data = data_hf_he[data_hf_he$ID %in% 1:2,],type = "RACVM_SSM",
                     response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
                     other_data=list("log_sigma_obs0"=log(0.05)))
 
 #initialize smoothing penalties and re variances
-new_lambda=c(10^-6,10^-4)
+new_lambda=c(m1$sp)
 crcvm_splines_hf_he$update_lambda(new_lambda)
 
 
@@ -617,16 +759,16 @@ crcvm_splines_hf_he$fit(method="BFGS")
 
 ```{r}
 
-plot_results_hf=crcvm_splines_hf$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
+crcvm_splines_hf_he$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega))
 
-plot_results_hf
 
 ```
 
+```{r}
 
+estimate_parametric_omega(crcvm_splines_hf_he)
 
-For high frequency data, we are able to get $\tau$ and $\nu$ right, but we are still underestimating $\omega$.
-Now we force the parametrization of the surface for $\omega$ with a new SDE model in smoothSDE (called \texttt{CRCVM_SSM}. $\omega$ is a cubic function of the angle $\theta$, with an exponential factor.
+```
 
 ### High frequency low error
 
@@ -634,43 +776,40 @@ Now we force the parametrization of the surface for $\omega$ with a new SDE mode
 
 
 
-cropped_data=data_hf_he[data_hf_le$ID %in% 1,]
-
-H=array(rep(SIGMA_OBS^2*diag(2),length(data_hf$time)),dim=c(2,2,length(data_hf$time)))
-
-
 
 formulas <- list(mu1=~1,mu2=~1,tau=~1,
                  nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
 
 
-crcvm_splines_hf<- SDE$new(formulas = formulas,data = data_hf,type = "RACVM_SSM",
+crcvm_splines_hf_le<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% 1:1,],type = "RACVM_SSM",
                     response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
-                    other_data=list("H"=H))
+                    other_data=list("log_sigma_obs0"=log(0.05)))
 
 #initialize smoothing penalties and re variances
-new_lambda=c(exp(-1),exp(-1))
-crcvm_splines_hf$update_lambda(new_lambda)
+new_lambda=c(m1$sp)
+crcvm_splines_hf_le$update_lambda(new_lambda)
 
 
-crcvm_splines_hf$update_map(list(log_lambda=factor(c(NA,NA))))
+crcvm_splines_hf_le$update_map(list(log_lambda=factor(c(NA,NA))))
 
 #fit
-crcvm_splines_hf$fit(method="BFGS")
+crcvm_splines_hf_le$fit(method="BFGS")
+```
+
+
+```{r}
+crcvm_splines_hf_le$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega))
+
+
 ```
 
 
 ```{r}
 
-plot_results_hf=crcvm_splines_hf$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega_cubic))
-
-plot_results_hf
-
+estimate_parametric_omega(crcvm_splines_hf_le)
 ```
 
-
-
-## Estimation with fixed cubic function of angle
+## Estimation with fixed parametric omega function
 
 ### Low frequency high error
 
@@ -678,16 +817,19 @@ We will fix the new parameters that are introduced in the model, and estimate th
 These new parameters might be chosen based on the observed distance to shore and observed angular velocity in the data.
 
 ```{r}
-H=array(rep(0.03^2*diag(2),length(data_lf_he$time)),dim=c(2,2,length(data_lf_he$time)))
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_lf_he$time)),dim=c(2,2,length(data_lf_he$time)))
 # Estimate from simulated data ------------------
 
 formulas <- list(tau=~1,
                  nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 
-crcvm_cubic_lf_he<- SDE$new(formulas = formulas,data = data_lf_he[data_lf_he$DistanceShore>0.01,],type = "CRCVM_SSM",
-                    response = c("y1","y2"),par0 = c(1,1,1,5,0.5,0.8,0.3,pi/8),
+crcvm_cubic_lf_he<- SDE$new(formulas = formulas,
+                            data = data_lf_he,type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
                     fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
-                    other_data=list("log_sigma_obs0"=log(0.02)))
+                    other_data=list("H"=H))
+
+
 #fit
 crcvm_cubic_lf_he$fit(method="BFGS")
 ```
@@ -704,16 +846,17 @@ We are unable to estimate $\tau$ while fixing $\omega$. $\tau$ is totally biased
 ### Low frequency low error 
 
 ```{r}
-H=array(rep(0.007^2*diag(2),length(data_lf_le$time)),dim=c(2,2,length(data_lf_le$time)))
+H=array(rep(SIGMA_OBS_LOW^2*diag(2),length(data_lf_le$time)),dim=c(2,2,length(data_lf_le$time)))
 # Estimate from simulated data ------------------
 
 formulas <- list(tau=~1,
                  nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 
-crcvm_cubic_lf_le<- SDE$new(formulas = formulas,data = data_lf_le,type = "CRCVM_SSM",
-                    response = c("y1","y2"),par0 = c(1.5,4,1,5,1,0.8,0.2,pi/8),fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
-                    other_data=list("log_sigma_obs0"=log(0.03)))
-#fit
+crcvm_cubic_lf_le<- SDE$new(formulas = formulas,data = data_lf_le[data_lf_le$ID %in% c(1:4),],
+                              type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("H"=H))
+
 crcvm_cubic_lf_le$fit(method="BFGS")
 ```
 ```{r}
@@ -727,17 +870,17 @@ Let's now try with high frequency data.
 ### High frequency high error
 
 ```{r}
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_hf_he$time)),dim=c(2,2,length(data_hf_he$time)))
 
 formulas <- list(tau=~1,
                  nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 
 
-crcvm_cubic_hf_he<- SDE$new(formulas = formulas,data = data_hf_he[data,type = "CRCVM_SSM",
-                    response = c("y1","y2"),par0 =c(1,1,1,5,0.5,0.8,0.3,pi/8),
+crcvm_cubic_hf_he<- SDE$new(formulas = formulas,data = data_hf_he[data_hf_he$DistanceShore>0.01 & data_hf_he$ID %in% c(1:6),],type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 =c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
                     fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
-                    other_data=list("log_sigma_obs0"=log(0.05)))
+                    other_data=list("H"=H))
 
-#fit
 crcvm_cubic_hf_he$fit(method="BFGS")
 ```
 
@@ -745,18 +888,23 @@ crcvm_cubic_hf_he$fit(method="BFGS")
 crcvm_cubic_hf_he$get_all_plots()
 exp(as.list(crcvm_cubic_hf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
 ```
+
+
 ### High frequency low error
 
 ```{r}
 
+H=array(rep(SIGMA_OBS_LOW^2*diag(2),length(data_hf_le$time)),dim=c(2,2,length(data_hf_le$time)))
 
 formulas <- list(tau=~1,
                  nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 
 
-crcvm_cubic_hf_le<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% 4:5,],type = "CRCVM_SSM",
-                    response = c("y1","y2"),par0 = c(1,1,40,5,0.15,0.8,0.2,pi/8),fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
-                    other_data=list("log_sigma_obs0"=log(0.03)))
+crcvm_cubic_hf_le<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% c(1:4),],
+                            type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("H"=H))
 
 #fit
 crcvm_cubic_hf_le$fit(method="BFGS")
@@ -768,28 +916,14 @@ exp(as.list(crcvm_cubic_hf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
 ```
 
 ```{r}
-# Definition of parameters tau and nu ----------------
-tau_re=rnorm(N_ID,mean=0,sd=SIGMA_TAU)
-nu_re=rnorm(N_ID,mean=0,sd=SIGMA_NU)
-true_log_nu=nu_re+log(NU_0)
+ggplot()+geom_point(data=data_hf_le,aes(time,theta),col="blue",alpha=0.5,size=0.1)+
+  geom_point(data=data,aes(time,theta),col="red",alpha=0.2,size=0.1)+facet_wrap(~ID)
 
+```
+```{r}
+data_hf_le$omega=fomega(data_hf_le[,c("theta","DistanceShore")])
 
-ftau_gaussian=function(cov_data,sigma_bump=0.5,sigma_dip=0.5,tau0=TAU_0,dtau_bump=1.5,dtau_dip=0) {
-  #cov_data : dataframe of covariates with column for angle theta
-  #sigma_bump : width of the bumps at -pi/2 and pi/2
-  #sigma_dip : width of the dip at 0
-  #tau0 : base value of tau
-  #dtau_bump : height of the bump
-  #dtau_dip : depth of the dip
-  
-  theta=cov_data$theta
-  bump1 <- dtau_bump*exp(-((theta - pi/2)^2) / (2 * sigma_bump^2))
-  bump2 <- dtau_bump*exp(-((theta + pi/2)^2) / (2 * sigma_bump^2))
-  dip<- dtau_dip*exp(-((theta)^2) / (2 * sigma_dip^2))
-  tau=tau0+bump1+bump2-dip
-  
-  return (tau)
-}
-
+ggplot()+geom_point(data=data_hf_le,aes(time,omega),col="blue",alpha=0.5,size=0.1)+
+  geom_point(data=data,aes(time,omega),col="red",alpha=0.2,size=0.1)+facet_wrap(~ID)
 ```
 
