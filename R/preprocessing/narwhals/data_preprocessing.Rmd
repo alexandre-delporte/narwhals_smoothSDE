@@ -70,9 +70,10 @@ if (!(dir.exists(plots_folder))) {
 
 ```
 
-# Read the raw data
+# Explore raw data
 
 ## Read
+Takes a few minutes to read the whole dataset.
 
 ```{r read raw data,cache=TRUE}
 # Set the path to the directory containing the raw data for narwhals
@@ -218,9 +219,7 @@ data$ExpShipT[data$Type=="intertrial"]=0
 data$Posixct=as.POSIXct(data$Posixct)
 ```
 
-# First data exploration
-
-## Trials and intertrials periods
+# Trials and intertrials periods exploration
 
 ```{=tex}
 During the experiment, two types of exposure can be distinguished
@@ -240,7 +239,7 @@ trials_rescaled=ggplot(data[!is.na(data$Type), ], aes(time/24,ID,fill=Type)) +
   geom_tile(lwd = 1,linetype = 1)+ 
   scale_fill_manual(values=c("blue","red"),na.value="white",
                     name="Trial type",labels=c("Intertrial","Trial"))+
-  scale_y_discrete(labels=c("A1", "A2", "A3", "A4","A5", "A6"))
+  scale_y_discrete(labels=c("A1", "A2", "A3", "A4","A5", "A6"))+theme_minimal()
 
 
 
@@ -250,7 +249,7 @@ trials=ggplot(data[!is.na(data$Type), ], aes(Posixct,ID,fill=Type)) +
   geom_tile(lwd = 1.5,linetype = 1)+ 
    scale_fill_manual(values=c("blue","red"), na.value="white",
                      name="Trial type",labels=c("Intertrial","Trial"))+
-  scale_y_discrete(labels=c("A1", "A2", "A3", "A4","A5", "A6"))
+  scale_y_discrete(labels=c("A1", "A2", "A3", "A4","A5", "A6"))+theme_minimal()
 
 ggsave(path=plots_folder,filename="trials_rescaled.png",plot=trials_rescaled,width=10,height=5)
 ggsave(path=plots_folder,filename="trials.png",plot=trials,width=10,height=5)
@@ -266,15 +265,15 @@ We can zoom on these peaks for a better visualization.
 ```{r ggplot ship exposure}
 #plot exposure
 pExpAll=ggplot(data,aes(time,ExpShip,col=ID))+geom_line()+
-  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme_minimal()
 
 #plot exposure during intertrial
 pExpInt=ggplot(data,aes(time,ExpShipI,col=ID))+geom_line()+
-  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme_minimal()
 
 #plot exposure during trial
 pExpTr=ggplot(data,aes(time,ExpShipT,col=ID))+geom_line()+
-  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme_minimal()
 
 
 ggsave(path=plots_folder,filename="exposure_through_time.png",
@@ -426,7 +425,7 @@ Here we clearly see some outliers in the histogram.
 speed_histo=ggplot(dataprep, aes(x =horizontal_speed,col=ID)) +
   geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Empirical horizontal speed (km/h)")
+  theme(legend.position="top")+xlab("Empirical horizontal speed (km/h)")+theme_minimal()
 
 speed_histo
 ggsave(path=plots_folder,"speed_histo.png", plot = speed_histo)
@@ -462,7 +461,7 @@ dataprep[dataprep$horizontal_speed>20,]
 speed_histo_filtered=ggplot(dataprep, aes(x =horizontal_speed,col=ID)) +
   geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Empirical horizontal speed (km/h)")
+  theme(legend.position="top")+xlab("Empirical horizontal speed (km/h)")+theme_minimal()
 
 speed_histo_filtered
 ggsave(path=plots_folder,"speed_histo_filtered.png", plot = speed_histo_filtered)
@@ -498,7 +497,7 @@ print(summary(dtimes$delta*60))
 times_histo=ggplot(dtimes, aes(x =60*delta,col=ID)) +
   geom_histogram(fill="white",bins=100)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Time step (min) ")
+  theme(legend.position="top")+xlab("Time step (min) ")+theme_minimal()
 
 
 times_histo
@@ -511,7 +510,8 @@ cat("Percentage of time steps > 2h :",length(dtimes$delta[dtimes$delta>2])/lengt
 ```
 
 ```{r display hist , fig.cap="Histogram of time steps",warnings=FALSE}
-all_times_histo=ggplot(data=dtimes,aes(x=60*delta))+geom_histogram(bins=120,color="black",fill="grey")+xlab("Time step (min)")
+all_times_histo=ggplot(data=dtimes,aes(x=60*delta))+geom_histogram(bins=120,color="black",fill="grey")+xlab("Time step (min)")+
+  theme_minimal()
 all_times_histo
 ggsave(path=plots_folder,"all_time_steps_histo.png", plot = all_times_histo)
 ```
@@ -521,9 +521,13 @@ The median of the time steps between consecutive measurement is about $5$ minute
 Only two time steps exceed $4$h.
 ```
 
+```{r}
+all_times_histo_cropped=ggplot(data=dtimes[dtimes$delta<1,],aes(x=60*delta))+geom_histogram(bins=120,color="black",fill="grey")+xlab("Time step (min)")+
+  theme_minimal()
+all_times_histo_cropped
+ggsave(path=plots_folder,"all_time_steps_histo_cropped.png", plot = all_times_histo_cropped)
+```
 
-## Time steps distribution during exposure vs no exposure
- 
 
 ## Plot all GPS tracks (without interpolation) on a map
 
@@ -550,7 +554,7 @@ map=milne_land_map +
    geom_path(dataprep[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
   geom_point(data = dataprep[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
              aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
-  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme_minimal()
 
 ggsave(path=plots_folder,filename="all_narwhals_tracks.pdf", 
        plot = map,width=10,height=5)
@@ -586,7 +590,7 @@ st_write(points_sf,file.path(preprocessed_narwhal_data_path,"narwhals_positions.
 
 ## Extract land polygons to define the border of the domain
 
-We read the preprocessed land polygons extracted from OpenStreetMap database.
+We read the preprocessed land polygons extracted from OpenStreetMap database without modification except for cropping the polygons in the right bounding box and projecting it in EPSG 32626 to get UTM coordinates in km.
 
 ```{r extract land polygons}
 
@@ -689,21 +693,20 @@ plot(res_land$min_distances-dataprep$DistanceShore)
 ```{r summary distances to shore}
 summary(res_land$min_distances)
 summary(dataprep$DistanceShore)
-quantile(res_land$min_distance,probs=c(0.05,0.95))
-D_low=quantile(res_land$min_distance,probs=0.05)
-D_up=median(res_land$min_distance)
 ```
 
 
 
 ```{r histograms distances to shore}
 histo1=ggplot(dataprep[dataprep$DistanceShore>0,], aes(x = DistanceShore)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Original distance to shore (km)")
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Original distance to shore (km)")+
+  theme_minimal()
 
 
 df=data.frame(DistanceShore=res_land$min_distances[res_land$min_distances>0])
 histo2=ggplot(df, aes(x =DistanceShore)) +
-  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance fom land (km)")
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance fom land (km)")+
+  theme_minimal()
 ```
 
 ```{r display histograms}
@@ -819,9 +822,34 @@ histo
 
 
 ```{=tex}
+A lot of points are indeed still very close to land. We think that this means the shoreline is still not accurate. To solve the problem, we translate the polygon vertices 200m inward. We compute new distances to shore based on the translated polygon.
 
-For the rest of the analysis, we'll keep the bounded domain defined by the updated polygons in "updated_scoresby_sound_utm" sf object as a reference.
-Doing that involves having some points on land, that is points with Distance to shore equal to 0.
+```
+
+```{r get shrunk polygons}
+
+#get updated land polygons
+shrunk_scoresby_sound_utm<-st_read(file.path(preprocessed_greenland_data_path,"shrunk_updated_scoresby_sound_utm.shp"))
+
+shrunk_scoresby_sound_utm <- st_transform(shrunk_scoresby_sound_utm, crs = "+init=EPSG:32626 +units=km")
+
+```
+
+```{r compute updated translated distance to shore}
+res_shrunk_land=nearest_points(positions=narwhal_positions,border=shrunk_scoresby_sound_utm)
+
+cat("Percentage of points on land with distance from shrunk updated osm land polygons : \n",
+    length(which(res_shrunk_land$min_distances==0))/length(dataprep$time)*100,"\n")
+
+```
+
+```{r distribution of points close to the shore}
+
+df=data.frame(DistanceShore=res_shrunk_land$min_distances[res_shrunk_land$min_distances<1 & res_shrunk_land$min_distances>0  ])
+histo=ggplot(df, aes(x =DistanceShore)) +
+  geom_histogram(fill="cyan",bins=100,color="black")+xlab("Computed distance to shore (km)")
+
+histo
 ```
 
 
@@ -846,6 +874,18 @@ dataprep$ny=dataprep$y-dataprep$py
 #replace distance to shore with distances calculated from land polygons (in km)
 dataprep$DistanceShore=min_distances
 
+#same for shrunk polygons
+nearest_points_shrunk=res_shrunk_land$nearest_points
+min_distances_shrunk=res_shrunk_land$min_distances
+
+#add columns px and py with coordinates of the nearest point on the shore line
+dataprep$px_translated=nearest_points_shrunk[,1]
+dataprep$py_translated=nearest_points_shrunk[,2]
+
+# add columns with difference between narwhal position and nearest point on the shoreline
+dataprep$nx_translated=dataprep$x-dataprep$px_translated
+dataprep$ny_translated=dataprep$y-dataprep$py_translated
+dataprep$DistanceShore_translated=min_distances_shrunk
 ```
 
 
@@ -856,6 +896,9 @@ dataprep$DistanceShore=min_distances
 ```{r}
 #add Ishore covariate based on 1/distance in km
 dataprep$Ishore <- ExposureFunction(X = dataprep$DistanceShore) 
+
+#add Ishore covariate based on 1/distance in km
+dataprep$Ishore_translated <- ExposureFunction(X = dataprep$DistanceShore_translated) 
 
 ```
 
@@ -887,7 +930,8 @@ n=length(dataprep$time)
 
 dataprep$AngleShore=rep(NA,n)
 dataprep$AngleVelocities=rep(NA,n)
-dataprep$AngleNormal=rep(NA,n)
+dataprep$theta=rep(NA,n)
+dataprep$theta_translated=rep(NA,n)
 dataprep$VelocityPhase=rep(NA,n)
 
 for (id in unique(dataprep$ID)) {
@@ -909,29 +953,33 @@ for (id in unique(dataprep$ID)) {
   
   #matrix of normal vectors
   normal=as.matrix(sub_data[2:n_sub,c("nx","ny")])
+  normal_translated=as.matrix(sub_data[2:n_sub,c("nx_translated","ny_translated")])
   
   #angle between velocity and normal vector
-  theta_coast=signed_angle(vexp_df,normal)
+  theta=signed_angle(vexp_df,normal)
+  theta_translated=signed_angle(vexp_df,normal_translated)
   
   #deviation angle between consecutive velocities
-  theta_vel=signed_angle(vexp_df[1:(n_sub-2),],vexp_df[2:(n_sub-1),])
+  angle_vel=signed_angle(vexp_df[1:(n_sub-2),],vexp_df[2:(n_sub-1),])
   
   #velocity phase angle
   vel_phase=signed_angle(matrix(rep(c(1,0),each=n_sub-2),ncol=2),vexp_df[1:(n_sub-2),])
   
   #deviation from trajectory parallel to coastline
-  phi=ifelse(theta_coast > 0, theta_coast - pi/2, theta_coast + pi/2)
+  phi=ifelse(theta > 0, theta - pi/2, theta + pi/2)
   
   
   #adjust lengths by adding NA when necessary
-  theta_vel=c(NA,theta_vel,NA)
+  angle_vel=c(NA,angle_vel,NA)
   phi=c(NA,phi)
-  theta=c(NA,theta_coast)
+  theta=c(NA,theta)
+  theta_translated=c(NA,theta_translated)
   vel_phase=c(NA,vel_phase,NA)
   
   dataprep[sub_ind,"AngleShore"]=phi
-  dataprep[sub_ind,"AngleVelocities"]=theta_vel
-  dataprep[sub_ind,"AngleNormal"]=-theta
+  dataprep[sub_ind,"AngleVelocities"]=angle_vel
+  dataprep[sub_ind,"theta"]=-theta
+  dataprep[sub_ind,"theta_translated"]=-theta_translated
   dataprep[sub_ind,"VelocityPhase"]=vel_phase
 }
 
@@ -964,22 +1012,24 @@ plot_speed=ggplot()+ geom_line(data=dataprep,aes(time,horizontal_speed,col=ID))+
             aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),
             alpha = 0.3,col="lightblue")+
   facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
-  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical velocity")
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical velocity")+
+   theme_minimal()
 
 plot_AngleShore=ggplot()+geom_line(data=dataprep[dataprep$DistanceShore>0.05,],aes(time,AngleShore,col=ID))+
   geom_rect(data = regions, aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),alpha = 0.3,col="lightblue")+
   facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
-  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical deviation from coastline")
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical deviation from coastline")+
+  theme_minimal()
 
 plot_AngleVelocities=ggplot()+geom_line(data=dataprep,aes(time,AngleVelocities,col=ID))+
   geom_rect(data = regions, aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),alpha = 0.3,col="lightblue")+
   facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
-  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical deviation between consecutive velocities")
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Empirical deviation between consecutive velocities")+ theme_minimal()
 
-plot_AngleNormal=ggplot()+geom_line(data=dataprep[dataprep$DistanceShore>0.05,],aes(time,AngleNormal,col=ID))+
+plot_AngleNormal=ggplot()+geom_line(data=dataprep[dataprep$DistanceShore>0.05,],aes(time,theta,col=ID))+
   geom_rect(data = regions, aes(xmin = start_time, xmax = end_time, ymin = -Inf, ymax = Inf),alpha = 0.3,col="lightblue")+
   facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
-  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Angle between empirical velocity and normal vector")
+  scale_color_viridis_d(guide="none")+theme(legend.position="none")+xlab("Time (h)")+ylab("Angle between empirical velocity and normal vector")+ theme_minimal()
 
 
 
@@ -1011,24 +1061,24 @@ plot_AngleVelocities
 AngleShore_histo=ggplot(dataprep[dataprep$DistanceShore>0.05,], aes(x = AngleShore,col=ID)) +
   geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Empirical deviation from coastline (rad)")
+  theme(legend.position="top")+xlab("Empirical deviation from coastline (rad)")+ theme_minimal()
 
 
 AngleVelocities_histo=ggplot(dataprep, aes(x = AngleVelocities,col=ID)) +
   geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Empirical deviation between consecutive velocities (rad) ")
+  theme(legend.position="top")+xlab("Empirical deviation between consecutive velocities (rad) ")+ theme_minimal()
 
-AngleNormal_histo=ggplot(dataprep[dataprep$DistanceShore>0.05,], aes(x = AngleNormal,col=ID)) +
+AngleNormal_histo=ggplot(dataprep[dataprep$DistanceShore>0.05,], aes(x = theta,col=ID)) +
   geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Angle between empirical velocity and normal vector (rad) ")
+  theme(legend.position="top")+xlab("Angle between empirical velocity and normal vector (rad) ")+ theme_minimal()
 
 
 VelocityPhase_histo=ggplot(dataprep, aes(x = VelocityPhase,col=ID)) +
   geom_histogram(fill="white",bins=50)+facet_grid(ID ~.,labeller=as_labeller(c("Asgeir"="A1","Frederik"="A2","Helge18"="A3","Kyrri"="A4","Nemo"="A5","Siggi"="A6")))+
   scale_color_viridis_d(guide="none")+
-  theme(legend.position="top")+xlab("Velocity phase angele (rad) ")
+  theme(legend.position="top")+xlab("Velocity phase angele (rad) ")+ theme_minimal()
 
 ggsave(path=plots_folder,"AngleShore_histo.png", plot = AngleShore_histo)
 ggsave(path=plots_folder,"AngleVelocities.png", plot = AngleVelocities_histo)
@@ -1278,7 +1328,7 @@ Dshore_histo
 ## Plot distance to ship histogram for each narwhal
 
 
-We also plot the density of the Dist_Ship variable to understand better its distribution.
+We also plot the histogram of the Dist_Ship variable to understand better its distribution.
 
 
 ```{r distance ship histogram}
@@ -1306,18 +1356,18 @@ Dship_histo
 tagtime=24
 
 
-dataBE1=data.frame()
+dataBE24=data.frame()
 for (id in unique(data$ID)) {
   narwhalData=dataprep[dataprep$ID==id,]
   maxtime <- min(narwhalData$time[(narwhalData$LOS == 1)])
-  dataBE1 =rbind(dataBE1,subset(narwhalData, !(time > (maxtime-1)) & (time>tagtime)))
+  dataBE24 =rbind(dataBE24,subset(narwhalData, !(time > (maxtime-1)) & (time>tagtime)))
 }
 
-dataBE2=data.frame()
+dataBE12=data.frame()
 for (id in unique(data$ID)) {
   narwhalData=dataprep[dataprep$ID==id,]
   maxtime <- min(narwhalData$time[(narwhalData$LOS == 1)])
-  dataBE2 =rbind(dataBE2,subset(narwhalData, !(time > (maxtime-1)) & (time>tagtime/2)))
+  dataBE12 =rbind(dataBE12,subset(narwhalData, !(time > (maxtime-1)) & (time>tagtime/2)))
 }
 
 dataAE=data.frame()
@@ -1332,7 +1382,7 @@ for (id in unique(dataprep$ID)) {
 ```{r}
 #number of data points for each individual
 for (id in unique(data$ID)) {
-  narwhalDataBE=dataBE2[dataBE2$ID==id,]
+  narwhalDataBE=dataBE12[dataBE12$ID==id,]
   narwhalDataAE=dataAE[dataAE$ID==id,]
   cat(id," : ", length(narwhalDataBE$time)," GPS measurement before exposure and ", length(narwhalDataAE$time)," after exposure.\n",sep="")
 }
@@ -1342,19 +1392,19 @@ for (id in unique(data$ID)) {
 ## Plot data before and after exposure
 
 ```{r plots before and after exposure}
-pBE1=milne_land_map + 
-  geom_point(dataBE1[,c("ID","Long","Lat","time")],
+pBE24=milne_land_map + 
+  geom_point(dataBE24[,c("ID","Long","Lat","time")],
              mapping=aes(Long, Lat, col = ID),size= 0.5,alpha=1) +
-   geom_path(dataBE1[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
-  geom_point(data = dataBE1[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
+   geom_path(dataBE24[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
+  geom_point(data = dataBE24[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
              aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
-pBE2=milne_land_map + 
-  geom_point(dataBE2[,c("ID","Long","Lat","time")],
+pBE12=milne_land_map + 
+  geom_point(dataBE12[,c("ID","Long","Lat","time")],
              mapping=aes(Long, Lat, col = ID),size= 0.5,alpha=1) +
-   geom_path(dataBE2[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
-  geom_point(data = dataBE2[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
+   geom_path(dataBE12[,c("ID","Long","Lat","time")],mapping=aes(Long,Lat,col=ID),linewidth=0.1)+
+  geom_point(data = dataBE12[,c("ID","Long","Lat","time")] %>% filter(!duplicated(ID)),
              aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
@@ -1366,17 +1416,17 @@ pAE=milne_land_map +
              aes(x = Long, y = Lat,col=ID), shape = 3, size = 4,col = "red")+
   scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))
 
-ggsave(path=plots_folder,"tracksBE1.png",pBE1,width=10,height=5)
-ggsave(path=plots_folder,"tracksBE2.png",pBE2,width=10,height=5)
+ggsave(path=plots_folder,"tracksBE12.png",pBE12,width=10,height=5)
+ggsave(path=plots_folder,"tracksBE24.png",pBE24,width=10,height=5)
 ggsave(path=plots_folder,"tracksAE.png",pAE,width=10,height=5)
 ```
 
 ```{r display pBE1, fig.cap="Tracks before exposure, 24h after tagging"}
-pBE1
+pBE12
 ```
 
 ```{r display pBE2, fig.cap="Tracks before exposure, 12h after tagging"}
-pBE2
+pBE24
 ```
 
 ```{r display pAE, fig.cap="Tracks after exposure"}
@@ -1390,8 +1440,8 @@ pAE
 preprocessed_narwhal_data_path <- here(file.path("Data","preprocessed_data","narwhals"))
 
 write.csv(dataprep,file.path(preprocessed_narwhal_data_path,"allData.csv"))
-write.csv(dataBE1,file.path(preprocessed_narwhal_data_path,"DataBE1.csv"))
-write.csv(dataBE2,file.path(preprocessed_narwhal_data_path,"DataBE2.csv"))
+write.csv(dataBE12,file.path(preprocessed_narwhal_data_path,"DataBE12.csv"))
+write.csv(dataBE24,file.path(preprocessed_narwhal_data_path,"DataBE24.csv"))
 write.csv(dataAE,file.path(preprocessed_narwhal_data_path,"DataAE.csv"))
 ```
 

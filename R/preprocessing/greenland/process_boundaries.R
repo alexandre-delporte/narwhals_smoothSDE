@@ -33,14 +33,11 @@ library(dplyr)
 
 
 
-
-# Access a file in the data folder
 raw_data_path <- here("Data","raw_data","greenland")
 
-#get the coastline geometry from the geojson file
 land<-st_read(file.path(raw_data_path,"land_polygons.shp"))
 
-#bounding box tocrop the data to keep the region of interest in WGS84
+#bounding box to crop the data to keep the region of interest in WGS84
 bbox <- st_bbox(c(xmin=-30, xmax = -20, ymin =69, ymax = 72), 
                 crs = st_crs(land))
 
