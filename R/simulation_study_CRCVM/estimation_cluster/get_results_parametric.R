@@ -37,6 +37,8 @@ for (domain in domains) {
   
   for (hyperparams_file in hyperparams_files_list) {
     
+    print(hyperparams_file)
+    
     # Read the file and evaluate each line
     lines <- readLines(file.path(domain,hyperparams_file))
     for (line in lines) {
@@ -99,7 +101,7 @@ for (domain in domains) {
       
       print(df)
       
-      if (as.numeric(df[df$coeff_name=="tau.(Intercept)",2])>5) {
+      if (as.numeric(df[df$coeff_name=="tau.(Intercept)",2])>3) {
         next
       }
       if (type %in% names(all_results)) {
@@ -157,12 +159,12 @@ for (domain in domains) {
       df=all_results[[type]]
       
       #keep only intercepts and standard deviations parameters
-      df=df[df$coeff_name %in% c("tau.(Intercept)","nu.(Intercept)","log_sigma_obs"),]
+      df=df[df$coeff_name %in% c("tau.(Intercept)","nu.(Intercept)","tau.s(ID)","nu.s(ID)","log_sigma_obs"),]
       
       #name of coefficients
       coeff_names=unique(df$coeff_name)
       #link functions
-      links=list(exp,exp,\(x) exp(x)*1000)
+      links=list(exp,exp,\(x) 1/sqrt(exp(x)),\(x) 1/sqrt(exp(x)),\(x) exp(x)*1000)
       names(links)=coeff_names
       #number of coeffs to estimate in single framework
       n_coeffs=length(coeff_names)
