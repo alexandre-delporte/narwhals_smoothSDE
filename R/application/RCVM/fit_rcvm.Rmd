@@ -35,10 +35,10 @@ par_dir=here() #parent directory
 narwhal_data_path <- file.path(par_dir,"Data","preprocessed_data","narwhals")  
 
 #data before exposure with first 24h removed
-dataBE24=read.csv(file.path(narwhal_data_path,"DataBE1.csv"), header = TRUE,dec = ".")
+dataBE24=read.csv(file.path(narwhal_data_path,"DataBE24.csv"), header = TRUE,dec = ".")
 
 #data before exposure with first 12h removed
-dataBE12=read.csv(file.path(narwhal_data_path,"DataBE2.csv"), header = TRUE,dec = ".")
+dataBE12=read.csv(file.path(narwhal_data_path,"DataBE12.csv"), header = TRUE,dec = ".")
 
 #data after exposure
 dataAE=read.csv(file.path(narwhal_data_path,"DataAE.csv"), header = TRUE,dec = ".")
@@ -50,7 +50,7 @@ We choose thresholds on the distance to the shore to define the Ishore covariate
 ```{r preprocess data}
 
 
-D_low=0.073
+D_low=0.05
 D_up=3
 dataBE24[dataBE24$DistanceShore> D_up,"Ishore"]=0
 dataBE24[dataBE24$DistanceShore< D_low,"Ishore"]=1/D_low
@@ -70,6 +70,22 @@ n_post=length(dataAE$time) #number of observations after exposure
 
 
 
+```{r}
+
+all_data <- data.frame()
+
+
+for (id in unique(dataBE12$ID)) {
+ 
+  sub_dataBE <- dataBE12[dataBE12$ID == id, ]
+  sub_dataAE <- dataAE[dataAE$ID == id, ]
+  
+  sub_data <- rbind(sub_dataBE, sub_dataAE)
+  
+  all_data <- rbind(all_data, sub_data)
+}
+
+```
 
 # Fit baseline models
 
@@ -79,7 +95,7 @@ We will assess the sensitivity of our results to the hyperparameter later.
 
 ## Baseline CTCRW with AngleNormal covariate in $\tau$
 
-The first model is a CTCRW where the covariate AngleNormal influences the persistence of the movement.
+The first model is a CTCRW where the covariate theta influences the persistence of the movement.
 
 ```{r fit baseline_ctcrw0,message=FALSE}
 
@@ -87,7 +103,7 @@ The first model is a CTCRW where the covariate AngleNormal influences the persis
 par0 <- c(0,0,1,4)
 
 #model formula
-formulas <- list(mu1=~1,mu2=~1,tau =~s(AngleNormal,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"))
+formulas <- list(mu1=~1,mu2=~1,tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"))
 
 #Fixed measurement error
 sigma_obs=0.03
@@ -97,7 +113,7 @@ H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_pre12))
 baseline_ctcrw0<- SDE$new(formulas = formulas,data = dataBE12,type = "CTCRW",
                           response = c("x","y"),
                           par0 = par0,
-                          other_data=list("H"=H),
+                          other_data=list("log_sigma_obs0"=log(0.05)),
                           fixpar=c("mu1","mu2"))
 baseline_ctcrw0$fit()
 
@@ -208,7 +224,7 @@ print(
 We can now plot the smooth parameter $\tau$ as a function of the covariate \texttt{AngleNormal}.
 
 ```{r plot smooth parameters baseline_ctcrw0 }
-baseline_ctcrw0$plot_par(var="AngleNormal",
+baseline_ctcrw0$plot_par(var="theta_translated",
                          par_names=c("tau","nu"),n_post=100)
 
 ```
@@ -233,9 +249,9 @@ par0 <- c(0,0,1,4,0)
 
 #model formula
 formulas <- list(mu1=~1,mu2=~1,
-                 tau =~s(AngleNormal,k=10,bs="cc")+s(ID,bs="re"),
+                 tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),
                  nu=~s(ID,bs="re"),
-                 omega=~s(AngleNormal,k=10,bs="cs"))
+                 omega=~s(theta_translated,k=10,bs="cs"))
 
 
 #Fixed measurement error
@@ -243,8 +259,8 @@ sigma_obs=0.03
 H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_pre12))
 
 # Fit baseline with measurement error estimated from the data
-baseline_racvm0<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM",response = c("x","y"),
-                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
+baseline_racvm0<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM_SSM",response = c("x","y"),
+                    par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),fixpar=c("mu1","mu2"))
 
 baseline_racvm0$fit()
 
@@ -353,7 +369,7 @@ print(
 
 
 ```{r plot smooth parameters baseline_racvm0}
-baseline_racvm0$plot_par(var="AngleNormal",
+baseline_racvm0$plot_par(var="theta_translated",
                          par_names=c("omega","tau"),n_post=100)
 
 ```
@@ -365,11 +381,12 @@ baseline_racvm0$get_all_plots(baseline=NULL,show_CI="pointwise")
 ```
 
 
-## Baseline with AngleNormal and Ishore in omega and tau
+## Baseline with AngleNormal and DistanceShore in omega and tau
 
 We add the effect of the distance to the shore through the covariate \texttt{Ishore}.
 This model has a lot of parameters and takes around 15 minutes to fit. 
 Indeed, we will need to fix the penalties in the tensor splines in advance to ensure convergence of the optimizer. The standard deviation of the random effects and the smoothing penalties for the splines in $\tau$ will still be estimated from the data and not fixed. To illustrate this we first fit a model where the smoothing penalties are all estimated from the data.
+
 
 ```{r fit baseline_racvm1_unstable,cache=TRUE,message=FALSE}
 
@@ -381,12 +398,11 @@ sigma_obs=0.03
 H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_pre12))
 
 #parameters formulas
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(AngleNormal,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
-                   omega=~ti(AngleNormal,k=5,bs="cs")+ti(Ishore,k=5,bs="cs")+
-                   ti(AngleNormal,Ishore,k=c(5,5),bs="cs"))
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
+                   omega=~te(theta_translated,DistanceShore_translated,k=5,bs="cs"))
 
 # Fit baseline
-baseline_racvm1_unstable<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM",
+baseline_racvm1_unstable<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM_SSM",
                     response = c("x","y"),par0 = par0,other_data=list("H"=H),
                     fixpar=c("mu1","mu2"))
 
@@ -416,14 +432,55 @@ baseline_racvm1_unstable$sdev()
 
 We see that the estimate for the standard deviation $\sigma_\tau$ of the random effect for $\tau$ is very high while the estimate for the standard deviation $\sigma_\nu$ of the random effect for $\nu$ is very close to $0$. The smoothing penalties estimates are extremely high (the smoothing penalties are the exponential of \texttt{estimates\_bas\_racvm1\_unstable$log\_lambda}). This suggests that the optimization did not go well and numerical errors occurred. For this reason, we decide to fix the smoothing penalties to "reasonable" values in the tensor splines.
 
+First, we get good values for the smoothing penalty by approximating the true surface with splines.
+
+```{r}
+
+fomega=function(cov_data,a=2,b=5,D0=0.5,D1=0.8,sigma_D=0.3,sigma_theta=pi/6){
+  Dshore=cov_data$DistanceShore
+  theta=cov_data$theta
+  if (is.null(Dshore)){
+    Dshore=1/cov_data$Ishore
+  }
+  
+  a*theta*(theta-pi/2)*(theta+pi/2)*exp(-Dshore/D0)/Dshore+
+      b*(exp(-1/2*(((theta+pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2))-
+           exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2)))
+}
+
+# Splines smooth for omega -------------------- 
+n <- 100000
+SP_DF=5
+
+#sample theta and DistanceShore points in the domain
+theta <- runif(n,-pi,pi);
+DistanceShore <- runif(n,0.02,7)
+samples=data.frame(theta=theta,DistanceShore=DistanceShore)
+
+#define grid of values
+theta_v <- seq(-pi,pi,length=30)
+Dshore_v<- seq(0.02,7,length=30)
+pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
+
+
+#points on the surface perturbed by gaussian noise
+f <- fomega(samples)
+y <- f+0.1*rnorm(n)
+
+
+#fit with bivariate splines te
+m1 <- gam(y~te(theta,DistanceShore,k=SP_DF))
+
+```
+
 ```{r fit baseline_racvm1,cache=TRUE}
 
 #initial parameters
 par0 <- c(0,0,1,4,0)
-init_lambda=exp(c(3,3,4,-2,-2,-2,-2))
+init_lambda=c(exp(3),exp(3),1,exp(-12),exp(-5))
 
 #mapping for fixed smoothing penalties
-new_map=list("log_lambda"=factor(c(1,2,3,rep(NA,4))))
+new_map=list("log_lambda"=factor(c(1,2,3,rep(NA,2))))
 
 
 #Fixed measurement error
@@ -431,13 +488,12 @@ sigma_obs=0.03
 H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_pre12))
 
 #parameters formulas
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(AngleNormal,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
-                   omega=~ti(AngleNormal,k=5,bs="cs")+ti(Ishore,k=5,bs="cs")+
-                   ti(AngleNormal,Ishore,k=c(5,5),bs="cs"))
+formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
+                   omega=~te(theta_translated,DistanceShore_translated,k=c(5,5),bs="cs"))
 
 # Fit baseline
-baseline_racvm1<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM",
-                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
+baseline_racvm1<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM_SSM",
+                    response = c("x","y"),par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),
                     fixpar=c("mu1","mu2"))
 
 baseline_racvm1$update_lambda(init_lambda)
@@ -445,6 +501,12 @@ baseline_racvm1$update_map(new_map)
 baseline_racvm1$fit()
 
 
+```
+
+```{r results baseline_racvm1}
+
+estimates_bas_racvm1=as.list(baseline_racvm1$tmb_rep(),what="Est")
+std_bas_racvm1=as.list(baseline_racvm1$tmb_rep(),what="Std")
 ```
 
 
@@ -544,13 +606,11 @@ plots
 
 #plot parameters
 
-xmin=list("Ishore"=1/D_up)
-xmax=list("Ishore"=1/D_low)
-link=list("Ishore"=(\(x) 1/x))
-xlabel=list("Ishore"="Distance to shore")
+xmin=list("DistanceShore_translated"=0.2)
+xmax=list("DistanceShore_translated"=2)
 
 plots_bas_racvm1=baseline_racvm1$get_all_plots(baseline=NULL,
-      xmin=xmin, xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise")
+      xmin=xmin, xmax=xmax,show_CI="pointwise")
 
 plots_bas_racvm1
 
@@ -626,7 +686,7 @@ We decide to remove the effect of \texttt{AngleNormal} on $\tau$ and only put co
 
 #initial parameters
 par0 <- c(0,0,2,4,0)
-init_lambda=c(exp(4),exp(4),10^-6,10^-1)
+init_lambda=c(exp(3),exp(3),exp(-12),exp(-5))
 
 #mapping for fixed smoothing penalties
 new_map=list("log_lambda"=factor(c(1,2,rep(NA,2))))
@@ -639,7 +699,7 @@ H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_pre12))
 
 #parameters formulas
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                   omega=~te(AngleNormal,DistanceShore,k=5,bs="cs"))
+                   omega=~te(theta_translated,DistanceShore_translated,k=5,bs="cs"))
 
 # Fit baseline
 baseline_racvm2<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM_SSM",
@@ -759,16 +819,91 @@ plots
 ```{r plot smooth parameters CI baseline_racvm2}
 #plot parameters
 
-xmin=list("Ishore"=1/D_up)
-xmax=list("Ishore"=1/D_low)
-link=list("Ishore"=(\(x) 1/x))
-xlabel=list("Ishore"="Distance to shore")
+xmin=list("DistanceShore_translated"=0.2)
+xmax=list("DistanceShore_translated"=4)
 
 plots_bas_racvm2=baseline_racvm2$get_all_plots(baseline=NULL,
-      xmin=xmin, xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise")
+      xmin=xmin,xmax=xmax,show_CI="pointwise")
 
 plots_bas_racvm2
 
+
+```
+
+```{r}
+
+estimate_parametric_omega=function(model) {
+    
+    data=model$data()
+    
+    Dshore=seq(from=quantile(data$DistanceShore_translated,0.5),to=quantile(data$DistanceShore_translated,0.95),length.out=30)
+    theta_translated=seq(from=-pi,to=pi,length.out=30)
+    grid<- as.data.frame(expand.grid(Dshore,theta_translated))
+    colnames(grid) <- c("DistanceShore_translated","theta_translated")
+    grid$ID="Asgeir"
+    
+    #get model matrices
+    mats=model$make_mat(new_data=grid)
+    X_fe=mats$X_fe
+    X_re=mats$X_re
+    
+    par_mat=model$par(new_data=grid,X_fe=X_fe,X_re=X_re)
+    
+    #matrix of values for surface plot
+    z=matrix(par_mat[,"omega"],30,30)
+    
+    data=grid
+    data$z=as.vector(z)
+    
+    
+    # Create the 3D surface plot using plot_ly
+    plot_splines<- plot_ly(x = ~theta_translated, y = ~Dshore, z = ~z) %>%
+      add_surface() %>%
+      layout(title = "Predicted spline surface for omega",
+             scene = list(yaxis = list(title = "Distance to shore"),
+               xaxis = list(title = "theta_translated")))
+    
+    
+    
+    fit_optim <- optim(par = c(0.1,2),
+                       fn = function(params) {
+                         
+                        # Compute predicted z values
+                        z_pred <- fomega(data,1,0.5,params[1],params[2],1,pi/6)
+                         
+                         # Return sum of squared residuals
+                         sum((data$z - z_pred)^2)
+                       })
+    
+    
+    est_par=fit_optim$par
+    
+    print(est_par)
+    
+    # Compute the predicted values using the starting parameters
+    z_pred_starting <- fomega(grid,1,1,est_par[1],est_par[2],1,
+                                    pi/6)
+    
+    # Reshape z_pred_starting to a matrix for plotting
+    z_pred_matrix <- matrix(z_pred_starting, nrow = length(Dshore), ncol = length(theta_translated))
+    
+    print(z_pred_matrix)
+    
+    # Create the 3D surface plot using plot_ly
+    plot_parametric <- plot_ly(x = ~theta_translated, y = ~Dshore, z = ~z_pred_matrix) %>%
+      add_surface() %>%
+      layout(title = "Estimated parametric surface for omega",
+             scene = list(
+               yaxis = list(title = "Distance to shore"),
+               xaxis = list(title = "theta"),
+               zaxis = list(title = "Predicted z")
+             ))
+    
+    return (list("est_par"=est_par,"splines_surface"=plot_splines,"parametric_surface"=plot_parametric))
+    
+}
+
+estimate_parametric_omega(baseline_racvm2)
 
 ```
 
@@ -1055,95 +1190,33 @@ animate(anim, nframes = 100, fps = 5, width = 800, height = 600,
 The adjusted SDE models where the smooth parameters $\omega$ has been multiplied by a factor $40$ produces trajectories that seem to follow the shoreline and look more similar to the actual data.
 However, the trajectories obtained from the non adjusted fitted model does not produce constrained trajectories.
 This suggests that we are indeed underestimating the smooth parameter $\omega$ with the tensor splines. This may be due to several factors : the low frequency at which the data is observed, the measurement error, the small amount of data that we have.
-
-We can try to fit an interpretable parametric surface on the estimated spline surface for the parameter $\omega$ in the models \texttt{baseline\_racvm1} or \texttt{baseline\_racvm2}. However the surfaces are so different that it does not work very well.
-
 ```{r}
 
-Ishore=seq(from=1/6,to=1/0.05,length.out=30)
-theta=seq(from=-pi,to=pi,length.out=30)
-grid<- as.data.frame(expand.grid(Ishore,theta))
-colnames(grid) <- c("Ishore","AngleNormal")
-grid$ID="Asgeir"
-
-#get model matrices
-mats=baseline_racvm1$make_mat(new_data=grid)
-X_fe=mats$X_fe
-X_re=mats$X_re
-
-par_mat=baseline_racvm1$par(new_data=grid,X_fe=X_fe,X_re=X_re)
-
-#matrix of values for surface plot
-z=matrix(par_mat[,"omega"],30,30)
+cores=detectCores()
+cl <- makeCluster(6) #not to overload your computer
+registerDoParallel(cl)
 
 
 
-# Define the parametric function for omega
-fomega<- function(cov_data, a =5,theta0=pi/2,D0=1) {
-  Dshore=cov_data$DistanceShore
-  theta=cov_data$AngleNormal
-  if (is.null(Dshore)){
-    Dshore=1/cov_data$Ishore
-  }
-  a*theta*(theta-theta0)*(theta+theta0)*exp(-Dshore/D0)/Dshore
+data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+  
+  set.seed((seed-1)*N_ID+i)
+
+  
+  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,
+                      log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,
+                land=border,verbose=FALSE,save_omega = TRUE)
+  
+  data_sim=res$sim
+  data_sim$ID=factor(rep(i,length(data_sim$y1)))
+  data_shore=res$shore
+
+  data_sim=cbind(data_sim,data_shore)
+  data_sim
 }
 
-
-data=grid
-data$z=as.vector(z)
-
-
-#fix magnitude and slope for omega on the AngleNormal axis
-a_fixed <- 1  
-theta0_fixed <- pi/2
-
-
-fit_optim <- optim(par = c(log_D0 = log(1)),  # Exclude a from parameters
-                   fn = function(params) {
-                     log_D0 <- params[1]
-                  
-                     
-                     # Use fixed values
-                     a <- a_fixed
-                     theta0 <- theta0_fixed
-                     
-                      # Compute predicted z values
-                     z_pred <- fomega(data, a,theta0,exp(log_D0))
-                     
-                     # Return sum of squared residuals
-                     sum((data$z - z_pred)^2)
-                   })
-
-
-est_par=fit_optim$par
-
-# Compute the predicted values using the starting parameters
-z_pred_starting <- fomega(grid,D0=exp(est_par))
-
-# Reshape z_pred_starting to a matrix for plotting
-z_pred_matrix <- matrix(z_pred_starting, nrow = length(Ishore), ncol = length(theta))
-
-
-
-# Create the 3D surface plot using plot_ly
-plot_ly(x = ~theta, y = ~1/Ishore, z = ~z_pred_matrix) %>%
-  add_surface() %>%
-  layout(title = "Parametric surface for omega (starting parameters)",
-         scene = list(
-           yaxis = list(title = "1/Ishore"),
-           xaxis = list(title = "AngleNormal"),
-           zaxis = list(title = "Predicted z")
-         ))
-
-# Create the 3D surface plot using plot_ly
-plot_ly(x = ~theta, y = ~1/Ishore, z = ~z) %>%
-  add_surface() %>%
-  layout(title = "Predicted spline surface for omega",
-         scene = list(
-           yaxis = list(title = "Ishore"),
-           xaxis = list(title = "AngleNormal"),
-         ))
-
+#stop cluster
+stopCluster(cl)
 ```
 
 
@@ -1154,30 +1227,35 @@ We continue the analysis with the fitted baseline models \texttt {baseline\_racv
 
 # Fit response models
 
-## Try a model similar to baseline racvm2
+
+## Try a model directly on the whole data
 
 ```{r}
 
 par0 <- c(0,0,1,4,0)
 
 sigma_obs=0.05
-H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
-
+H=array(rep(sigma_obs^2*diag(2),length(all_data$time)),dim=c(2,2,length(all_data$time)))
 
 #model formula
-formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),
-                 nu=~s(ID,bs="re"),
+formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
+                 nu=~ExpShip+s(ID,bs="re"),
                  omega=~te(AngleNormal,Ishore,k=5,bs="cs"))
 
-response0<- SDE$new(formulas = formulas,data = dataAE,type = "RACVM_SSM",response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),fixpar=c("mu1","mu2"))
+response0<- SDE$new(formulas = formulas,data = all_data,type = "RACVM_SSM",response = c("x","y"),
+                    par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 response0$update_map(list("log_lambda"=factor(c(1,2,NA,NA))))
-response0$update_lambda(exp(c(4,4,-5,-5)))
+response0$update_lambda(exp(c(3,3,-15,-15)))
 
 response0$fit()
 ```
 ```{r}
+#plot parameters
+xmin=list("AngleNormal"=-pi,"ExpShip"=1/45,"Ishore"=1/3)
+xmax=list("AngleNormal"=pi,"ExpShip"=1/3,"Ishore"=1/0.1)
+link=list("ExpShip"=(\(x) 1/x),"Ishore"=(\(x) 1/x))
+xlabel=list("ExpShip"="Distance to ship","Ishore"="Distance to shore")
 response0$get_all_plots(baseline=NULL,
       xmin=xmin, xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise")
 ```

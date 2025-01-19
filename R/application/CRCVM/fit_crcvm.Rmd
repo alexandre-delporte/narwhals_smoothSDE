@@ -87,20 +87,18 @@ renamed_dataBE12[renamed_dataBE12$DistanceShore==0,]=0.02
 
 
 #Fixed measurement error
-sigma_obs=0.05
+sigma_obs=0.03
 H=array(rep(sigma_obs^2*diag(2),n_pre12),dim=c(2,2,n_pre12))
 
 #parameters formulas
 formulas <- list(tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                   omega=~s(theta,k=6,bs="cs"),D0=~1)
+                   a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 
 # Fit baseline
 baseline_crcvm_cubic<- SDE$new(formulas = formulas,data = renamed_dataBE12,type = "CRCVM_SSM",
-                    response = c("x","y"),par0 = c(2,4,0,0.05),other_data=list("H"=H),
-                    fixpar=c("D0"))
+                    response = c("x","y"),par0 = c(1,4,0.1,4,0.2,0.5,0.1,pi/6),other_data=list("H"=H),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"))
 
-baseline_crcvm_cubic$update_lambda(c(exp(3),exp(3),10^-12))
-baseline_crcvm_cubic$update_map(list("log_lambda"=factor(c(1,2,NA))))
 baseline_crcvm_cubic$fit()
 
 
