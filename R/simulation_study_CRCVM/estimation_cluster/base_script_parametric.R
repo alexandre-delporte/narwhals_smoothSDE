@@ -24,7 +24,7 @@ library(doParallel)         #parallel computing
 
 domain_name="fjords"
 type="parametric"
-par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
+par_dir=here("R","simulation_study_CRCVM","estimation_cluster",domain_name)
 set_up_file=paste("set_up_",domain_name,"_",type,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
@@ -49,12 +49,13 @@ data=foreach (i=1:N_ID_HIGH,.combine='rbind',.packages=c("progress","MASS","sf",
   
   #constant nu
   fnu_constant=function(cov_data) {
-    return (NU_0)
+    return (exp(true_log_nu[i]))
   }
   
   ftau_constant=function(cov_data) {
-    return (TAU_0)
+    return (exp(true_log_tau[i]))
   }
+  
   res=sim_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,
                 log_sigma_obs=NULL,v0=v0,x0=x0[i,],times=times,land=border,verbose=FALSE)
   
@@ -152,7 +153,7 @@ write_estimates_csv=function(results,model_type) {
       
       # Check if model is a valid SDE and skip if not
       if (!inherits(model, "SDE") || inherits(model, "try-error")) {
-        message(paste("Skipping invalid model ", model_name))
+        message(paste("Skipping invalid model ", model_name,'\n', model))
         next
       }
       
@@ -162,17 +163,24 @@ write_estimates_csv=function(results,model_type) {
       coeff_names=rownames(coeffs)
       coeff_values=as.numeric(coeffs)
       
-      #standard deviation of random effects
-      sdev=model$sdev()
-      sdev_names=rownames(sdev)
-      sdev_values=as.numeric(sdev)
+      #standard deviation of random effects as smoothing penalties
+      log_lambda=log(model$lambda())
+      log_lambda_names=rownames(log_lambda)
+      log_lambda_values=as.numeric(log_lambda)
       
       #measurement error
       log_sigma_obs_value=as.list(model$tmb_rep(),what="Est")$log_sigma_obs
       
+      #standard errors
+      all_std=as.list(model$tmb_rep(),what="Std")
+      std_coeffs=rbind(all_std$coeff_re,all_std$coeff_fe)
+      std_log_lambda=all_std$log_lambda
+      std_log_sigma_obs=all_std$log_sigma_ob
+      
       #create dataframe
-      coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
-                           "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
+      coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,log_lambda_names,"log_sigma_obs")),
+                           "estimate"=c(coeff_values,log_lambda_values,log_sigma_obs_value),
+                           "std"=c(std_coeffs,std_log_lambda,std_log_sigma_obs))
       
       # path for csv file
       output_file <- file.path(par_dir, paste0("results_","parametric_",hyper_params_file_name),
@@ -197,8 +205,10 @@ cl <- makeCluster(n_cores)
 registerDoParallel(cl)
 
 # Parameters and formulas
-formulas_crcvm <- list(tau=~1,nu=~1,a=~1,b=~1,
+formulas_crcvm <- list(tau=~s(ID,bs="re"),nu=~s(ID,bs="re"),a=~1,b=~1,
                        D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+new_lambda_crcvm=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2)
+
 
 # Export necessary objects to the cluster
 clusterExport(cl, varlist = c("formulas_crcvm", "PAR0", "A","B","D0","D1",
@@ -225,6 +235,7 @@ crcvm_results <- foreach(
                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
                    other_data=list("H"=H))
     
+    sde$update_lambda(new_lambda_crcvm)
     sde$fit(method = "BFGS")
     
     return (sde)

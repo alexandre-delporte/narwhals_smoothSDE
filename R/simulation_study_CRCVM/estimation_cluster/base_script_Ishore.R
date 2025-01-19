@@ -25,7 +25,7 @@ library(doParallel)         #parallel computing
 
 domain_name="fjords"
 type="Ishore"
-par_dir=here("R","simulation_study_CRCVM","spline_estimation_cluster",domain_name)
+par_dir=here("R","simulation_study_CRCVM","estimation_cluster",domain_name)
 set_up_file=paste("set_up_",domain_name,"_",type,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
