@@ -46,7 +46,7 @@ fi
 # Replace the value for N_SCRIPTS and domain in generate_scripts.R
 sed -i "s/^N_SCRIPTS=.*/N_SCRIPTS=$NSIM/" "$GENERATE_SCRIPTS"
 sed -i "s/^domain=.*/domain=\"$DOMAIN\"/" "$GENERATE_SCRIPTS"
-sed -i "s/^base_script=.*/base_script=\"$BASE_SCRIPT\"/" "$GENERATE_SCRIPTS"
+sed -i "s/^type=.*/type=\"$TYPE\"/" "$GENERATE_SCRIPTS"
 
 # Step 5: Delete old R scripts and run the generate_scripts.R script locally
 echo "Deleting old R scripts in $DOMAIN/Rscripts..."
