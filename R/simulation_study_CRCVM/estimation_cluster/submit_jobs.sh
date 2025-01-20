@@ -6,8 +6,10 @@ DOMAIN=$(grep '^domain=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
 TYPE=$(grep '^type=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
 # Extract the number of Rscripts to run
 NSCRIPTS=$(grep '^N_SCRIPTS=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
-
-echo "Current domain is $DOMAIN. Current simulation study type is $TYPE."
+# Extract the name of the current hyperparams file
+SETUP_FILE="$DOMAIN/set_up_${DOMAIN}_${TYPE}.R"
+HYPERPARAMS=$(grep '^hyperparams_file=' "$SETUP_FILE" | cut -d '=' -f2 | tr -d '\"')
+echo "Current domain is $DOMAIN, current simulation study type is $TYPE and current hyperparameters file is $HYPERPARAMS"
 
 while true; do
     read -p "Do you want to continue? (yes/no): " answer

@@ -99,9 +99,14 @@ for (domain in domains) {
       
       df=read.csv(file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name,sep=""),file))
       
-      print(df)
+      #print(df)
       
-      if (as.numeric(df[df$coeff_name=="tau.(Intercept)",2])>3) {
+      if (is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
+          is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
+          is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
+          is.na(df[df$coeff_name=="nu.s(ID)",3]) ) {
+        
+        print(df[df$coeff_name=="tau.(Intercept)",2])
         next
       }
       if (type %in% names(all_results)) {
@@ -136,6 +141,12 @@ for (domain in domains) {
         geom_density(alpha=.2, fill="#FF6666") +
         facet_wrap(~coeff_name)
       
+      # histogram for standard deviation of random effects
+      histo_sigma_re=ggplot(df[df$coeff_name %in% c("tau.s(ID)","nu.s(ID)"),],aes(x=estimate))+ 
+        geom_histogram(aes(y=..density..), colour="black", fill="white")+
+        geom_density(alpha=.2, fill="#FF6666") +
+        facet_wrap(~coeff_name)
+      
       
     
       ggsave(path=file.path(domain,paste("results_",study_type,"_",hyperparams_file_name,sep="")),
@@ -144,6 +155,9 @@ for (domain in domains) {
       ggsave(path=file.path(domain,paste("results_",study_type,"_",hyperparams_file_name,sep="")),
              filename=paste("histo_",type,"_sigma_obs",".pdf",sep=""),
              plot=histo_sigma_obs,width=10,height=5)
+      ggsave(path=file.path(domain,paste("results_",study_type,"_",hyperparams_file_name,sep="")),
+             filename=paste("histo_",type,"_sigma_re",".pdf",sep=""),
+             plot=histo_sigma_re,width=10,height=5)
       
     }
     
@@ -220,103 +234,6 @@ for (domain in domains) {
                 row.names=FALSE)
     }
     
-    
-    # Plot the estimated smooth surfaces for omega
-    
-    # Read csv files ----------
-    pattern<- sprintf("^surface.*\\.csv$")
-    surface_files<- list.files(path=
-                                 file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name)),
-                               pattern =pattern)
-    
-    #a list of list to store all the estimated surfaces in the different scenarios
-    all_surfaces=list()
-    for (file in surface_files) {
-      
-      # get framework type
-      split<- strsplit(file, "_")[[1]]
-      type=paste(split[2:5], collapse = "_")
-      
-      df=read.csv(file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name,sep=""),file))
-      
-      print(head(df))
-      
-      
-      if (type %in% names(all_surfaces)) {
-        all_surfaces[[type]]<- c(all_surfaces[[type]],list(df))
-      }
-      else {
-        all_surfaces[[type]]<- list(df)
-      }
-      
-    }
-    
-    for (type in names(all_surfaces)) {
-      
-      
-      estimated_surfaces=all_surfaces[[type]]
-      
-      # function to convert a dataframe to a matrix for surface plotting
-      make_omega_matrix <- function(df) {
-        unique_Dshore <- unique(df$Dshore)
-        unique_theta <- unique(df$theta)
-        
-        # Create a grid and fill matrix
-        omega_matrix <- matrix(
-          NA,
-          nrow = length(unique_Dshore),
-          ncol = length(unique_theta),
-          dimnames = list(unique_Dshore, unique_theta)
-        )
-        
-        for (i in seq_along(df$Dshore)) {
-          dshore <- df$Dshore[i]
-          theta <- df$theta[i]
-          omega_matrix[as.character(dshore), as.character(theta)] <- df$omega[i]
-        }
-        
-        list(
-          x = unique_Dshore,
-          y = unique_theta,
-          z = omega_matrix
-        )
-      }
-      
-      # Prepare data for each surface
-      surfaces_matrices <- lapply(estimated_surfaces, make_omega_matrix)
-      
-      # Create a plotly object
-      plot <- plot_ly()
-      
-      # Add each estimated surface to the plot
-      for (i in seq_along(surfaces_matrices)) {
-        surface <- surfaces_matrices[[i]]
-        plot <- plot %>%
-          add_surface(
-            x = surface$x,
-            y = surface$y,
-            z = surface$z,
-            opacity = 0.1,       # Make surfaces semi-transparent
-            showscale = FALSE    # Hide color scale for individual surfaces
-          )
-      }
-      
-      # Customize layout
-      plot <- plot %>%
-        layout(
-          title = "3D Plot of Estimated Surfaces and Mean Surface",
-          scene = list(
-            xaxis = list(title = "Distance Shore"),
-            yaxis = list(title = "Theta"),
-            zaxis = list(title = "Omega")
-          )
-        )
-      
-      # Display the plot
-      saveWidget(plot,paste0("final_surfaces_", type,".html"))
-      
-      
-    }
     
     
     

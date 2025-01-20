@@ -194,80 +194,169 @@ write_estimates_csv=function(results,model_type) {
 }
 
 
+estimate_crcvm_parallel=function(data_list) {
+  # Set up the parallel backend
+  n_cores <- parallel::detectCores() - 1
+  cl <- makeCluster(n_cores)
+  registerDoParallel(cl)
+  
+  # Export necessary objects to the cluster
+  clusterExport(cl, varlist = c("formulas_crcvm", "new_lambda_crcvm","PAR0", "A","B","D0","D1",
+                                "SIGMA_D","SIGMA_THETA","SIGMA_OBS_LOW",
+                                "SIGMA_OBS_HIGH", "N_ID_LOW"))
+  
+  # Parallel execution
+  crcvm_results <- foreach(
+    data_name = names(data_list),
+    .combine = rbind,
+    .packages = c("smoothSDE")
+  ) %dopar% {
+    dataset <- data_list[[data_name]]
+    
+    error_type=strsplit(data_name,"_")[[1]][3]
+    sigma_obs=ifelse(error_type=="le",SIGMA_OBS_LOW,SIGMA_OBS_HIGH)
+    H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
+    
+    # High number of IDs
+    fit_crcvm<- function(data,H) {
+      sde <- SDE$new(formulas = formulas_crcvm,data = data,type = "CRCVM_SSM",
+                     response = c("y1","y2"),
+                     par0 =c(PAR0,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                     fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                     other_data=list("H"=H))
+      
+      sde$update_lambda(new_lambda_crcvm)
+      sde$fit(method = "BFGS")
+      
+      return (sde)
+    }
+    crcvm_high<-try(fit_crcvm(dataset,H_high))
+    if (!(inherits(crcvm_high, "SDE"))) {
+      message(paste("Error in fit with high nb of ID for dataset:", data_name, "\nError message:", crcvm_high))
+    }
+    
+    
+    # Low number of IDs
+    dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
+    H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
+    
+    crcvm_low<-try(fit_crcvm(dataset_low,H_low))
+    
+    if (!(inherits(crcvm_low, "SDE"))) {
+      message(paste("Error in fit with low nb of ID for dataset:", data_name, "\nError message:", crcvm_low))
+    }
+    
+    # Combine results
+    list(
+      data_name = data_name,
+      fit_high = crcvm_high,
+      fit_low = crcvm_low
+    )
+  }
+  
+  stopCluster(cl)
+  
+  return(crcvm_results)
+}
 
-# Estimate from simulated data with CRCVM  --------------------------------------------
 
-cat("Estimating CRCVM parameters...\n")
+# Estimate from simulated data with true DistanceShore and theta  --------------------------------------------
 
-# Set up the parallel backend
-n_cores <- parallel::detectCores() - 1
-cl <- makeCluster(n_cores)
-registerDoParallel(cl)
+cat("Estimating CRCVM parameters with true DistanceShore and theta...\n")
 
 # Parameters and formulas
 formulas_crcvm <- list(tau=~s(ID,bs="re"),nu=~s(ID,bs="re"),a=~1,b=~1,
                        D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 new_lambda_crcvm=c(1/SIGMA_TAU_0^2,1/SIGMA_NU_0^2)
 
-
-# Export necessary objects to the cluster
-clusterExport(cl, varlist = c("formulas_crcvm", "PAR0", "A","B","D0","D1",
-                              "SIGMA_D","SIGMA_THETA","SIGMA_OBS_LOW",
-                              "SIGMA_OBS_HIGH", "N_ID_LOW"))
-
-# Parallel execution
-crcvm_results <- foreach(
-  data_name = names(all_data),
-  .combine = rbind,
-  .packages = c("smoothSDE")
-) %dopar% {
-  dataset <- all_data[[data_name]]
-  
-  error_type=strsplit(data_name,"_")[[1]][3]
-  sigma_obs=ifelse(error_type=="le",SIGMA_OBS_LOW,SIGMA_OBS_HIGH)
-  H_high=array(rep(sigma_obs^2*diag(2),length(dataset$time)),dim=c(2,2,length(dataset$time)))
-  
-  # High number of IDs
-  fit_crcvm<- function(data,H) {
-    sde <- SDE$new(formulas = formulas_crcvm,data = data,type = "CRCVM_SSM",
-                   response = c("y1","y2"),
-                   par0 =c(PAR0,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
-                   fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
-                   other_data=list("H"=H))
-    
-    sde$update_lambda(new_lambda_crcvm)
-    sde$fit(method = "BFGS")
-    
-    return (sde)
-  }
-  crcvm_high<-try(fit_crcvm(dataset,H_high))
-  if (!(inherits(crcvm_high, "SDE"))) {
-    message(paste("Error in fit with high nb of ID for dataset:", data_name, "\nError message:", crcvm_high))
-  }
-  
-  
-  # Low number of IDs
-  dataset_low <- dataset[dataset$ID %in% 1:N_ID_LOW, ]
-  H_low=array(rep(sigma_obs^2*diag(2),length(dataset_low$time)),dim=c(2,2,length(dataset_low$time)))
-  
-  crcvm_low<-try(fit_crcvm(dataset_low,H_low))
-  
-  if (!(inherits(crcvm_low, "SDE"))) {
-    message(paste("Error in fit with low nb of ID for dataset:", data_name, "\nError message:", crcvm_low))
-  }
-  
-  # Combine results
-  list(
-    data_name = data_name,
-    fit_high = crcvm_high,
-    fit_low = crcvm_low
-  )
-}
-
-stopCluster(cl)
+crcvm_true_results<-estimate_crcvm_parallel(all_data)
 
 cat("Saving estimates in csv file...\n")
 
 # Write estimates parameters in csv file
-write_estimates_csv(crcvm_results,"crcvm")
+write_estimates_csv(crcvm_true_results,"crcvm_true")
 
+
+# Estimate from simulated data with observed DistanceShore and theta
+
+
+add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
+  # Setup parallel backend
+  cl <- makeCluster(n_cores)
+  registerDoParallel(cl)
+  
+  # Split data by ID
+  ids <- unique(data$ID)
+  
+  # Process each ID in parallel
+  results <- foreach(id = ids, .combine = rbind, .packages = c("sf"),
+                     .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border")  ) %dopar% {
+                                   # Filter data for the current ID
+                                   sub_data <- data[data$ID == id, ]
+                                   n_sub <- nrow(sub_data)
+                                   
+                                   # Time steps
+                                   dtimes <- sub_data[2:n_sub, "time"] - sub_data[1:(n_sub - 1), "time"]
+                                   
+                                   # Step lengths
+                                   dx <- sub_data[2:n_sub, "y1"] - sub_data[1:(n_sub - 1), "y1"]
+                                   dy <- sub_data[2:n_sub, "y2"] - sub_data[1:(n_sub - 1), "y2"]
+                                   
+                                   # Empirical velocity
+                                   vexp_df <- cbind(dx / dtimes, dy / dtimes)
+                                   
+                                   # Nearest points on shore
+                                   sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("y1", "y2")]), border))
+                                   
+                                   # Normal vectors
+                                   normal <- as.matrix(sub_data[2:n_sub, c("y1", "y2")] - sub_data[2:n_sub, c("p1", "p2")])
+                                   
+                                   # Angle between velocity and normal vector
+                                   theta_coast <- signed_angle(normal, vexp_df)
+                                   theta_coast <- c(theta_coast, 1)  # Adjust length
+                                   
+                                   # Initialize DistanceShore
+                                   Dshore <- rep(0, n_sub)
+                                   
+                                   for (i in 1:n_sub) {
+                                     y1 <- sub_data[i, "y1"]
+                                     y2 <- sub_data[i, "y2"]
+                                     if (!is_in_land(st_point(c(y1, y2)), border)) {
+                                       p1 <- sub_data[i, "p1"]
+                                       p2 <- sub_data[i, "p2"]
+                                       Dshore[i] <- sqrt((y1 - p1)^2 + (y2 - p2)^2)
+                                     }
+                                   }
+                                   
+                                   # Add columns to sub_data
+                                   sub_data$theta <- theta_coast
+                                   sub_data$DistanceShore <- Dshore
+                                   
+                                   return(sub_data)
+                                 }
+  
+  # Stop the cluster
+  stopCluster(cl)
+  
+  return(results)
+}
+
+#replace true DistanceShore and theta by observed DistanceShore and theta 
+data_lf_he_obs=add_covs_parallel(data_lf_he)
+data_hf_le_obs=add_covs_parallel(data_hf_le)
+data_lf_le_obs=add_covs_parallel(data_lf_le)
+data_hf_he_obs=add_covs_parallel(data_hf_he)
+
+all_data_obs=list("data_lf_he"=data_lf_he_obs,"data_hf_le"=data_hf_le_obs,"data_lf_le"=data_lf_le_obs,
+              "data_hf_he"=data_hf_he_obs)
+
+
+cat("Estimating CRCVM parameters with observed DistanceShore and theta...\n")
+
+crcvm_obs_results<-estimate_crcvm_parallel(all_data_obs)
+
+
+cat("Saving estimates in csv file...\n")
+
+# Write estimates parameters in csv file
+write_estimates_csv(crcvm_obs_results,"crcvm_obs")

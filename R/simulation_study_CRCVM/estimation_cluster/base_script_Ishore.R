@@ -327,17 +327,24 @@ write_estimates_csv=function(results,model_type) {
       coeff_names=rownames(coeffs)
       coeff_values=as.numeric(coeffs)
       
-      #standard deviation of random effects
-      sdev=model$sdev()
-      sdev_names=rownames(sdev)
-      sdev_values=as.numeric(sdev)
+      #standard deviation of random effects as smoothing penalties
+      log_lambda=log(model$lambda())
+      log_lambda_names=rownames(log_lambda)
+      log_lambda_values=as.numeric(log_lambda)
       
       #measurement error
       log_sigma_obs_value=as.list(model$tmb_rep(),what="Est")$log_sigma_obs
       
+      #standard errors
+      all_std=as.list(model$tmb_rep(),what="Std")
+      std_coeffs=rbind(all_std$coeff_re,all_std$coeff_fe)
+      std_log_lambda=all_std$log_lambda
+      std_log_sigma_obs=all_std$log_sigma_ob
+      
       #create dataframe
-      coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,sdev_names,"log_sigma_obs")),
-                           "estimate"=c(coeff_values,sdev_values,log_sigma_obs_value))
+      coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,log_lambda_names,"log_sigma_obs")),
+                           "estimate"=c(coeff_values,log_lambda_values,log_sigma_obs_value),
+                           "std"=c(std_coeffs,std_log_lambda,std_log_sigma_obs))
       
       # path for csv file
       output_file <- file.path(par_dir, paste0("results_","Ishore_",hyper_params_file_name),
