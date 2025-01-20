@@ -5,12 +5,12 @@
 /QGIS
 
 #ignore results of simulation study, only keep the code to reproduce the results
-/R/simulation_study_CRCVM/spline_estimation_cluster/fjords/results*
-/R/simulation_study_CRCVM/spline_estimation_cluster/fjords/Rscripts
-/R/simulation_study_CRCVM/spline_estimation_cluster/rect/results*
-/R/simulation_study_CRCVM/spline_estimation_cluster/rect/Rscripts
-/R/simulation_study_CRCVM/spline_estimation_cluster/circ/results*
-/R/simulation_study_CRCVM/spline_estimation_cluster/circ/Rscripts
+/R/simulation_study_CRCVM/estimation_cluster/fjords/results*
+/R/simulation_study_CRCVM/estimation_cluster/fjords/Rscripts
+/R/simulation_study_CRCVM/estimation_cluster/rect/results*
+/R/simulation_study_CRCVM/estimation_cluster/rect/Rscripts
+/R/simulation_study_CRCVM/estimation_cluster/circ/results*
+/R/simulation_study_CRCVM/estimation_cluster/circ/Rscripts
 
 
 
