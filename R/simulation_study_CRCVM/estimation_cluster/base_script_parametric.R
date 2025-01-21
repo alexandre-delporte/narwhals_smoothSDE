@@ -82,7 +82,7 @@ for (id in unique(data$ID)) {
   }
 }
 
-cat(count/N_ID_HIGH*100,"percent of the samples reached land")
+cat(count/N_ID_HIGH*100,"percent of the samples reached land \n")
 
 if (count>0) {
   stop("At least one trajectory reached land.")
