@@ -73,7 +73,7 @@ if [[ ! -f $SETUP_SCRIPT ]]; then
 fi
 
 # Replace the hyperparams_file line in set_up_DOMAIN.R
-sed -i "s|^hyperparams_file <- .*|hyperparams_file <- \"$HYPERPARAMETERS_FILE\"|" "$SETUP_SCRIPT"
+sed -i "s|^hyperparams_file=.*|hyperparams_file=\"$HYPERPARAMETERS_FILE\"|" "$SETUP_SCRIPT"
 
 echo "Preparation steps completed. You can now proceed with executing the generated scripts on the cluster."
 
