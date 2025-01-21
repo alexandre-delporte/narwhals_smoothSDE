@@ -95,7 +95,7 @@ for (domain in domains) {
       
       # get framework type
       split<- strsplit(file, "_")[[1]]
-      type=paste(split[2:5], collapse = "_")
+      type=paste(split[2:length(split)-1], collapse = "_")
       
       df=read.csv(file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name,sep=""),file))
       
@@ -126,7 +126,8 @@ for (domain in domains) {
       
       
       #get number of ID for this framework
-      last_chain=sapply(strsplit(type,"_"),'[',4)
+      split=strsplit(type,"_")[[1]]
+      last_chain=split[length(split)]
       N_ID=ifelse(last_chain=="lID",N_ID_LOW,N_ID_HIGH)
       
       # histogram for intercepts tau and nu
@@ -229,7 +230,7 @@ for (domain in domains) {
       df=all_parameter_estimates[[type]]
       #save results in csv file
       output_file <- file.path(domain,paste("results_",study_type,"_",hyperparams_file_name,sep=""),
-                               paste0("final_estimates_", type,".csv"))
+                               paste0("final_", type,".csv"))
       write.csv(df,output_file,
                 row.names=FALSE)
     }
