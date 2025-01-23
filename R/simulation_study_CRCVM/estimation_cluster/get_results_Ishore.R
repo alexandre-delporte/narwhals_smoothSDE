@@ -95,6 +95,17 @@ for (domain in domains) {
       
       df=df[!df$coeff_name %in% c("omega.te(theta,Ishore)","mu1.(Intercept)","mu2.(Intercept)"),]
       
+      #print(df)
+      
+      if (is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
+          is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
+          is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
+          is.na(df[df$coeff_name=="nu.s(ID)",3]) ) {
+        
+        print(df[df$coeff_name=="tau.(Intercept)",2])
+        next
+      }
+      
       if (type %in% names(all_results)) {
         all_results[[type]]<- rbind(all_results[[type]],df)
       }
@@ -182,7 +193,7 @@ for (domain in domains) {
       #name of coefficients
       coeff_names=unique(df$coeff_name)
       #link functions
-      links=list(exp,exp,identity,identity,\(x) exp(x)*1000)
+      links=list(exp,exp,\(x) 1/sqrt(exp(x)),\(x) 1/sqrt(exp(x)),\(x) exp(x)*1000)
       names(links)=coeff_names
       #number of coeffs to estimate in single framework
       n_coeffs=length(coeff_names)

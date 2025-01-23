@@ -99,7 +99,6 @@ for (domain in domains) {
       
       df=read.csv(file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name,sep=""),file))
       
-      #print(df)
       
       if (is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
           is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
