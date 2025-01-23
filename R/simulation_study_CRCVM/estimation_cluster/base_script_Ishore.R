@@ -471,7 +471,7 @@ write_surface=function(results,model_type) {
       data_surface$omega=as.vector(omega_values)
       
       # path for csv file
-      output_file <- file.path(par_dir, paste0("results_", hyper_params_file_name),
+      output_file <- file.path(par_dir, paste0("results_","Ishore_", hyper_params_file_name),
                                paste0("surface_", model_name, "_seed", seed, ".csv"))
       
       
