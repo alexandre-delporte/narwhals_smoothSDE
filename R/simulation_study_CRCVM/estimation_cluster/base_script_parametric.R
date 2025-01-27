@@ -279,8 +279,23 @@ write_estimates_csv(crcvm_true_results,"crcvm_true")
 
 # Estimate from simulated data with observed DistanceShore and theta
 
+# Function to calculate rolling average
+rolling_average <- function(data, window) {
+  n <- nrow(data)
+  result <- matrix(NA, n, ncol(data))  # Initialize result matrix with NA
+  colnames(result) <- colnames(data)
+  
+  for (i in seq_len(n)) {
+    # Define the range for the current window
+    start <- max(1, i - floor(window / 2))
+    end <- min(n, i + floor(window / 2))
+    result[i, ] <- colMeans(data[start:end, , drop = FALSE])  # Compute column means
+  }
+  return(result)
+}
 
-add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
+
+add_covs_parallel <- function(data,add="all",window=1,n_cores = parallel::detectCores() - 1) {
   # Setup parallel backend
   cl <- makeCluster(n_cores)
   registerDoParallel(cl)
@@ -290,7 +305,7 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
   
   # Process each ID in parallel
   results <- foreach(id = ids, .combine = rbind, .packages = c("sf"),
-                     .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border")  ) %dopar% {
+                     .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border","rolling_average")  ) %dopar% {
                                    # Filter data for the current ID
                                    sub_data <- data[data$ID == id, ]
                                    n_sub <- nrow(sub_data)
@@ -303,7 +318,10 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
                                    dy <- sub_data[2:n_sub, "y2"] - sub_data[1:(n_sub - 1), "y2"]
                                    
                                    # Empirical velocity
-                                   vexp_df <- cbind(dx / dtimes, dy / dtimes)
+                                   vexp_df <- cbind(dx / dtimes, dy / dtimes) 
+                                   
+                                   
+                                   vexp_avg <- rolling_average(vexp_df, window)
                                    
                                    # Nearest points on shore
                                    sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("y1", "y2")]), border))
@@ -312,7 +330,7 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
                                    normal <- as.matrix(sub_data[2:n_sub, c("y1", "y2")] - sub_data[2:n_sub, c("p1", "p2")])
                                    
                                    # Angle between velocity and normal vector
-                                   theta_coast <- signed_angle(normal, vexp_df)
+                                   theta_coast <- signed_angle(normal, vexp_avg)
                                    theta_coast <- c(theta_coast, 1)  # Adjust length
                                    
                                    # Initialize DistanceShore
@@ -328,9 +346,27 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
                                      }
                                    }
                                    
+                                   Dshore_avg=as.vector(rolling_average(matrix(Dshore,ncol=1),window))
+                                   
+                                   # Calculate Ishore
+                                   Ishore_avg <- 1/Dshore_avg
+                                   
                                    # Add columns to sub_data
-                                   sub_data$theta <- theta_coast
-                                   sub_data$DistanceShore <- Dshore
+                                   if (add=="all") {
+                                     sub_data$theta <- theta_coast
+                                     sub_data$DistanceShore <- Dshore_avg
+                                     sub_data$Ishore <- Ishore_avg
+                                   }
+                                   else if (add=="theta") {
+                                     sub_data$theta <- theta_coast
+                                   }
+                                   else if (add=="DistanceShore") {
+                                     sub_data$DistanceShore <- Dshore
+                                     sub_data$Ishore <- Ishore
+                                   }
+                                   else {
+                                     stop("Options for argument add are \"all\",\"DistanceShore\" and \"theta\"")
+                                   }
                                    
                                    return(sub_data)
                                  }
@@ -340,8 +376,7 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
   
   return(results)
 }
-
-#replace true DistanceShore and theta by observed DistanceShore and theta 
+#replace true DistanceShore and theta by rolling average of observed DistanceShore and theta 
 data_lf_he_obs=add_covs_parallel(data_lf_he)
 data_hf_le_obs=add_covs_parallel(data_hf_le)
 data_lf_le_obs=add_covs_parallel(data_lf_le)
@@ -360,3 +395,26 @@ cat("Saving estimates in csv file...\n")
 
 # Write estimates parameters in csv file
 write_estimates_csv(crcvm_obs_results,"crcvm_obs")
+
+
+#replace true DistanceShore and theta by observed DistanceShore and theta 
+data_lf_he_avg=add_covs_parallel(data_lf_he,window=5)
+data_hf_le_avg=add_covs_parallel(data_hf_le,window=5)
+data_lf_le_avg=add_covs_parallel(data_lf_le,window=5)
+data_hf_he_avg=add_covs_parallel(data_hf_he,window=5)
+
+
+all_data_avg=list("data_lf_he"=data_lf_he_avg,"data_hf_le"=data_hf_le_avg,"data_lf_le"=data_lf_le_avg,
+                  "data_hf_he"=data_hf_he_avg)
+
+
+cat("Estimating CRCVM parameters with rolling average of observed DistanceShore and theta...\n")
+
+crcvm_avg_results<-estimate_crcvm_parallel(all_data_avg)
+
+
+cat("Saving estimates in csv file...\n")
+
+# Write estimates parameters in csv file
+write_estimates_csv(crcvm_avg_results,"crcvm_avg")
+
