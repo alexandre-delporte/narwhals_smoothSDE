@@ -27,7 +27,7 @@ library(smoothSDE)          #to compute nearest shore point
 # READ HYPERPARAMETERS FILE
 
 # Read hyperparameters from a user specified file
-hyperparams_file="hyperparams_set1.txt"
+hyperparams_file="hyperparams_set1_12.txt"
 path=here("R","simulation_study_CRCVM","estimation_cluster","fjords")
 
 # Read the file and evaluate each line
@@ -86,7 +86,7 @@ true_log_nu=nu_re+log(NU_0)
 
 # Defintion of smooth parameter omega ----------
 
-fomega_cubic=function(cov_data,a,D0,D1,sigma_theta,sigma_D,b){
+fomega_cubic=function(cov_data,a,b,D0,D1,sigma_D,sigma_theta){
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -99,7 +99,7 @@ fomega_cubic=function(cov_data,a,D0,D1,sigma_theta,sigma_D,b){
 }
 
 
-fomega=function(cov_data) {fomega_cubic(cov_data,A,D0,D1,SIGMA_THETA,SIGMA_D,B)} 
+fomega=function(cov_data) {fomega_cubic(cov_data,A,B,D0,D1,SIGMA_D,SIGMA_THETA)} 
 
 
 # Approximation of smooth omega with tensor splines -----------------------
