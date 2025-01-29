@@ -72,7 +72,7 @@ for (domain in domains) {
         percentage <- as.numeric(sub(".*([0-9.]+) percent of the samples reached land.*", "\\1", percentage_line))
         
         # Calculate the number of trajectories (12 samples per file)
-        trajectories <- percentage / 100 * 12
+        trajectories <- percentage / 100 * N_ID_HIGH
         
         # Add to the total
         total_trajectories <- total_trajectories + trajectories
@@ -166,6 +166,8 @@ for (domain in domains) {
     
     all_parameter_estimates=list()
     
+    n_sim_list=list()
+    
     #Loop over the frameworks 
     for (type in names(all_results)) {
       
@@ -197,6 +199,10 @@ for (domain in domains) {
         estimates=fn(df[df$coeff_name==coeff_name,"estimate"])
         n_sim=length(estimates)
         
+        if (!(type %in% names(n_sim_list))) {
+          n_sim_list[[type]]=n_sim
+        }
+        
         mean_value=1/n_sim*sum(estimates)
         sd_value=sqrt(1/n_sim*sum((estimates-mean_value)^2))
         
@@ -212,6 +218,8 @@ for (domain in domains) {
       all_parameter_estimates[[type]]<-parameter_estimates_df
       
     }
+    
+    print(n_sim_list)
     
     #round values to 2 digits
     round_numeric <- function(x,digits=3) {

@@ -95,12 +95,13 @@ for (domain in domains) {
       
       df=df[!df$coeff_name %in% c("omega.te(theta,Ishore)","mu1.(Intercept)","mu2.(Intercept)"),]
       
-      #print(df)
+      unstable=is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
+        is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
+        is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
+        is.na(df[df$coeff_name=="nu.s(ID)",3])
+      unstable=FALSE
       
-      if (is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
-          is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
-          is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
-          is.na(df[df$coeff_name=="nu.s(ID)",3]) ) {
+      if (unstable) {
         
         print(df[df$coeff_name=="tau.(Intercept)",2])
         next
@@ -181,6 +182,8 @@ for (domain in domains) {
     
     all_parameter_estimates=list()
     
+    n_sim_list=list()
+    
      #Loop over the frameworks 
     for (type in names(all_results)) {
       
@@ -212,6 +215,10 @@ for (domain in domains) {
         estimates=fn(df[df$coeff_name==coeff_name,"estimate"])
         n_sim=length(estimates)
         
+        if (!(type %in% names(n_sim_list))) {
+          n_sim_list[[type]]=n_sim
+        }
+        
         mean_value=1/n_sim*sum(estimates)
         sd_value=sqrt(1/n_sim*sum((estimates-mean_value)^2))
         
@@ -228,6 +235,8 @@ for (domain in domains) {
       all_parameter_estimates[[type]]<-parameter_estimates_df
     
     }
+    
+    print(n_sim_list)
      
     #round values to 2 digits
     round_numeric <- function(x,digits=3) {
@@ -326,22 +335,62 @@ for (domain in domains) {
             x = surface$x,
             y = surface$y,
             z = surface$z,
-            opacity = 0.1,       # Make surfaces semi-transparent
-            showscale = FALSE    # Hide color scale for individual surfaces
+            opacity = 0.1,  
+            showscale = FALSE    
           )
       }
+      
+      fomega_cubic=function(cov_data,a,D0,D1,sigma_theta,sigma_D,b){
+        Dshore=1/cov_data$DistanceShore
+        theta=cov_data$theta
+        
+        a*theta*(theta-pi/2)*(theta+pi/2)*exp(-Dshore/D0)/Dshore+
+          b*(exp(-1/2*(((theta+pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2))-
+               exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2)))
+      }
+      
+      
+      fomega=function(cov_data) {fomega_cubic(cov_data,A,D0,D1,SIGMA_THETA,SIGMA_D,B)} 
+      
+      # Smooth omega
+      Dshore <- seq(from = 0.2, to = 3, length.out = 30)
+      Dshore_inv <- seq(from = 3, to = 0.2, length.out = 30)
+      theta <- seq(from = -pi + 0.1, to = pi - 0.1, length.out = 30)
+      grid <- as.data.frame(expand.grid(Dshore_inv, theta))
+      colnames(grid) <- c("DistanceShore", "theta")
+      # Evaluate the true surface function for each grid point
+      grid$omega <- fomega(grid)
+      true_surface_df <- data.frame(
+        Dshore = grid$DistanceShore,
+        theta = grid$theta,
+        omega = grid$omega
+      )
+      
+      # Create the omega matrix
+      true_surface <- make_omega_matrix(true_surface_df)
+      
+      # Add the true surface in red
+      plot <- plot %>%
+        add_surface(
+          x = true_surface$y,
+          y = true_surface$x,
+          z = true_surface$z,
+          opacity = 0.5,      
+          showscale = FALSE,  
+          colorscale = list(c(0, "green"), c(1, "red"))
+        )
       
       # Customize layout
       plot <- plot %>%
         layout(
-          title = "3D Plot of Estimated Surfaces and Mean Surface",
+          title = "3D plot of estimated surfaces and true surface",
           scene = list(
             xaxis = list(title = "Distance Shore"),
             yaxis = list(title = "Theta"),
-            zaxis = list(title = "Omega")
+            zaxis = list(title = "Omega"),
+            aspectratio = list(x = 1, y = 1, z = 0.7)  # Adjust the aspect ratio
           )
         )
-      
       # Display the plot
       saveWidget(plot,paste0("final_surfaces_", type,".html"))
       
