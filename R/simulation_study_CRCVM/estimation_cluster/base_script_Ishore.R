@@ -298,6 +298,56 @@ cat("Saving estimates in csv file...\n")
 # Write estimated parameters in csv files -----------------------------
 
 
+estimate_parametric_omega=function(model,fixed_a=1) {
+  
+  data=model$data()
+  
+  Dshore=seq(from=quantile(data$DistanceShore,0.5),
+             to=quantile(data$DistanceShore,0.95),length.out=30)
+  Ishore=1/Dshore
+  theta=seq(from=-pi,to=pi,length.out=30)
+  grid<- as.data.frame(expand.grid(Ishore,theta))
+  colnames(grid) <- c("Ishore","theta")
+  grid$ID=unique(data$ID)[1]
+  grid$Dshore=1/grid$Ishore
+  
+  #get model matrices
+  mats=model$make_mat(new_data=grid)
+  X_fe=mats$X_fe
+  X_re=mats$X_re
+  
+  par_mat=model$par(new_data=grid,X_fe=X_fe,X_re=X_re)
+  
+  #matrix of values for surface plot
+  z=matrix(par_mat[,"omega"],30,30)
+  
+  data=grid
+  data$z=as.vector(z)
+  
+  
+  
+  data_copy=data
+  colnames(data_copy)=c("Ishore","theta","ID","DistanceShore","z")
+  
+  fit_optim <- optim(par = log(c(0.5,0.1,2,0.5,pi/6)),
+                     fn = function(params) {
+                       
+                       # Compute predicted z values
+                       z_pred <- fomega_cubic(data_copy,fixed_a,exp(params[1]),
+                                        exp(params[2]),exp(params[3]),exp(params[4]),exp(params[5]))
+                       
+                       # Return sum of squared residuals
+                       sum((data_copy$z - z_pred)^2)
+                     })
+  
+  
+  est_par=c(fixed_a,exp(fit_optim$par))
+  names(est_par)=c("a","b","D0","D1","sigma_D","sigma_theta")
+  
+  return (est_par)
+  
+}
+
 write_estimates_csv=function(results,model_type) {
   
   n=dim(results)[1]
@@ -345,6 +395,16 @@ write_estimates_csv=function(results,model_type) {
       coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,log_lambda_names,"log_sigma_obs")),
                            "estimate"=c(coeff_values,log_lambda_values,log_sigma_obs_value),
                            "std"=c(std_coeffs,std_log_lambda,std_log_sigma_obs))
+      
+      if (model_type=="crcvm") {
+        
+        est_par=estimate_parametric_omega(model,fixed_a=A)
+        
+        new_coeffs_df=data.frame("coeff_name"=factor(names(est_par)),"estimate"=as.numeric(est_par),
+                                 "std"=rep(NA,length(est_par)))
+        
+        coeffs_df=rbind(coeffs_df,new_coeffs_df)
+      }
       
       # path for csv file
       output_file <- file.path(par_dir, paste0("results_","Ishore_",hyper_params_file_name),
@@ -459,7 +519,9 @@ write_surface=function(results,model_type) {
         next
       }
       
-      plots=model$get_all_plots(link=list("Ishore"=(\(x) 1/x)))
+      xmin=list("Ishore"=quantile(model$data()$Ishore,0.25))
+      xmax=list("Ishore"=quantile(model$data()$Ishore,0.95))
+      plots=model$get_all_plots(link=list("Ishore"=(\(x) 1/x)),xmin=xmin,xmax=xmax)
       
       surface=plots$fe_omega_theta_Ishore
       
@@ -482,5 +544,4 @@ write_surface=function(results,model_type) {
 }
 
 write_surface(crcvm_results,"crcvm")
-
 
