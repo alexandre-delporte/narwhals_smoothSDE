@@ -1,5 +1,22 @@
 #!/bin/bash
 
+echo "Files from the previous set up will be deleted. Make sure all previous calculations are over before continuing."
+
+while true; do
+    read -p "Do you want to continue? (yes/no): " answer
+    case $answer in
+        [Yy][Ee][Ss] ) 
+            break
+            ;;
+        [Nn][Oo] ) 
+            exit
+            ;;
+        * ) 
+            echo "Invalid input. Please type 'yes' or 'no'."
+            ;;
+    esac
+done
+
 # Step 1: Ask the user for the domain of the SDE
 read -p "Enter the domain for the SDE (options: rect, circ, fjords): " DOMAIN
 
@@ -48,9 +65,12 @@ sed -i "s/^N_SCRIPTS=.*/N_SCRIPTS=$NSIM/" "$GENERATE_SCRIPTS"
 sed -i "s/^domain=.*/domain=\"$DOMAIN\"/" "$GENERATE_SCRIPTS"
 sed -i "s/^type=.*/type=\"$TYPE\"/" "$GENERATE_SCRIPTS"
 
-# Step 5: Delete old R scripts and run the generate_scripts.R script locally
-echo "Deleting old R scripts in $DOMAIN/Rscripts..."
+# Step 5: Delete old R scripts, old submission bash scripts, .out and .err files and run the generate_scripts.R script locally
+echo "Deleting old R scripts and log files in $DOMAIN/Rscripts..."
 rm -f "$DOMAIN/Rscripts/"*.R
+rm -f "$DOMAIN/Rscripts/"*.err
+rm -f "$DOMAIN/Rscripts/"*.out
+rm -f "$DOMAIN/Rscripts/"*.sh
 
 echo "Generating new R scripts in $DOMAIN/Rscripts..."
 Rscript "$GENERATE_SCRIPTS"
