@@ -298,12 +298,12 @@ cat("Saving estimates in csv file...\n")
 # Write estimated parameters in csv files -----------------------------
 
 
-estimate_parametric_omega=function(model,fixed_a=1) {
+estimate_parametric_omega=function(model,fixed_a=1,probs=c(0.7,0.95)) {
   
   data=model$data()
   
-  Dshore=seq(from=quantile(data$DistanceShore,0.5),
-             to=quantile(data$DistanceShore,0.95),length.out=30)
+  Dshore=seq(from=quantile(data$DistanceShore,probs[1]),
+             to=quantile(data$DistanceShore,probs[2]),length.out=30)
   Ishore=1/Dshore
   theta=seq(from=-pi,to=pi,length.out=30)
   grid<- as.data.frame(expand.grid(Ishore,theta))
@@ -334,7 +334,7 @@ estimate_parametric_omega=function(model,fixed_a=1) {
                        
                        # Compute predicted z values
                        z_pred <- fomega_cubic(data_copy,fixed_a,exp(params[1]),
-                                        exp(params[2]),exp(params[3]),exp(params[4]),exp(params[5]))
+                                              exp(params[2]),exp(params[3]),exp(params[4]),exp(params[5]))
                        
                        # Return sum of squared residuals
                        sum((data_copy$z - z_pred)^2)
