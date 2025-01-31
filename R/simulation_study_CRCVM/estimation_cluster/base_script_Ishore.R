@@ -298,7 +298,7 @@ cat("Saving estimates in csv file...\n")
 # Write estimated parameters in csv files -----------------------------
 
 
-estimate_parametric_omega=function(model,fixed_a=1,probs=c(0.7,0.95)) {
+estimate_parametric_omega=function(model,fixed_a=1,probs=c(0.75,0.95)) {
   
   data=model$data()
   
