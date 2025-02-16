@@ -1,0 +1,412 @@
+---
+title: "simulation_study_spline"
+author: "Alexandre Delporte"
+date: "2024-12-01"
+output: html_document
+---
+
+This is a simulation study dedicated to the estimation of the parameters in our CRCVM SDE model.
+We try different framework to decide which one we choose for the calculations on the university clusters.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set up for simulation study
+```{r}
+source(file.path(here("R","simulation_study_CRCVM","estimation_local","set_up.R")))  
+```
+
+# Estimate CTCRW
+
+## low frequency high error
+
+First we estimate $\tau$ and $\nu$ while ignoring the spatial constraints that are included in $\omega$.
+We only keep 2 of the twelve trajectories.
+
+
+```{r fit sde model with splines,cache=TRUE}
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+ctcrw_lf_he<- SDE$new(formulas = formulas,data =data_lf_he[data_lf_he$ID %in% c(1,2,4,5),],type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#fit
+ctcrw_lf_he$fit(method="BFGS")
+```
+
+
+```{r}
+ctcrw_lf_he$get_all_plots()
+exp(as.list(ctcrw_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+It seems that the estimate for $\tau$ is biaised. While $\nu$ is well estimated, 
+$\tau$ seems to be significantly underestimated. The reason is probably that some of the turns in the trajectories that are due to the parameter $\omega$ are attributed to a lower persistence since we do not model $\omega$ here. This is indeed in agreement with the results we get from fitting a CTCRW to the narwhal data. The trajectories from the fitted model seemed Here, if we play with the number of trajectories used for the estimation, we see that for some trajectories we are able to get both $\tau$ and $\nu$ right. The parameter $\sigma_{obs}$ for the measurement error is also well estimated.
+
+
+### Low frequency low error
+
+```{r fit sde model with splines,cache=TRUE}
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1,omega=~1)
+
+ctcrw_lf_le<- SDE$new(formulas = formulas,data =data_lf_le[data_lf_le$ID %in% c(1:6),],type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = c(0,0,1,1,0),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+
+#fit
+ctcrw_lf_le$fit(method="BFGS")
+```
+
+```{r}
+ctcrw_lf_le$get_all_plots()
+exp(as.list(ctcrw_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+We are still estimating $\nu$ and $\sigma_{obs}$ right, but $\tau$ is also still underestimated. Thus, reducing the measurement error does not help get a better estimate of $\tau$ here.
+
+### High frequency low error
+
+```{r fit sde model with splines,cache=TRUE}
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+ctcrw_hf_le<- SDE$new(formulas = formulas,data =data_hf_le,type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.03)))
+#fit
+ctcrw_hf_le$fit(method="BFGS")
+```
+
+
+```{r}
+ctcrw_hf_le$get_all_plots()
+
+exp(as.list(ctcrw_hf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+The estimate is slightly less biased here, but still increasing the resolution of the data does not really help to correct the biais on $\tau$.
+
+
+
+### High frequency high error
+
+If we take all the data points, we get numerical errors during the estimation with a non definite positive Hessian matrix.
+
+```{r fit sde model with splines,cache=TRUE}
+formulas <- list(mu1=~1,mu2=~1,tau=~1,nu=~1)
+
+
+ctcrw_hf_he<- SDE$new(formulas = formulas,data =data_hf_he[data_hf_he$ID %in% c(1,2,3),],type = "CTCRW",
+                    response = c("y1","y2"),par0 = c(0,0,1,1),fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#fit
+ctcrw_hf_he$fit(method="BFGS")
+```
+
+
+```{r}
+ctcrw_hf_he$get_all_plots()
+
+exp(as.list(ctcrw_hf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+Whether we have low error or high error, we still have a biased estimate of $\tau$.
+We now introduce the parameter $\omega$ in the model.
+
+
+## Estimate RACVM with splines
+
+Now we can try to add parameter $\omega$ in the model.
+We are limited by the RAM of the computer that is why we would need to do this on the university clusters with longer or higher frequency trajectories.
+We need to fix the smoothing penalties otherwise they are either estimated to very high or very low values meaning that numerical errors occurred.
+
+First, we get good values for the smoothing penalty by approximating the true surface with splines.
+
+```{r}
+# Splines smooth for omega -------------------- 
+n <- 100000
+SP_DF=c(5,5)
+
+#sample theta and DistanceShore points in the domain
+theta <- runif(n,-pi,pi);
+DistanceShore <- runif(n,0.1,2)
+samples=data.frame(BoundaryAngle=theta,BoundaryDistance=DistanceShore)
+
+#define grid of values
+theta_v <- seq(-pi,pi,length=30)
+Dshore_v<- seq(0.2,8,length=30)
+pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
+
+
+#points on the surface perturbed by gaussian noise
+f <- fomega(samples)
+y <- f+0.1*rnorm(n)
+
+
+#fit with bivariate splines te
+m1 <- gam(y~te(theta,DistanceShore,k=SP_DF,bs=c("cs","cs")))
+
+#visualize
+vis.gam(m1);title("tensor product")
+
+m1$sp
+```
+
+
+ ### Low frequency high error
+
+```{r fit sde model with splines,cache=TRUE}
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(observed_BoundaryAngle,observed_BoundaryDistance,k=SP_DF,bs=c("cs")))
+
+
+crcvm_splines_lf_he<- SDE$new(formulas = formulas,data = data_list[['data_lf_he']],type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+crcvm_splines_lf_he$update_map(list("log_lambda"=factor(c(rep(NA,2)))))
+crcvm_splines_lf_he$update_lambda(m1$sp)
+
+#fit
+crcvm_splines_lf_he$fit(method="BFGS")
+```
+
+```{r plot estimates}
+
+crcvm_splines_lf_he$get_all_plots(show_CI="pointwise")
+
+exp(as.list(crcvm_splines_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+
+We are clearly underestimating the magnitude of the rotation $\omega$ near $-\pi$ and $\pi$. This is indeed very similar to the result we got for the narwhal GPS data. We are well estimating $\nu$ and $\sigma_{obs}$, and we corrected the bias in $\tau$ compared to the estimate we got for the CTCRW on the same data.
+We can try to fit the true parametric function on the estimated spline surface.
+
+```{r}
+
+estimate_parametric_omega=function(model,boundary_distance_name,boundary_angle_name,
+                                   fixed_a=NULL,probs=c(0.5,0.95)) {
+    
+    data=model$data()
+    
+    Dshore=seq(from=quantile(data$observed_BoundaryDistance,probs[1]),
+               to=quantile(data$observed_BoundaryDistance,probs[2]),
+               length.out=30)
+    theta=seq(from=-pi,to=pi,length.out=30)
+    grid<- as.data.frame(expand.grid(Dshore,theta))
+    colnames(grid) <- c(boundary_distance_name,boundary_angle_name)
+    grid$ID=1
+    
+    #get model matrices
+    mats=model$make_mat(new_data=grid)
+    X_fe=mats$X_fe
+    X_re=mats$X_re
+    
+    par_mat=model$par(new_data=grid,X_fe=X_fe,X_re=X_re)
+    
+    #matrix of values for surface plot
+    z=matrix(par_mat[,"omega"],30,30)
+    
+    data=grid
+    data$z=as.vector(z)
+    
+    
+    # Create the 3D surface plot using plot_ly
+    plot_splines<- plot_ly(x = ~theta, y = ~Dshore, z = ~z) %>%
+      add_surface() %>%
+      layout(title = "Predicted spline surface for omega",
+             scene = list(yaxis = list(title = "Distance to shore"),
+               xaxis = list(title = "theta")))
+    
+    
+    if (is.null(fixed_a)) {
+      
+      fit_optim <- optim(par = log(c(1,0.5,0.1,2,0.5,pi/6)),
+                       fn = function(params) {
+                         
+                        # Compute predicted z values
+                        z_pred <- fomega_cubic(data,
+                                         boundary_distance_name,
+                                         boundary_angle_name,
+                                         exp(params[1]),
+                                         exp(params[2]),exp(params[3]),
+                                         exp(params[4]),exp(params[5]),
+                                         exp(params[6]))
+                         
+                         # Return sum of squared residuals
+                         sum((data$z - z_pred)^2)
+                       })
+      
+    } 
+    else {
+    fit_optim <- optim(par = log(c(0.5,0.1,2,0.5,pi/6)),
+                       fn = function(params) {
+                         
+                        # Compute predicted z values
+                        z_pred <- fomega_cubic(data,
+                                         boundary_distance_name,
+                                         boundary_angle_name,
+                                         fixed_a,exp(params[1]),
+                                         exp(params[2]),exp(params[3]),
+                                         exp(params[4]),exp(params[5]))
+                         
+                         # Return sum of squared residuals
+                         sum((data$z - z_pred)^2)
+                       })
+    
+    }
+    est_par=exp(fit_optim$par)
+    
+    # Compute the predicted values using the starting parameters
+    if (is.null(fixed_a)) {
+      
+      z_pred <- fomega_cubic(grid,
+                       boundary_distance_name,
+                      boundary_angle_name,
+                      est_par[1],
+                      est_par[2],est_par[3],
+                      est_par[4],est_par[5],
+                      est_par[6])
+      
+      
+    } else {
+    z_pred <- fomega_cubic(grid,boundary_distance_name,
+                      boundary_angle_name,
+                     fixed_a,est_par[1],est_par[2],
+                      est_par[3],est_par[4],est_par[5])
+    }
+    
+    # Reshape z_pred_starting to a matrix for plotting
+    z_pred_matrix <- matrix(z_pred, nrow = length(Dshore), ncol = length(theta))
+    
+    
+    
+    # Create the 3D surface plot using plot_ly
+    plot_parametric <- plot_ly(x = ~theta, y = ~Dshore, z = ~z_pred_matrix) %>%
+      add_surface() %>%
+      layout(title = "Estimated parametric surface for omega",
+             scene = list(
+               yaxis = list(title = "Distance to shore"),
+               xaxis = list(title = "theta"),
+               zaxis = list(title = "Predicted z")
+             ))
+    
+    return (list("est_par"=est_par,"splines_surface"=plot_splines,"parametric_surface"=plot_parametric))
+    
+}
+
+estimate_parametric_omega(crcvm_splines_lf_he,probs=c(0.75,0.95),
+                          boundary_distance_name = "observed_BoundaryDistance",
+                          boundary_angle_name = "observed_BoundaryAngle")
+
+```
+
+
+### Low frequency low error
+
+```{r fit sde model with splines,cache=TRUE}
+
+
+crcvm_splines_lf_le<- SDE$new(formulas = formulas,data = data_list[["data_lf_he"]],type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.01)))
+
+crcvm_splines_lf_le$update_map(list("log_lambda"=factor(rep(NA,2))))
+crcvm_splines_lf_le$update_lambda(m1$sp)
+#fit
+crcvm_splines_lf_le$fit(method="BFGS")
+```
+
+```{r plot estimates}
+
+crcvm_splines_lf_le$get_all_plots(show_CI="pointwise")
+
+exp(as.list(crcvm_splines_lf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+```{r}
+estimate_parametric_omega(crcvm_splines_lf_le)
+```
+
+Again, having low measurement error is not really of any help in the estimation. It is probably even more difficult to estimate since errors can occur in the matrix inversions in the Kalman filter when the coefficients in the covariance matrix are too close to $0$.
+
+### High frequency high error
+
+```{r fit sde model high frequency,cache=TRUE}
+
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+
+
+crcvm_splines_hf_he<- SDE$new(formulas = formulas,data = data_hf_he[data_hf_he$ID %in% 1:2,],type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#initialize smoothing penalties and re variances
+new_lambda=c(m1$sp)
+crcvm_splines_hf_he$update_lambda(new_lambda)
+
+
+crcvm_splines_hf_he$update_map(list(log_lambda=factor(c(NA,NA))))
+
+#fit
+crcvm_splines_hf_he$fit(method="BFGS")
+```
+
+
+```{r}
+crcvm_splines_hf_he$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega))
+
+```
+
+```{r}
+estimate_parametric_omega(crcvm_splines_hf_he)
+```
+
+### High frequency low error
+
+```{r fit sde model high frequency,cache=TRUE}
+
+formulas <- list(mu1=~1,mu2=~1,tau=~1,
+                 nu=~1,omega=~te(theta,DistanceShore,k=SP_DF,bs="cs"))
+
+
+crcvm_splines_hf_le<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% 1:1,],type = "RACVM_SSM",
+                    response = c("y1","y2"),par0 = PAR0_RACVM,fixpar=c("mu1","mu2"),
+                    other_data=list("log_sigma_obs0"=log(0.05)))
+
+#initialize smoothing penalties and re variances
+new_lambda=c(m1$sp)
+crcvm_splines_hf_le$update_lambda(new_lambda)
+
+
+crcvm_splines_hf_le$update_map(list(log_lambda=factor(c(NA,NA))))
+
+#fit
+crcvm_splines_hf_le$fit(method="BFGS")
+```
+
+
+```{r}
+crcvm_splines_hf_le$get_all_plots(show_CI="pointwise",true_smooths=list("omega"=fomega))
+
+
+```
+
+
+```{r}
+
+estimate_parametric_omega(crcvm_splines_hf_le)
+```

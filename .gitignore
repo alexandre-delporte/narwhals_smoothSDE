@@ -1,18 +1,19 @@
-#ignore large files
+#ignore unnecessary files
 /Data/raw_data
 /Reviews
 /Library
 /QGIS
 
 #ignore results of simulation study, only keep the code to reproduce the results
-/R/simulation_study_CRCVM/estimation_cluster/fjords/results*
-/R/simulation_study_CRCVM/estimation_cluster/fjords/Rscripts
-/R/simulation_study_CRCVM/estimation_cluster/rect/results*
-/R/simulation_study_CRCVM/estimation_cluster/rect/Rscripts
-/R/simulation_study_CRCVM/estimation_cluster/circ/results*
-/R/simulation_study_CRCVM/estimation_cluster/circ/Rscripts
+/R/simulation_study/cluster/CRCVM/fjords/results*
+/R/simulation_study/cluster/CRCVM/fjords/Rscripts
+/R/simulation_study/cluster/CRCVM/rect/results*
+/R/simulation_study/cluster/CRCVM/rect/Rscripts
+/R/simulation_study/cluster/CRCVM/circ/results*
+/R/simulation_study/cluster/CRCVM/circ/Rscripts
 
-
+# html plots of Rmarkdown rendering
+*.html
 
 
 # Cluster tracking files 

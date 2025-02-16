@@ -1,0 +1,389 @@
+---
+title: "Simulation study parametric"
+author: "Alexandre Delporte"
+date: "2025-02-12"
+output: html_document
+---
+
+
+Estimation with parametric omega function
+
+# Set up for simulation study
+```{r, cache=TRUE}
+library(here)
+library(htmlwidgets)
+source(file.path(here("R","simulation_study","local","set_up.R")))  
+```
+
+# Low frequency high error
+
+First, we will fix the new parameters that are introduced in the model, and estimate the others, that is $\tau$ and $\nu$.
+
+```{r}
+
+
+data_lf_he_prep=data_list[["data_lf_he"]]
+
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_lf_he_prep$time)),dim=c(2,2,length(data_lf_he_prep$time)))
+# Estimate from simulated data ------------------
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+
+colnames(data_lf_he_prep)[colnames(data_lf_he_prep)==c("observed_BoundaryDistance","observed_BoundaryAngle")]<-
+  c("BoundaryDistance","BoundaryAngle")
+
+crcvm_cubic_lf_he<- SDE$new(formulas = formulas,
+                            data = data_lf_he_prep,type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data = list("H"=H))
+
+
+#fit
+crcvm_cubic_lf_he$fit(method="BFGS")
+```
+```{r}
+
+crcvm_cubic_lf_he$get_all_plots(show_CI="simultaneous")
+exp(as.list(crcvm_cubic_lf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+
+```
+
+Now we use interpolated distances and angles at high frequency to approximate better the likelihood.
+First we compute and plot the interpolation.
+
+```{r}
+#prepare data for interpolation
+data_lf_he_prep=data_list[["data_lf_he"]][,c("ID","y1","y2","time","observed_BoundaryDistance","observed_BoundaryAngle")]
+
+colnames(data_lf_he_prep)[colnames(data_lf_he_prep) %in% c("observed_BoundaryDistance","observed_BoundaryAngle")]<-
+  c("BoundaryDistance","BoundaryAngle")
+n_step=3
+
+#compute spline interpolation
+interpolation_data<-interpolate_BoundaryMetrics(data_lf_he_prep,response=c("y1","y2"),
+                                                border,n_step,n_cores=6,k=0.5*nrow(data_lf_he_prep))
+
+
+#create dataframe with interpolated values
+interpolated_x_vec=as.vector(t(interpolation_data$x))
+interpolated_y_vec=as.vector(t(interpolation_data$y))
+interpolated_distance_vec=as.vector(t(interpolation_data$BoundaryDistance))
+interpolated_angle_vec=as.vector(t(interpolation_data$BoundaryAngle))
+interpolation_time=as.vector(t(interpolation_data$time))
+ID=unlist(lapply(unique(data_lf_he_prep$ID), function(id) {
+  n=nrow(data_lf_he_prep[data_lf_he_prep$ID==id,])
+  rep(id,n*n_step)
+}))
+
+#combine dataframes
+interpolated_df=data.frame("time"=interpolation_time,"ID"=ID,"y1"=interpolated_x_vec,
+                           "y2"=interpolated_y_vec,
+                           "BoundaryDistance"=interpolated_distance_vec,
+                           "BoundaryAngle"=interpolated_angle_vec)
+interpolated_df$type="Interpolated"
+data_lf_he_prep$type="Observed"
+true_data_lf_he=data_sub[,c("ID","y1","y2","time","true_BoundaryDistance","true_BoundaryAngle")]
+colnames(true_data_lf_he)[colnames(true_data_lf_he) %in% c("true_BoundaryDistance","true_BoundaryAngle")]<-
+  c("BoundaryDistance","BoundaryAngle")
+true_data_lf_he$type="True"
+
+combined_data<-rbind(interpolated_df,data_lf_he_prep,true_data_lf_he)
+
+
+# Create plot with legends for shape and linetype
+trajectory_plot = ggplot() +geom_sf(data=border$geometry,fill="grey")+
+  geom_path(data = combined_data[combined_data$time < 11, ], 
+             aes(y1,y2, col = ID, linetype = type), size = 1) +
+  
+  # Customize the legend
+  labs(color = "Trajectory ID", 
+       shape = "Point Type", 
+       linetype = "Line Type", 
+       x = "Time", y = "Boundary Distance", 
+       title = "Interpolated vs. Observed trajectories") +
+  scale_shape_manual(values = c(1:3))+
+  theme_minimal() +
+  theme(legend.position = "right")  # Adjust legend position
+
+
+
+distance_plot = ggplot() +
+  # Scatter plot for observed BoundaryDistance (Shape Legend)
+  geom_line(data = combined_data[combined_data$time < 11, ], 
+             aes(time, BoundaryDistance, col = ID, linetype = type), size = 1) +
+  
+  # Customize the legend
+  labs(color = "Trajectory ID", 
+       shape = "Point Type", 
+       linetype = "Line Type", 
+       x = "Time", y = "Boundary Distance", 
+       title = "Interpolated vs. True Boundary Distance") +
+  
+  theme_minimal() +
+  theme(legend.position = "right")  # Adjust legend position
+
+
+# Create plot with legends for shape and linetype
+angle_plot = ggplot() +
+  # Scatter plot for observed BoundaryDistance (Shape Legend)
+  geom_line(data = combined_data[combined_data$time < 11 & combined_data$ID==1, ], 
+             aes(time, BoundaryAngle, col = ID, linetype = type), size = 1) +
+  
+  # Customize the legend
+  labs(color = "Trajectory ID", 
+       shape = "Point Type", 
+       linetype = "Line Type", 
+       x = "Time", y = "Boundary Angle", 
+       title = "Interpolated vs. True Boundary Angle") +
+  
+  theme_minimal() +
+  theme(legend.position = "right")  # Adjust legend position
+
+```
+
+```{r}
+# Display the plot
+dyn_trajectory_plot=ggplotly(trajectory_plot)
+
+dyn_distance_plot=ggplotly(distance_plot)
+dyn_angle_plot=ggplotly(angle_plot)
+
+saveWidget(dyn_trajectory_plot,"interpolated_trajectory.html")
+saveWidget(dyn_distance_plot,"interpolated_distance.html")
+saveWidget(dyn_angle_plot,"interpolated_angle.html")
+```
+
+```{r}
+
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_lf_he_prep$time)),dim=c(2,2,length(data_lf_he_prep$time)))
+
+crcvm_cubic_lf_he<- SDE$new(formulas = formulas,
+                            data = data_lf_he_prep,type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data = list("H"=H,"interpolated_distance"=interpolation_data$BoundaryDistance,
+                                              "interpolated_angle"=interpolation_data$BoundaryAngle))
+
+
+#fit
+crcvm_cubic_lf_he$fit(method="BFGS")
+```
+
+```{r}
+
+crcvm_cubic_lf_he$get_all_plots(show_CI="simultaneous")
+
+```
+
+Now we try to estimate the parametric function for omega.
+
+```{r}
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_lf_he_prep$time)),dim=c(2,2,length(data_lf_he_prep$time)))
+
+crcvm_cubic_lf_he<- SDE$new(formulas = formulas,
+                            data = data_lf_he_prep,type = "CRCVM_SSM",
+                    response = c("y1","y2"),fixpar=c("sigma_D","sigma_theta"),
+                    par0 = c(1,1,1,1,2,1.5,SIGMA_D,SIGMA_THETA),
+                    other_data = list("H"=H,"interpolated_distance"=interpolation_data$BoundaryDistance,
+                                              "interpolated_angle"=interpolation_data$BoundaryAngle))
+
+
+#fit
+crcvm_cubic_lf_he$fit(method="BFGS")
+```
+
+```{r}
+
+crcvm_cubic_lf_he$get_all_plots(show_CI="simultaneous")
+
+```
+
+# Low frequency low error 
+
+```{r}
+data_lf_le_prep=data_list[["data_lf_le"]]
+
+colnames(data_lf_le_prep)[colnames(data_lf_le_prep)==c("observed_BoundaryDistance","observed_BoundaryAngle")]<-
+  c("BoundaryDistance","BoundaryAngle")
+
+
+H=array(rep(SIGMA_OBS_LOW^2*diag(2),length(data_lf_le$time)),dim=c(2,2,length(data_lf_le$time)))
+# Estimate from simulated data ------------------
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+crcvm_cubic_lf_le<- SDE$new(formulas = formulas,data = data_lf_le_prep,
+                              type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("H"=H))
+
+crcvm_cubic_lf_le$fit(method="BFGS")
+```
+
+```{r}
+
+crcvm_cubic_lf_le$get_all_plots(show_CI="simultaneous")
+
+```
+
+```{r}
+#compute spline interpolation
+interpolation_data<-interpolate_BoundaryMetrics(data_lf_le_prep,response=c("y1","y2"),
+                                                border,n_step=1,n_cores=6,k=100)
+
+
+H=array(rep(SIGMA_OBS_LOW^2*diag(2),length(data_lf_le_prep$time)),dim=c(2,2,length(data_lf_le_prep$time)))
+
+crcvm_cubic_lf_le<- SDE$new(formulas = formulas,
+                            data = data_lf_le_prep,type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data = list("H"=H,"interpolated_distance"=interpolation_data$BoundaryDistance,
+                                              "interpolated_angle"=interpolation_data$BoundaryAngle))
+
+
+#fit
+crcvm_cubic_lf_le$fit(method="BFGS")
+```
+
+```{r}
+
+crcvm_cubic_lf_le$get_all_plots(show_CI="simultaneous")
+
+```
+
+Let's now try with high frequency data.
+
+# High frequency high error
+
+```{r}
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_hf_he$time)),dim=c(2,2,length(data_hf_he$time)))
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+crcvm_cubic_hf_he_fixed<- SDE$new(formulas = formulas,data = data_hf_he[data_hf_he$DistanceShore>0.01 & data_hf_he$ID %in% c(1:6),],type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 =c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("H"=H))
+
+crcvm_cubic_hf_he_fixed$fit(method="BFGS")
+```
+
+```{r}
+crcvm_cubic_hf_he_fixed$get_all_plots()
+exp(as.list(crcvm_cubic_hf_he_fixed$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+Now we estimate the parameters for the function omega with the true distances and angles.
+
+```{r}
+
+data_hf_he_prep=data_list[["data_hf_he"]]
+
+
+colnames(data_hf_he_prep)[colnames(data_hf_he_prep)==c("true_BoundaryDistance","true_BoundaryAngle")]<-
+  c("BoundaryDistance","BoundaryAngle")
+
+H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_hf_he_prep$time)),dim=c(2,2,length(data_hf_he_prep$time)))
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+crcvm_cubic_hf_he<- SDE$new(formulas = formulas,data = data_hf_he_prep,
+                            type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,1,1,1,1,1,0.2),
+                    other_data=list("H"=H))
+
+#fit
+crcvm_cubic_hf_he$fit(method="BFGS")
+```
+
+
+```{r}
+crcvm_cubic_hf_he$get_all_plots()
+exp(as.list(crcvm_cubic_hf_he$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+
+# High frequency low error
+
+First fix the parametric function and estimate the other parameters of the SDE.
+```{r}
+
+H=array(rep(SIGMA_OBS_LOW^2*diag(2),length(data_hf_le$time)),dim=c(2,2,length(data_hf_le$time)))
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+crcvm_cubic_hf_le_fixed<- SDE$new(formulas = formulas,data = data_hf_le[data_hf_le$ID %in% c(1:6),],
+                            type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
+                    fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
+                    other_data=list("H"=H))
+
+#fit
+crcvm_cubic_hf_le_fixed$fit(method="BFGS")
+```
+
+```{r}
+crcvm_cubic_hf_le_fixed$get_all_plots()
+exp(as.list(crcvm_cubic_hf_le_fixed$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+
+
+Now we try to estimate D0 and a in the parametric function.
+
+```{r}
+
+data_hf_le_prep=data_list[["data_hf_le"]]
+
+
+colnames(data_hf_le_prep)[colnames(data_hf_le_prep)==c("true_BoundaryDistance","true_BoundaryAngle")]<-
+  c("BoundaryDistance","BoundaryAngle")
+
+H=array(rep(SIGMA_OBS_LOW^2*diag(2),length(data_hf_le$time)),dim=c(2,2,length(data_hf_le$time)))
+
+formulas <- list(tau=~1,
+                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+
+
+crcvm_cubic_hf_le<- SDE$new(formulas = formulas,data = data_hf_le_prep,
+                            type = "CRCVM_SSM",
+                    response = c("y1","y2"),par0 = c(1,1,1,1,1,2,1,0.2),
+                    other_data=list("H"=H))
+
+#fit
+crcvm_cubic_hf_le$fit(method="BFGS")
+```
+
+
+```{r}
+crcvm_cubic_hf_le$get_all_plots()
+exp(as.list(crcvm_cubic_hf_le$tmb_rep(),what="Estimate")$log_sigma_obs)
+```
+
+
+```{r}
+ggplot()+geom_point(data=data_hf_le,aes(time,theta),col="blue",alpha=0.5,size=0.1)+
+  geom_point(data=data,aes(time,theta),col="red",alpha=0.2,size=0.1)+facet_wrap(~ID)
+
+```
+```{r}
+data_hf_le$omega=fomega(data_hf_le[,c("theta","DistanceShore")])
+
+ggplot()+geom_point(data=data_hf_le,aes(time,omega),col="blue",alpha=0.5,size=0.1)+
+  geom_point(data=data,aes(time,omega),col="red",alpha=0.2,size=0.1)+facet_wrap(~ID)
+```
+
+
+
