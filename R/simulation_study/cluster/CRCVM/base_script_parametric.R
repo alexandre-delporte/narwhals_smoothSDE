@@ -315,14 +315,14 @@ write_estimates_csv(crcvm_obs_results,"crcvm_obs")
 
 # Estimate from simulated data with smoothed Distances and Angles
 
-n_step_list=list("data_lf_he"=5,"data_lf_le"=5,"data_hf_le"=1,"data_hf_he"=1)
+n_step_list=list("data_lf_he"=2,"data_lf_le"=2,"data_hf_le"=1,"data_hf_he"=1)
 
 interpolation_data_list<-lapply(names(all_data_obs),function(data_name) {
   df<-all_data_obs[[data_name]]
   k=as.integer(0.75*nrow(df)/N_ID_HIGH) 
   interpolate_BoundaryMetrics(data,response=c("y1","y2"),
                               border,n_step=n_step_list[[data_name]],
-                              n_cores=parallel::detectCores() - 1,k=k)
+                              n_cores=parallel::detectCores() - 1,df_ratio = 0.75)
 })
 
 names(interpolation_data_list)=names(all_data_obs)
