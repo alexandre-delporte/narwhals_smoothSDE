@@ -322,7 +322,7 @@ interpolation_data_list<-lapply(names(all_data_obs),function(data_name) {
   k=as.integer(0.75*nrow(df)/N_ID_HIGH) 
   interpolate_BoundaryMetrics(data,response=c("y1","y2"),
                               border,n_step=n_step_list[[data_name]],
-                              n_cores=parallel::detectCores() - 1,k=k,sp=0.5)
+                              n_cores=parallel::detectCores() - 1,k=k)
 })
 
 names(interpolation_data_list)=names(all_data_obs)
