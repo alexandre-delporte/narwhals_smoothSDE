@@ -99,12 +99,13 @@ for (domain in domains) {
       
       df=read.csv(file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name,sep=""),file))
       
-      
-      if (is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
-          is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
-          is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
-          is.na(df[df$coeff_name=="nu.s(ID)",3]) 
-          ) {
+      # unstable<- is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
+      #   is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
+      #   is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
+      #   is.na(df[df$coeff_name=="nu.s(ID)",3])
+      unstable=is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
+        is.na(df[df$coeff_name=="nu.(Intercept)",3]) 
+      if (unstable) {
         
         print(df[df$coeff_name=="tau.(Intercept)",2])
         next
