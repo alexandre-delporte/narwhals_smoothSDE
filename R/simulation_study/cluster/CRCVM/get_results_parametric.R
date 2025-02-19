@@ -99,12 +99,11 @@ for (domain in domains) {
       
       df=read.csv(file.path(domain,paste0("results_",study_type,"_",hyperparams_file_name,sep=""),file))
       
-      # unstable<- is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
-      #   is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
-      #   is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
-      #   is.na(df[df$coeff_name=="nu.s(ID)",3])
-      unstable=is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
-        is.na(df[df$coeff_name=="nu.(Intercept)",3]) 
+      unstable<- is.na(df[df$coeff_name=="tau.(Intercept)",3]) ||
+        is.na(df[df$coeff_name=="nu.(Intercept)",3]) ||
+        is.na(df[df$coeff_name=="tau.s(ID)",3]) ||
+        is.na(df[df$coeff_name=="nu.s(ID)",3])
+
       if (unstable) {
         
         print(df[df$coeff_name=="tau.(Intercept)",2])
@@ -177,12 +176,14 @@ for (domain in domains) {
       df=all_results[[type]]
       
       #keep only intercepts and standard deviations parameters
-      df=df[df$coeff_name %in% c("tau.(Intercept)","nu.(Intercept)","tau.s(ID)","nu.s(ID)","log_sigma_obs"),]
+      df=df[df$coeff_name %in% c("tau.(Intercept)","nu.(Intercept)","tau.s(ID)",
+                                 "nu.s(ID)","log_sigma_obs","tau","nu","sigma_tau","sigma_nu"),]
       
       #name of coefficients
       coeff_names=unique(df$coeff_name)
       #link functions
-      links=list(exp,exp,\(x) 1/sqrt(exp(x)),\(x) 1/sqrt(exp(x)),\(x) exp(x)*1000)
+      links=list(exp,exp,\(x) 1/sqrt(exp(x)),\(x) 1/sqrt(exp(x)),\(x) exp(x)*1000,
+                 rep(identity,4))
       names(links)=coeff_names
       #number of coeffs to estimate in single framework
       n_coeffs=length(coeff_names)
