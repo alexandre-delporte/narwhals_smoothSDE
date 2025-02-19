@@ -154,6 +154,8 @@ write_estimates_csv=function(results,model_type) {
         next
       }
       
+     
+      
       #re and fe coeffs
       coeffs=rbind(model$coeff_re(),model$coeff_fe()) 
       
@@ -174,10 +176,33 @@ write_estimates_csv=function(results,model_type) {
       std_log_lambda=all_std$log_lambda
       std_log_sigma_obs=all_std$log_sigma_ob
       
+      
       #create dataframe
       coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,log_lambda_names,"log_sigma_obs")),
                            "estimate"=c(coeff_values,log_lambda_values,log_sigma_obs_value),
                            "std"=c(std_coeffs,std_log_lambda,std_log_sigma_obs))
+      
+      # add mean obtained from samples with joint covariance matrix
+      post_coeff=try(model$post_coeff(n_post=10000))
+      if (inherits(post_coeff, "try-error")) {
+        message(paste("Invalid joint covariance matrix for ", model_name,'\n', model))
+        next
+      }
+      
+      post_par=list(
+        "tau"=exp(post_coeff$coeff_fe[,"tau.(Intercept)"]),
+        "nu"=exp(post_coeff$coeff_fe[,"nu.(Intercept)"]),
+        "sigma_tau"=1/sqrt(exp(post_coeff$log_lambda[,"tau.s(ID)"])),
+        "sigma_nu"=1/sqrt(exp(post_coeff$log_lambda[,"nu.s(ID)"])))
+      
+      mean_par<-lapply(post_par,mean)
+      sd_par<-lapply(post_par,sd)
+      post_par_df<- data.frame("coeff_name"=names(post_par),"estimate"=unlist(mean_par),
+                               "std"=unlist(sd_par))
+      rownames(post_par_df) <- NULL
+      
+      coeffs_df=rbind(coeffs_df,post_par_df)
+      
       
       # path for csv file
       output_file <- file.path(par_dir, paste0("results_","parametric_",hyper_params_file_name),
