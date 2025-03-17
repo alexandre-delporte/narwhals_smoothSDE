@@ -17,13 +17,16 @@ source(file.path(here("R","simulation_study","CVM_functions.R")))
 
 N_ID=6
 
-TMAX=12
+TMAX=24
 DELTA=1/60
 
 SP_DF=c(5,5)
 
 TAU_0=1.5
 NU_0=4
+
+SIGMA_TAU=0.2
+SIGMA_NU=0.1
 
 DMIN=0.5
 DMAX=1
@@ -48,7 +51,7 @@ SIGMA_D=0.3
 
 
 
-seed=46
+seed=2
 set.seed(seed)
 # Set the path to the directory containing the data
 greenland_data_path <- here("Data","preprocessed_data","greenland")
@@ -78,14 +81,20 @@ while (i<=N_ID) {
   }
 }
 
-
 #high frequency time points
 times=seq(0,TMAX,by=DELTA)
 
 n_obs=length(times)-1
 
+# Definition of parameters tau and nu ----------------
+tau_re=rnorm(N_ID,mean=0,sd=SIGMA_TAU)
+nu_re=rnorm(N_ID,mean=0,sd=SIGMA_NU)
+true_log_tau=tau_re+log(TAU_0)
+true_log_nu=nu_re+log(NU_0)
+
 
 # Defintion of smooth parameter omega ----------
+
 
 fomega_cubic=function(cov_data,boundary_distance_name="BoundaryDistance",
                       boundary_angle_name="BoundaryAngle",
@@ -106,14 +115,6 @@ fomega=function(cov_data,boundary_distance_name="BoundaryDistance",
                A,B,D0,D1,SIGMA_D,SIGMA_THETA)
 }
 
-ftau_constant=function(cov_data) {
-  TAU_0
-}
-
-fnu_constant=function(cov_data) {
-  NU_0
-}
-
 
 # Generate samples ---------------
 
@@ -126,6 +127,15 @@ registerDoParallel(cl)
 data=foreach (i=1:N_ID,.combine='rbind',.packages=c("progress","MASS","sf","mgcv","smoothSDE")) %dopar% {
   
   set.seed((seed-1)*N_ID+i)
+  
+  #constant nu
+  fnu_constant=function(cov_data) {
+    return (exp(true_log_nu[i]))
+  }
+  
+  ftau_constant=function(cov_data) {
+    return (exp(true_log_tau[i]))
+  }
   
   
   res=sim_CRCVM(ftau=ftau_constant,fomega=fomega,fnu=fnu_constant,

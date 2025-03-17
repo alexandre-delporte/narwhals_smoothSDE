@@ -27,8 +27,8 @@ data_lf_he_prep=data_list[["data_lf_he"]]
 H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_lf_he_prep$time)),dim=c(2,2,length(data_lf_he_prep$time)))
 # Estimate from simulated data ------------------
 
-formulas <- list(tau=~1,
-                 nu=~1,a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
+formulas <- list(tau=~s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),a=~1,b=~1,D0=~1,D1=~1,sigma_D=~1,sigma_theta=~1)
 
 
 
@@ -61,16 +61,16 @@ data_lf_he_prep=data_list[["data_lf_he"]][,c("ID","y1","y2","time","observed_Bou
 
 colnames(data_lf_he_prep)[colnames(data_lf_he_prep) %in% c("observed_BoundaryDistance","observed_BoundaryAngle")]<-
   c("BoundaryDistance","BoundaryAngle")
-n_step=3
+n_step=5
 
 #compute spline interpolation
 interpolation_data<-interpolate_BoundaryMetrics(data_lf_he_prep,response=c("y1","y2"),
-                                                border,n_step,n_cores=6,k=0.5*nrow(data_lf_he_prep))
+                                                border,n_step,n_cores=6,df_ratio=0.95)
 
 
 #create dataframe with interpolated values
-interpolated_x_vec=as.vector(t(interpolation_data$x))
-interpolated_y_vec=as.vector(t(interpolation_data$y))
+interpolated_x_vec=as.vector(t(interpolation_data$y1))
+interpolated_y_vec=as.vector(t(interpolation_data$y2))
 interpolated_distance_vec=as.vector(t(interpolation_data$BoundaryDistance))
 interpolated_angle_vec=as.vector(t(interpolation_data$BoundaryAngle))
 interpolation_time=as.vector(t(interpolation_data$time))
@@ -161,12 +161,14 @@ saveWidget(dyn_angle_plot,"interpolated_angle.html")
 
 H=array(rep(SIGMA_OBS_HIGH^2*diag(2),length(data_lf_he_prep$time)),dim=c(2,2,length(data_lf_he_prep$time)))
 
+#interpolated_distance[interpolated_distance==0] <- 0.05
 crcvm_cubic_lf_he<- SDE$new(formulas = formulas,
                             data = data_lf_he_prep,type = "CRCVM_SSM",
                     response = c("y1","y2"),par0 = c(1,1,A,B,D0,D1,SIGMA_D,SIGMA_THETA),
                     fixpar=c("a","b","D0","D1","sigma_D","sigma_theta"),
                     other_data = list("H"=H,"interpolated_distance"=interpolation_data$BoundaryDistance,
                                               "interpolated_angle"=interpolation_data$BoundaryAngle))
+crcvm_cubic_lf_he$update_lambda(c(1/0.5^2,1/0.5^2))
 
 
 #fit
@@ -176,6 +178,33 @@ crcvm_cubic_lf_he$fit(method="BFGS")
 ```{r}
 
 crcvm_cubic_lf_he$get_all_plots(show_CI="simultaneous")
+
+```
+```{r}
+
+get_estimates<- function(sde,include_sigma_obs=FALSE) {
+  
+  post_coeff=sde$post_coeff(n_post=10000)
+  post_par=list(
+  "tau"=exp(post_coeff$coeff_fe[,"tau.(Intercept)"]),
+  "nu"=exp(post_coeff$coeff_fe[,"nu.(Intercept)"]),
+  "sigma_tau"=1/sqrt(exp(post_coeff$log_lambda[,"tau.s(ID)"])),
+  "sigma_nu"=1/sqrt(exp(post_coeff$log_lambda[,"nu.s(ID)"])))
+  
+  if (include_sigma_obs) {
+    post_par$sigma_obs=1000*exp(post_coeff$log_sigma_obs)
+  }
+
+  mean_par=lapply(post_par,mean)
+  sd_par=lapply(post_par,sd)
+  quant_par <- lapply(post_par,
+                      quantile, probs = c(0.025, 0.975))
+  
+  return(list("estimates"=mean_par,"std.error"=sd_par,"quantiles"=quant_par))
+  
+}
+
+get_estimates(crcvm_cubic_lf_he)
 
 ```
 

@@ -24,11 +24,10 @@ library(doParallel)         #parallel computing
 
 
 domain_name="fjords"
-type="Ishore"
-par_dir=here("R","simulation_study_CRCVM","estimation_cluster",domain_name)
-set_up_file=paste("set_up_",domain_name,"_",type,".R",sep="")
+par_dir=here("R","simulation_study","cluster",domain_name)
+set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
-source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  #get functions to simulate trajectories
+source(file.path(here("R","simulation_study","CVM_functions.R")))  #get functions to simulate trajectories
 
 
 seed= 1
@@ -44,7 +43,7 @@ cl <- makeCluster(cores[1]-1) #not to overload your computer
 registerDoParallel(cl)
 
 
-data=foreach (i=1:N_ID_HIGH,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+data=foreach (i=1:N_ID_HIGH,.combine='rbind',.packages=c("progress","MASS","sf","mgcv","smoothSDE")) %dopar% {
   
   set.seed((seed-1)*N_ID_HIGH+i)
   
@@ -114,11 +113,11 @@ plot=ggplot()+geom_sf(data=border$geometry,fill="lightgrey")+
 hyper_params_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 
 #create directory to save the results
-if (!(dir.exists(file.path(par_dir,paste("results_","Ishore_",hyper_params_file_name,sep=""))))) {
-  dir.create(file.path(par_dir,paste("results_","Ishore_",hyper_params_file_name,sep="")))
+if (!(dir.exists(file.path(par_dir,paste("results_",hyper_params_file_name,sep=""))))) {
+  dir.create(file.path(par_dir,paste("results_",hyper_params_file_name,sep="")))
 }
 
-ggsave(path=file.path(par_dir,paste("results_","Ishore_",hyper_params_file_name,sep="")),
+ggsave(path=file.path(par_dir,paste("results_",hyper_params_file_name,sep="")),
        filename=paste("simulated_trajectories_","seed",seed,"_",
                       hyper_params_file_name,".png",sep=""),plot=plot,width=10,height=5)
 
@@ -126,95 +125,6 @@ if (count>0) {
   stop("Stop : at least one trajectory reached the shore.")
 }
 
-# Add covariates to simulation -------------------------------------------------
-
-signed_angle <- function(u, v) {
-  #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
-  # as in 
-  # https://math.stackexchange.com/questions/529555/signed-angle-between-2-vectors
-  u <- matrix(u, ncol = 2)
-  v <- matrix(v, ncol = 2)
-  if (nrow(u) != nrow(v)) stop("u and v must have the same number of 
-                                  rows")
-  result <- as.numeric(atan2(v[,2], v[,1]) - atan2(u[,2], u[,1]))
-  ind1 <- which(result > pi)
-  ind2 <- which(result <= -pi)
-  result[ind1] <- result[ind1] - 2*pi
-  result[ind2] <- result[ind2] + 2*pi
-  return(result) 
-} 
-
-
-add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
-  # Setup parallel backend
-  cl <- makeCluster(n_cores)
-  registerDoParallel(cl)
-  
-  # Split data by ID
-  ids <- unique(data$ID)
-  
-  # Process each ID in parallel
-  results <- foreach(id = ids, .combine = rbind, .packages = c("sf"),
-                     .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border",
-                                 "D_LOW","D_UP")  ) %dopar% {
-                                   # Filter data for the current ID
-                                   sub_data <- data[data$ID == id, ]
-                                   n_sub <- nrow(sub_data)
-                                   
-                                   # Time steps
-                                   dtimes <- sub_data[2:n_sub, "time"] - sub_data[1:(n_sub - 1), "time"]
-                                   
-                                   # Step lengths
-                                   dx <- sub_data[2:n_sub, "y1"] - sub_data[1:(n_sub - 1), "y1"]
-                                   dy <- sub_data[2:n_sub, "y2"] - sub_data[1:(n_sub - 1), "y2"]
-                                   
-                                   # Empirical velocity
-                                   vexp_df <- cbind(dx / dtimes, dy / dtimes)
-                                   
-                                   # Nearest points on shore
-                                   sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("y1", "y2")]), border))
-                                   
-                                   # Normal vectors
-                                   normal <- as.matrix(sub_data[2:n_sub, c("y1", "y2")] - sub_data[2:n_sub, c("p1", "p2")])
-                                   
-                                   # Angle between velocity and normal vector
-                                   theta_coast <- signed_angle(normal, vexp_df)
-                                   theta_coast <- c(theta_coast, 1)  # Adjust length
-                                   
-                                   # Initialize DistanceShore
-                                   Dshore <- rep(0, n_sub)
-                                   
-                                   for (i in 1:n_sub) {
-                                     y1 <- sub_data[i, "y1"]
-                                     y2 <- sub_data[i, "y2"]
-                                     if (!is_in_land(st_point(c(y1, y2)), border)) {
-                                       p1 <- sub_data[i, "p1"]
-                                       p2 <- sub_data[i, "p2"]
-                                       Dshore[i] <- sqrt((y1 - p1)^2 + (y2 - p2)^2)
-                                     }
-                                   }
-                                   
-                                   # Calculate Ishore
-                                   Ishore <- ifelse(Dshore < D_LOW, 1 / D_LOW, ifelse(Dshore > D_UP, 0, 1 / Dshore))
-                                   
-                                   # Add columns to sub_data
-                                   sub_data$theta <- theta_coast
-                                   sub_data$DistanceShore <- Dshore
-                                   sub_data$Ishore <- Ishore
-                                   
-                                   return(sub_data)
-                                 }
-  
-  # Stop the cluster
-  stopCluster(cl)
-  
-  return(results)
-}
-
-data_lf_he=add_covs_parallel(data_lf_he)
-data_hf_le=add_covs_parallel(data_hf_le)
-data_lf_le=add_covs_parallel(data_lf_le)
-data_hf_he=add_covs_parallel(data_hf_he)
 
 all_data=list("data_lf_he"=data_lf_he,"data_hf_le"=data_hf_le,"data_lf_le"=data_lf_le,
               "data_hf_he"=data_hf_he)
@@ -235,7 +145,8 @@ formulas_ctcrw <- list(mu1 = ~1, mu2 = ~1, tau = ~s(ID, bs = "re"), nu = ~s(ID, 
 new_lambda_ctcrw <- c(1 / SIGMA_TAU_0^2, 1 / SIGMA_NU_0^2)
 
 # Export necessary objects to the cluster
-clusterExport(cl, varlist = c("formulas_ctcrw", "new_lambda_ctcrw", "PAR0", "SIGMA_OBS_LOW","SIGMA_OBS_HIGH","N_ID_LOW"))
+clusterExport(cl, varlist = c("formulas_ctcrw", "new_lambda_ctcrw", 
+                              "PAR0", "SIGMA_OBS_LOW","SIGMA_OBS_HIGH","N_ID_LOW"))
 
 # Parallel execution
 ctcrw_results <- foreach(
@@ -295,60 +206,8 @@ stopCluster(cl)
 
 cat("Saving estimates in csv file...\n")
 
-# Write estimated parameters in csv files -----------------------------
 
-
-estimate_parametric_omega=function(model,fixed_a=1,probs=c(0.75,0.95)) {
-  
-  data=model$data()
-  
-  Dshore=seq(from=quantile(data$DistanceShore,probs[1]),
-             to=quantile(data$DistanceShore,probs[2]),length.out=30)
-  Ishore=1/Dshore
-  theta=seq(from=-pi,to=pi,length.out=30)
-  grid<- as.data.frame(expand.grid(Ishore,theta))
-  colnames(grid) <- c("Ishore","theta")
-  grid$ID=unique(data$ID)[1]
-  grid$Dshore=1/grid$Ishore
-  
-  #get model matrices
-  mats=model$make_mat(new_data=grid)
-  X_fe=mats$X_fe
-  X_re=mats$X_re
-  
-  par_mat=model$par(new_data=grid,X_fe=X_fe,X_re=X_re)
-  
-  #matrix of values for surface plot
-  z=matrix(par_mat[,"omega"],30,30)
-  
-  data=grid
-  data$z=as.vector(z)
-  
-  
-  
-  data_copy=data
-  colnames(data_copy)=c("Ishore","theta","ID","DistanceShore","z")
-  
-  fit_optim <- optim(par = log(c(0.5,0.1,2,0.5,pi/6)),
-                     fn = function(params) {
-                       
-                       # Compute predicted z values
-                       z_pred <- fomega_cubic(data_copy,fixed_a,exp(params[1]),
-                                              exp(params[2]),exp(params[3]),exp(params[4]),exp(params[5]))
-                       
-                       # Return sum of squared residuals
-                       sum((data_copy$z - z_pred)^2)
-                     })
-  
-  
-  est_par=c(fixed_a,exp(fit_optim$par))
-  names(est_par)=c("a","b","D0","D1","sigma_D","sigma_theta")
-  
-  return (est_par)
-  
-}
-
-write_estimates_csv=function(results,model_type) {
+write_estimates_csv=function(results,model_type="ctcrw") {
   
   n=dim(results)[1]
   p=dim(results)[2]
@@ -396,15 +255,6 @@ write_estimates_csv=function(results,model_type) {
                            "estimate"=c(coeff_values,log_lambda_values,log_sigma_obs_value),
                            "std"=c(std_coeffs,std_log_lambda,std_log_sigma_obs))
       
-      if (model_type=="crcvm") {
-        
-        est_par=estimate_parametric_omega(model,fixed_a=A)
-        
-        new_coeffs_df=data.frame("coeff_name"=factor(names(est_par)),"estimate"=as.numeric(est_par),
-                                 "std"=rep(NA,length(est_par)))
-        
-        coeffs_df=rbind(coeffs_df,new_coeffs_df)
-      }
       
       # path for csv file
       output_file <- file.path(par_dir, paste0("results_","Ishore_",hyper_params_file_name),
