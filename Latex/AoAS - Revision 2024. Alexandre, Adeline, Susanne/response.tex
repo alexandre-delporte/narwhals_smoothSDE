@@ -1,0 +1,205 @@
+\documentclass{amsart}
+
+%% Packages
+\RequirePackage{amsthm,amsmath,amsfonts,amssymb}
+\RequirePackage[colorlinks,allcolors=blue]{hyperref}%% uncomment this for coloring bibliography citations and linked URLs
+\RequirePackage{graphicx}%% uncomment this for including figures
+\RequirePackage[numbers]{natbib}
+
+%\usepackage[utf8]{inputenc}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{enumitem}
+\usepackage{subcaption}
+\usepackage{bbm}
+\usepackage{breqn}
+\usepackage{hyperref}
+%\usepackage{biblatex}
+\usepackage[foot]{amsaddr}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{tabularx}
+
+
+\usepackage[a4paper, total={7in, 10in}]{geometry}
+\setlength{\textwidth}{\paperwidth}
+\addtolength{\textwidth}{-2.6in}
+\calclayout
+
+\newcolumntype{N}{>{\centering\arraybackslash}m{.4in}}
+\newcolumntype{G}{>{\centering\arraybackslash}m{2in}}
+
+
+\theoremstyle{plain}
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{claim}{Claim}
+\newtheorem{corollary}{Corollary}[section]
+
+\theoremstyle{remark}
+\newtheorem{assumption}{Assumption}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{remark}{Remark}[section]
+% Alternative Assumption!
+\newtheorem{assumptionalt}{Assumption}[assumption]
+% New environment
+\newenvironment{assumptionp}[1]{
+  \renewcommand\theassumptionalt{#1}
+  \assumptionalt
+}{\endassumptionalt}
+\newtheorem{innerass}{\innerthmname}
+\newcommand{\innerthmname}{}% initialize
+\newenvironment{upstatement}[1]
+ {\renewcommand{\innerthmname}{#1}\innerass}
+ {\endinnerass}
+
+\newtheorem{manualtheoreminner}{Assumption}
+\newenvironment{manualtheorem}[1]{%
+  \renewcommand\themanualtheoreminner{#1}%
+  \manualtheoreminner
+}{\endmanualtheoreminner}
+
+% Custom commands
+\newcommand{\peq}{\stackrel{\mathcal{L}}{=}}
+\newcommand{\tr}{\text{tr}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand {\R}{\mathbb{R}}
+\newcommand {\E}{\mathbb{E}}
+\newcommand {\prob}{\mathbb{P}}
+\newcommand {\N}{\mathbb{N}}
+\newcommand {\Z}{\mathbb{Z}}
+\newcommand {\1}{\mathbb{1}}
+
+
+%\addbibresource{bibliography.bib}
+
+\title[]{Response}
+
+
+\begin{document}
+\maketitle
+
+We thank the associate editor as well as the two reviewers for careful reading of our manuscript. We have done our best to accommodate all suggestions, which we believe have improved the paper. There are two versions of the revised manuscript: a clean version, and a version where new text is indicated in blue, and deleted parts are in red and striked over. Below we respond point by point to the comments. 
+
+
+\section{Response to Reviewer 1}
+
+\begin{itemize}
+\item \textcolor{blue}{My main concern with your method is that you do not propagate the uncertainty from the baseline model to the response model. Underestimating the uncertainty could lead someone to deduce that there is a clear deviation from baseline (i.e., the animals' behaviour was disturbed) when this is not the case. This goes against your claim that you are giving "a conservative estimate of the effect of the noise exposure" on page 5.}
+We agree that the uncertainty on the baseline can greatly invalidate our conclusions, and it is therefore crucial to asses it precisely. 
+We tried to better capture the uncertainty from the baseline as follows : we draw 100 samples from the estimated distribution of the baseline parameters $\tau_0$ and $\nu_0$ using the joint Fisher information matrix.  We estimate the response model with these fixed value and get an estimate of $\alpha_\tau$ and $\alpha_\nu$. We compute the $2.5$ and $97.5 \%$ quantiles of the 100 estimates of $\alpha_\tau$ and $\alpha_\nu$ thus obtained to get a wider confidence interval for $\alpha_\tau$ and  $\alpha_\nu$. Results are shown in table 4. We know show mean estimates of the recovery distances and $95\%$ CI in table 5 including the uncertainty from the baseline estimates. 
+
+\item \textcolor{blue}{ p4: "The land geometry for the specific region..." If I understand correctly, you first tried using land maps from OpenStreetMap, but finally decided to use the Google Earth Engine API for higher accuracy. If that's the case, I would recommend presenting the Google Earth approach directly at the start of the paragraph.}
+We finally used another approach that is explained in the beginning of the second paragraph of section 2.2.
+
+\item \textcolor{blue}{- p5: Just above Figure 1, shouldn't the interval be open either at pi or -pi (depending on whether you work on (-pi, pi] or [-pi, pi))? Same comment under Equation 7 on page 8.}
+The interval has been changed to $]-\pi,\pi]$.
+
+\item \textcolor{blue}{- Fig 2: The figure labels are small and hard to read.} The size of the labels and the figure are now increased.
+
+\item \textcolor{blue}{- p9 and Fig 4: I think you should mention more explicitly in text and in the caption that Figure 4 is showing simulated data. Please consider replacing "sampled trajectories" by "simulated trajectories" in the text for clarity.} We replaced "sampled trajectories" by "simulated trajectories" accordingly.
+
+\item \textcolor{blue}{- Figure 4: Please make the labels a little larger for readability, though.}
+
+\item \textcolor{blue}{- p 12, under Equation 12: It seems that you don't explicitly account for the cyclical nature of the angular covariate. Shouldn't you be using a cyclical spline (e.g., "cc" in mgcv syntax) for this?} I don't think cyclic splines are of any interest there since the values of the smooth functions at $-\pi$ and $\pi$ should not be equal but opposite. A basis of odd spline functions might be used though. We did not investigate this any further as this shoud be equivalent to fixing some of the splines weights to $0$. 
+
+\item \textcolor{blue} { - p12: The text under Equation 14 seems to imply that you first estimate the baseline parameters (e.g., tau0, nu0, etc), and then estimate deviation parameters (alpha_tau and alpha_nu) while treating baseline parameters as known. This doesn't seem to properly propagate uncertainty about the baseline parameters onto inferences about the deviation parameters, which could affect your conclusions (e.g., whether there seems to be a clear deviation from baseline behaviour, as you claim in Section 6.2 based on confidence intervals). I think you should consider estimating all parameters jointly to circumvent this problem, or at the very least discuss the implications of your approach. You briefly mention this on page 17, but it should be discussed earlier and in more detail. } See first remark. We now propagate uncertainty and obtain wider confidence intervals in tables 4 and 5. Using a reference baseline model allows us to estimate recovery distances with respect to the baseline values, which gives a clear criteria for mitigation of noise exposure effect. This is why we eventually chose this method.
+
+\item \textcolor{blue}{- Table 1: I am not sure that it is necessary/helpful to report estimates for the spline coefficients, as they aren't meaningful when taken separately. It might be more useful to report some summary of the discrepancy between the true smooth function and the estimated smooth function.} We now show the estimated smooth surfaces $\omega$ instead of the values of the spline coefficients.
+
+\item \textcolor{blue}{- p16: Can you please spell out why setting "the degree of freedom of the marginal splines to 5" leads to "a total number of 25 degrees of freedom?}
+For tensor spline the model matrix is the tensorial product of the individual model matrices for each single variable. Its size is thus the product of the degree of freedoms in each single variable.
+
+\item \textcolor{blue}{- p16: You fixed the smoothing penalties to 1 for the 2d tensor spline modelling the relationship between the angular velocity and covariates. This seems like a strong assumption, can you please clarify why you did this rather than estimating the smoothing penalty, and how you chose this specific value of 1?}
+When estimating the smoothing penalty from the data, we encounter numerical errors that are solved when they are fixed. Typically, the smoothing penalties are estimated to extremely high values. Fixing the value to $1$ for the smoothing penalty was indeed not the best choice. For the simulation study, we fixed the smoothing penalties based on the values we obtain by estimating the true surface with splines. However in the case study we can only guess reasonable values based on the surface we expect to obtain. Here, fixing its value close to zero, for instance $10^-6$, is a better choice.
+
+\item \textcolor{blue}{- p16, above Table 2: You should probably remind the readers here that tau0 is the population mean for the persistence parameter. } Done
+
+\end{itemize}
+
+\section{Response to Reviewer 2}
+
+\begin{itemize}
+    \item \textcolor{blue}{1.	I’m honestly shocked to see a paper submitted to AoAS on animal movement without a single plot of the animal tracking data in the main manuscript.  I think it is critical that you show readers the data you are modeling.  You show multiple sets of simulated data tracks in the main manuscript, but never the actual movement data.  On a more general note, while I think the modeling approach to  modeling constrained movement is very interesting, it isn’t clear to me what scientific impact this modeling approach has.  Not even showing the data clearly is indicative of a more general lack of serious applied scientific analysis in this manuscript, in my opinion.  I think AoAS readers will really appreciate understanding the scientific advances that can be made now that you have made this modeling advancement.    }
+
+    
+
+    The plot of the actual data has been moved to section 2 and now appears on page 4. The simulation study now shows the result of the estimation with a CTCRW model where the constraints on the movement are not considered. The estimate of the persistence parameter $\tau$ appears to be biaised. That is one of the reason why constraints should not be neglected in general. This biais was also discussed in Hanks paper that is cited in the text.
+    We hope this will make the scientific advances in the paper clearer.
+    \item \textcolor{blue}{Your data analysis focuses on the effect of a disturbance on movement.  This seems to be a relatively minor scientific result, and one that possibly could have been obtained without modeling the shoreline at all.  Can you somehow convince readers that this data and this question are interesting? }
+    The question of assessing behavioral disturbances in marine mammals movement have long been a subject of scientific interest.
+
+    \item \textcolor{blue}{It has been analyzed before.  Are your results novel and different from those obtained with simpler analyses?  Could your results not have been achieved without your new modeling approach?} 
+    We now go in more detail about the results of past studies in the introduction and explain how our approach differs from it.
+    
+    \item \textcolor{blue}{ Why is it important to know that marine mammals respond to loud sounds?  What implications does it have for them? }
+    This is not the main subject of this paper, however we refer to the articles of Heide-Jorgensen et al. as well as the very interesting textbook of Southall et al. Essentially, we mentioned in the paper that narwhals rely on sound perception for orientation and communication, which makes it clear that loud underwater sounds may alter there ability to forage or mate for instance.
+
+    \item \textcolor{blue}{ Why is it critical to model in such a way that the constrained waterways are seen as hard barriers?  There are multiple possible approaches here, but I really think readers will appreciate additional scientific motivation and results for this work.}
+    Waterways typically are hard barriers for the narwhals so we think that treating them as such makes some sense.
+
+    \item \textcolor{blue}{ 2.	I think your novel modeling approach for modeling constrained movement is very interesting.  However, I think readers will very much appreciate a better understanding of where this approach might break down, and a more serious comparison with existing approaches.  For example, coarsening the time step of your observations seems like it would result in simulations that do not respect the firm boundaries, but this is never discussed.  Is there any issue to modeling coarse resolution data near shorelines?  Can you show that your movement data are close enough together in time that this is not a problem for this data set?  Or can you compare with an existing approach for modeling constrained movement (you cite some in your paper) and clearly illustrate how your approach improves on existing approaches?  You make some statements about how your approach has some nice properties relative to other approaches, but without a direct comparison it isn’t clear how your new approach improves on old approaches. }
+
+    Simulated trajectories from a reflected CVM (the model used in Hanks paper) are compared to simulated trajectories of our model in figure 5. In a reflected CVM, there is no reason for the process to remain close and follow the shoreline. This is where our model is interesting : it can model different behaviors close to the boundary of the domain.
+
+    \item \textcolor{blue}{ 3.	Your simulation study shows that you can simulate data constrained to be within very interesting boundaries, and also shows that if your data are high resolution, you can recover parameters when you fit simulated data.  However, it isn’t clear how well your model actually fits the data you are using.  Can you show that data simulated from your model is very similar to observed movement?  Can you show that you can recover parameters well if you simulate movement data from the parameters you estimated from your tracking data?  Doing this will help readers better understand what your model captures well in the data and what it does not.}
+    We added a new section 6.3 in which we show data simulated from the fitted model. We also show parameters estimated from the simulated data.
+    
+    \item \textcolor{blue}{Page 2, 3 lines from bottom.  You say that reflected SDEs do not have a known transition density, but I don’t think that is true, or perhaps you need to clarify.  For example, your model doesn’t have an analytically tractable transition density, but once you discretize in time and assume that some things (like relative position to shore) are constant over that time interval, you can then derive a transition density.  I think this is very similar to what happens in reflected SDEs.  Perhaps clarify here.}
+    We tried to emphasize that the use of a reflected SDE (as in Hanks2017) generally prevents from using a state space model for estimation since the next position is conditioned by whether the previous has reached land or not, which relies on a projection operator that is not explicitly known and of which we don't know the distribution. Therefore it is not straightforward to get an approximate linear gaussian state space model in this case, and Monte-Carlo technique are much more popular. In our case, the projection operator is hidden in the covariates $\Theta$ and $D^{shore}$.
+    To be exhaustive, reflected Brownian motion and reflected Ornstein-Uhlenbeck indeed have a known transition density in one dimension (reflection at $0$ or any threshold $a$). However, in multiple dimensions, we can have an explicit transition density only for simple domains as the half space ($\R \times \R^+$). For a general polygon as it is the case in the paper, we cannot simulate explicitly a reflected RACVM but we can only use numerical schemes as the projection method in Hanks's paper (or the penalization scheme in Brillinger's paper).
+
+    \item \textcolor{blue}{ Section 2.1.  As stated above, I think readers will really appreciate more scientific analysis here – in particular a better understanding of why this dataset should be analyzed again with your methods.  If possible, clearly state what sorts of results have been obtained before (you allude to these), and clearly show if possible how your results improve on these, or make management actions clear that were not clear before, or something similar.}
+
+    \item \textcolor{blue}{Page 4, paragraph 2, sentence starting “Measurements” is not clear to me – please clarify.} The sentence is changed to "Additionally, a velocity filter was applied to retain only positions with an empirical velocity below 20 km/h. This filter removed two data points from the dataset."
+
+    \item \textcolor{blue}{Page 4, sentence starting “About 9 \% of the GPS measurements…” – can you give more details here?  It might make more sense to not mentione using OpenStreetMap, and instead just focus on the Google Earth data?} This sentence was removed since we changed our approach. The explanation is found in paragraph 2 of section 2.2.
+
+    \item \textcolor{blue}{Page 4, last line.  You assume that narwhals are “influenced by the shore within a 3km range.  This seems like a very important assumption – can you justify it?  Or do some sort of sensitivity analysis to this assumption?}
+
+    Figure 6 shows that at 1.45 km the estimated smooth function $\omega$ is already at 0 (less than $1$ rad / h) meaning that at this distance there is already no effect of the shore on the parameter $\omega$, which clearly indicates that our assumption holds.
+
+    \item \textcolor{blue}{Page 7, paragraph starting with “Equation (5) shows that…”  At this point in the manuscript, it isn’t clear that you are going to let “omega” vary over time, and my thought at this point was that this model would require the animal to have a constant mean turning angle of clockwise or counterclockwise.  I suggest you tell readers that you will later model “omega” as varying over time and as a function of distance to the shore.   }
+    We made further comment about this in the first paragraph of section 3 : "We will later model $\omega$ as varying over time as a function of the distance to shore and the angle $\Theta$."
+
+    \item \textcolor{blue}{
+    Page 9, first paragraph.  Is this persistent movement along the shoreline something that animals will only do when they are close to shore?  In your model, could animals follow the shoreline when they are very far from it?  For example moving north/south a long ways from a north/south shoreline?  If your model only has this as a possibility when animals are close to shore, I suggest mentioning that here.}
+    We changed our approach and now kept $\tau$ constant over time in the illustrative trajectories from our model, though it is completely doable to model $\tau$ as a function of $\Theta$ and $D^{shore}$. The reason is that we only estimate a constant $\tau$ in the application to real data, in an effort to have a model as parsimonious as possible.
+
+    \item \textcolor{blue}{Page 10, last line.  You say “to prevent the animal from hitting the boundary, rho should remain smaller than D^shore.”  This seems to me like an incredibly important result, and is not given any justification.  Can you provide some details, especially in the context of your numerical approximation you present later (a time discretization)?}
+    This is a rule of thumb that we stated based on our simulations and on common sense. It would obviously depend on the sharpness of the domain and the size of the time steps used in the simulation. Maybe a proof in a simple domain as the half space $\R^+ \times \R$ could work but we did not investigate this any further.
+
+    \item \textcolor{blue}{Page 11, line before Equation (10).  I suggest changing “solve” to “are the solutions to”} Done
+
+    \item \textcolor{blue}{Page 12, paragraph after Equation (12).  I believe these are also called “product B-splines” } Thank you. The main reference we have is section 4.1.8 of S.Wood 2017.
+\end{itemize}
+
+
+
+\section{Response to the associate editor}
+
+\begin{itemize}
+    \item \textcolor{blue}{I understand that the contribution of this work is in employing the CTCS model to analyze
+GPS positioning of the narwals, which in turn helps to quantify the effects of sound exposure
+as a function of distance from shore. What isn’t clear to me is what are the shortcomings
+of the previous work to this aim, and, more specifically, how can the benefits of the newly
+proposed approach be demonstrated.} This is slightly discussed in the introduction.
+
+\item \textcolor{blue}{In this particular application, is the main challenge the irregular boundaries of fjords? I think
+some significant revisions are required for the introduction and/or the data section to depict
+the application in this analysis that is motivating this work. As one of the other reviewers
+mentions, it is critical to the readership of AOAS to show the data and clearly demonstrate
+why this application motivated the need for advanced statistical methods and models.}
+
+\item \textcolor{blue}{It seems that the new methods for constrained animal movement models could/should be
+more broadly useful beyond just investigating sound exposure impacts on narwals. If the
+main methodological contribution is the developing of methods for constrained movement,
+this should be expanded upon to various application areas. I’m not saying fit the models
+to additional data but rather paint a bigger picture to the contributions here. For example,
+surely other animals have movement constraints. But what about fire? There has been quite
+a bit of work as of late for movement of fires so perhaps you could discuss this as well? Or
+others?}
+\end{itemize}
+
+\end{document}
