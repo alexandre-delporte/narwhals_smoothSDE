@@ -2,8 +2,6 @@
 
 # Extract the current domain from generate_scripts.R
 DOMAIN=$(grep '^domain=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
-# Extract the current simulation study type
-TYPE=$(grep '^type=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
 # Extract the number of Rscripts to run
 NSCRIPTS=$(grep '^N_SCRIPTS=' generate_scripts.R | cut -d '=' -f2 | tr -d '\"')
 # Extract the name of the current hyperparams file
@@ -49,10 +47,10 @@ fi
 for ((k=kmin; k<=kmax; k++))
 do
     # Set job name
-    job_name="${DOMAIN}_${TYPE}$k"
+    job_name="${DOMAIN}$k"
 
     # Define the script path
-    script_path="${DOMAIN}/Rscripts/${DOMAIN}_${TYPE}$k.R"
+    script_path="${DOMAIN}/Rscripts/${DOMAIN}$k.R"
 
     # Check if the R script exists
     if [[ ! -f "$script_path" ]]; then
