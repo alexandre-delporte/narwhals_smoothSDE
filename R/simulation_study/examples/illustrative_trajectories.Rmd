@@ -52,7 +52,7 @@ library(here)
 library(gganimate)
 
 #get functions to simulate trajectories
-source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))  
+source(file.path(here("R","simulation_study","CVM_functions.R")))  
 
 
 
@@ -390,49 +390,51 @@ plot_tau_gaussian_sigma
 
 The parameter $\omega$ will drive how the process rotates depending on the current distance to the boundary and the current angle. It is crucial to rotate fast enough and in the right direction to avoid hitting the boundary. Obviously, what we mean by "fast enough" and "right direction" depends on the shape of the boundary. What is fast enough for a smooth boundary might not be fast enough in a corner for instance. $\vert \omega \vert$ should increase fast as $\vert \theta \vert$ ranges through $\left[ \frac{\pi}{2},\pi \right]$. The sign of $\omega$ depends on the sign of $\theta$. For positive angles $\theta \in \left[ \frac{\pi}{2},\pi \right]$, we need the velocity to rotate in the inverse trigonometric sense. Since the rotation induced in the velocity during $\Delta$ hours is $-\omega \Delta$, this means that we need a positive $\omega$ to effectively rotate in the inverse trigonometric sense. Similarly, for negative $\theta \in \left[ -\pi,-\frac{\pi}{2} \right]$, we need a negative $\omega$.
 
-This type of behavior can be obtained with hyperbolic tangent function.
+This type of behavior can be obtained with several function.
+We start by using the hyperbolic tangent function.
 
 ```{r parametric tanh function for omega}
 
-fomega_tanh=function(cov_data,D0=0.5,omega0=60*pi/2,lambda=2,kappa=0.2) {
-  Dshore=cov_data$DistanceShore
-  theta=cov_data$theta
-  if (is.null(Dshore)){
-    Dshore=1/cov_data$ExpShore
-  }
+fomega_tanh=function(cov_data,D0=0.5,omega0=30*pi/2,lambda=2,kappa=0.2) {
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
   coeff=exp(-kappa*(Dshore/D0)^2)
   omega=omega0/2*(tanh(lambda*(theta+pi/2-atanh(-0.9)/lambda))+tanh(lambda*(theta-(pi/2-atanh(-0.9)/lambda))))*coeff
   return(omega)
 }
-
-
-
 ```
 
 ```{r plot omega tanh}
+  
+get_omega_plot<-function(fomega,Dshore,theta) {
+  
+  #grid of values
+  grid<- as.data.frame(expand.grid(Dshore,theta))
+  colnames(grid)=c("BoundaryDistance","BoundaryAngle")
 
-#grid 
-Dshore=seq(from=0.05,to=4,length.out=30)
-theta=seq(from=-pi+0.1,to=pi-0.1,length.out=30)
-grid<- as.data.frame(expand.grid(Dshore,theta))
-colnames(grid)=c("DistanceShore","theta")
-
-#smooth omega
-omega_tanh=matrix(fomega_tanh(grid),30,30)
+  #smooth omega
+  npoints=length(Dshore)
+  omega=matrix(fomega(grid),npoints,npoints)
 
 
-# dynamic plots for omega 
-
-plot_omega_tanh <- plot_ly(type = "surface",
-                           contours = list(z = list(show = TRUE, start = min(omega_tanh), end = max(omega_tanh), size = 5,color="black")),
-                           x = ~theta,y = ~Dshore,z=~omega_tanh,
+  # dynamic plots for omega 
+  plot_omega <- plot_ly(type = "surface",
+                           contours = list(z = list(show = TRUE, start = min(omega), end = max(omega), size = 5,color="black")),
+                             x = ~theta,y = ~Dshore,z=~omega,
                            colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
   layout(title=paste("Omega"),
          scene=list(xaxis = list(title = "Theta",showgrid = F),
                     yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
 
 
-plot_omega_tanh
+  return (plot_omega)
+}
+
+Dshore=seq(from=0.05,to=4,length.out=30)
+theta=seq(from=-pi+0.1,to=pi-0.1,length.out=30)
+
+get_omega_plot(fomega_tanh,Dshore,theta)
+
 ```
 
 
@@ -442,11 +444,8 @@ A similar smooth function may also be obtained with the inverse of a square root
 
 fomega_sqrt <- function(cov_data, a=10*pi, p = 2,D0=0.5) {
   
-  Dshore=cov_data$DistanceShore
-  theta=cov_data$theta
-  if (is.null(Dshore)){
-    Dshore=1/cov_data$Ishore
-  }
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
   
   epsilon <- pmax(0, Dshore - D0)^2  # Damping term
   ifelse(
@@ -457,44 +456,23 @@ fomega_sqrt <- function(cov_data, a=10*pi, p = 2,D0=0.5) {
   )
 }
 
-
-
+get_omega_plot(fomega_sqrt,Dshore,theta)
 
 ```
 
-```{r plot omega sqrt}
-#smooth omega
-omega_sqrt=matrix(fomega_sqrt(grid),30,30)
 
-
-# dynamic plots for omega 
-
-plot_omega_sqrt <- plot_ly(type = "surface",
-                           contours = list(z = list(show = TRUE, start = min(omega_sqrt), end = max(omega_sqrt), size = 5,color="black")),
-                           x = ~theta,y = ~Dshore,z=~omega_sqrt,
-                           colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-  layout(title=paste("Omega"),
-         scene=list(xaxis = list(title = "Theta",showgrid = F),
-                    yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
-
-
-plot_omega_sqrt
-```
-
-These smooth functions $\omega$ can produce a SDE model that is constrained within a restricted domain of $\R^2$.
-The trajectories avoid the shoreline, but are not attracted to it. To model a tendecy to follow the shoreline, we need to modify a bit the smooth function to get a rotation of the velocity toward the shore when it is on the verge of leaving it. We can do this in several ways. 
-First, we use a sin function.
+These smooth functions $\omega$ will produce a SDE model that is constrained within a restricted domain of $\R^2$.
+The trajectories avoid the shoreline, but are not attracted to it. To model a tendency to follow the shoreline, we need to modify 
+a bit the smooth function to get a rotation of the velocity toward the shore when it is on the verge of leaving it. 
+We can do this in several ways. First, we use a sin function.
 
 
 
 ```{r define and plot omega sin}
 # Define the extended function f(theta)
-fomega_sin<- function(cov_data, a =4*pi,b=80*pi,D0=0.8) {
-  Dshore=cov_data$DistanceShore
-  theta=cov_data$theta
-  if (is.null(Dshore)){
-    Dshore=1/cov_data$Ishore
-  }
+fomega_sin<- function(cov_data, a =4*pi,b=10*pi,D0=0.8) {
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
   ifelse(abs(theta) < pi/2, 
          -a * sin(2*theta)*exp(-(Dshore/D0)^2),
          ifelse(theta>0,
@@ -502,61 +480,86 @@ fomega_sin<- function(cov_data, a =4*pi,b=80*pi,D0=0.8) {
                sign(theta)*b*abs(theta+pi/2)^2*exp(-(Dshore/D0)^2)))
 }
 
-
-#smooth omega
-omega_sin=matrix(fomega_sin(grid),30,30)
-
-
-# dynamic plots for omega 
-
-plot_omega_sin <- plot_ly(type = "surface",
-                           contours = list(z = list(show = TRUE, start = min(omega_sin), end = max(omega_sin), size = 5,color="black")),
-                           x = ~theta,y = ~Dshore,z=~omega_sin,
-                           colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-  layout(title=paste("Omega"),
-         scene=list(xaxis = list(title = "Theta",showgrid = F),
-                    yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
-
-
-plot_omega_sin
+get_omega_plot(fomega_sin,Dshore,theta)
 
 ```
 
-
-
-Now we use a cubic polynomial with an additional gaussian kernel.
+In these functions, there is no mid range effect of the shore on the drift of the process, which means
+that when the process is far enough from the shore, it cannot be attracted back.
+To resolve this, we add a gaussian kernel in the functions.
 
 ```{r}
-fomega_cubic=function(cov_data,a=1,b=5,D0=0.3,D1=0.8,sigma_theta=pi/8,sigma_D=0.3){
-  Dshore=cov_data$DistanceShore
-  theta=cov_data$theta
-  if (is.null(Dshore)){
-    Dshore=1/cov_data$Ishore
-  }
-  
-  a*theta*(theta-pi/2)*(theta+pi/2)*exp(-Dshore/D0)/Dshore+
-      b*(exp(-1/2*(theta+pi/2/sqrt(3))^2/sigma_theta^2)-
-           exp(-1/2*(theta-pi/2/sqrt(3))^2/(sigma_theta)^2))*exp(-1/2*(Dshore-D1)^2/sigma_D^2)
+
+fomega_gaussian= function(cov_data,b=1,D1=1.5,theta1=pi/2/sqrt(3),sigma_D=1,sigma_theta=0.6) {
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
+  b*(exp(-1/2*(theta+theta1)^2/sigma_theta^2)-
+           exp(-1/2*(theta-theta1)^2/(sigma_theta)^2))*exp(-1/2*(Dshore-D1)^2/sigma_D^2)
 }
 
+get_omega_plot(fomega_gaussian,Dshore,theta)
 
-#smooth omega
-omega_cubic=matrix(fomega_cubic(grid),30,30)
-
-
-# dynamic plots for omega 
-
-plot_omega_cubic <- plot_ly(type = "surface",
-                           contours = list(z = list(show = TRUE, start = min(omega_cubic), end = max(omega_cubic), size = 5,color="black")),
-                           x = ~theta,y = ~Dshore,z=~omega_cubic,
-                           colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-  layout(title=paste("Omega"),
-         scene=list(xaxis = list(title = "Theta",showgrid = F),
-                    yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
-
-
-plot_omega_cubic
 ```
+
+We define a product of sine and cosine with an additional gaussian attractive term
+
+```{r define and plot omega sin}
+# Define the extended function f(theta)
+fomega_sin_cos<- function(cov_data,omega_0=10,D0=0.8,p=1,b=1,D1=1,theta1=pi/4,sigma_D=1,sigma_theta=0.5) {
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
+  
+  attraction <- fomega_gaussian(cov_data,b,D1,theta1,sigma_D,sigma_theta)
+  
+  if (p%%2==0) {
+    repulsion <- -omega_0*sign(theta)*sin(theta/2)^p*cos(theta)*D0/Dshore*exp(-Dshore/D0)
+  }
+  else {
+    repulsion <- -omega_0*sin(theta/2)^p*cos(theta)*D0/Dshore*exp(-Dshore/D0)
+  }
+  attraction+repulsion
+}
+
+get_omega_plot(fomega_sin_cos,Dshore,theta)
+
+```
+
+
+
+Now we use a polynomial with an additional gaussian kernel to model attraction toward the shore.
+
+```{r}
+fomega_poly=function(cov_data,a=0.2,b=5,D0=0.3,D1=1.5,sigma_D=1,sigma_theta=pi/8,
+                     theta1=pi/2/sqrt(3),p=3) {
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
+  
+  if (p%%2==0) {
+    repulsion<- a*sign(theta)*theta^p*(theta-pi/2)*(theta+pi/2)*D0/Dshore*exp(-Dshore/D0)
+  }
+  else {
+    repulsion<- a*theta^p*(theta-pi/2)*(theta+pi/2)*D0/Dshore*exp(-Dshore/D0)
+  }
+  
+  attraction<- fomega_gaussian(cov_data,b,D1,theta1,sigma_D,sigma_theta) 
+  
+  return (repulsion+attraction)
+}
+
+get_omega_plot(fomega_poly,Dshore,theta)
+```
+```{r}
+fomega_quadratic=function(cov_data,a=0.2,D0=0.3,D1=1.5) {
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
+  
+    return (a*(theta-pi/2)*(theta+pi/2)*D0/Dshore*exp(-Dshore/D0))
+}
+
+get_omega_plot(fomega_quadratic,Dshore,theta)
+```
+
+
 
 We can also geometrically compute what should be the angular veolcity to avoid land. And we get the expression of $\omega$ like this.
 
@@ -564,93 +567,37 @@ We can also geometrically compute what should be the angular veolcity to avoid l
 
 
 fomega_minimal=function(cov_data,nu=4,D0=0.5,D1=1.5,a=1,b=10,sigma_D=0.5,sigma_theta=pi/8) {
-  Dshore=cov_data$DistanceShore
-  theta=cov_data$theta
+  Dshore=cov_data$BoundaryDistance
+  theta=cov_data$BoundaryAngle
   ifelse(abs(theta)>pi/2,a*sign(theta)*(pi/2-abs(theta))*nu*cos(theta)/Dshore*exp(-Dshore/D0),-sign(theta)*b*
     exp(-1/2*(theta-sign(theta)*pi/4)^2/sigma_theta^2)*exp(-Dshore/D1))
 }
 
-
-#smooth omega
-omega_minimal=matrix(fomega_minimal(grid),30,30)
-
-
-# dynamic plots for omega 
-
-plot_omega_minimal <- plot_ly(type = "surface",
-                           contours = list(z = list(show = TRUE, start = min(omega_minimal), end = max(omega_minimal), size = 5,color="black")),
-                           x = ~theta,y = ~Dshore,z=~omega_minimal,
-                           colors=colorRamp(c("blue", "lightblue", "chartreuse3", "yellow", "red")))%>%
-  layout(title=paste("Omega"),
-         scene=list(xaxis = list(title = "Theta",showgrid = F),
-                    yaxis = list(title = "Distance to shore",showgrid = F),zaxis = list(title = "omega"))) 
-
-
-plot_omega_minimal
+get_omega_plot(fomega_minimal,Dshore,theta)
 ```
 
-We can approximate these surfaces using tensor splines
-
-```{r approximate tanh omega with splines}
-# Splines smooth for omega -------------------- 
-n <- 100000
-SP_DF=5
-
-#sample theta and DistanceShore points in the domain
-theta <- runif(n,-pi,pi);
-DistanceShore <- runif(n,0.2,8);
-samples=data.frame(theta=theta,DistanceShore=DistanceShore)
-
-#define grid of values
-theta_v <- seq(-pi,pi,length=30)
-Dshore_v<- seq(0.2,8,length=30)
-pr <- data.frame(theta=rep(theta_v,30),DistanceShore=rep(Dshore_v,rep(30,30)))
 
 
-#points on the surface perturbed by gaussian noise
-f <- fomega_tanh(samples)
-y <- f+0.1*rnorm(n)
+We create and save the perpective plot for the paper.
 
+```{r persp plot cubic parametric omega}
 
-#fit with bivariate splines te
-m1 <- gam(y~te(theta,DistanceShore,k=SP_DF),knots=list(theta=seq(-pi,pi,len=SP_DF),
-                                                       DistanceShore=seq(0.2,8,len=SP_DF)))
-
-ExpShore=1/DistanceShore
-
-#fit with bivariate splines te
-m2 <- gam(y~te(theta,ExpShore,k=SP_DF),knots=list(theta=seq(-pi,pi,len=SP_DF),
-                                                  ExpShore=seq(1/8,1/0.2,len=SP_DF)))
-
-
-fomega_tanh_splines=function(cov_data) {
-  
-  if (is.null(cov_data$ExpShore)){
-    omega=predict(m1,newdata=cov_data)
-  }
-  else if (is.null(cov_data$DistanceShore)){
-    omega=predict(m2,newdata=cov_data)
-  }
-  
-  return(as.numeric(omega))
+#Define function omega with adequate parameters
+fomega_cubic<-function(cov_data) {
+  fomega_poly(cov_data,a=2,b=5,D0=0.3,D1=0.8,sigma_D=0.3,sigma_theta=pi/8,
+                     theta1=pi/2/sqrt(3),p=1)
 }
-
-```
-
-
-
-```{r plot tanh parametric and spline omega}
 
 # Perspective plots for omega
 
 # Grid 
-Dshore = seq(from = 0, to = 2, length.out = 30)
+Dshore = seq(from = 0.05, to = 2, length.out = 30)
 theta = seq(from = -pi + 0.1, to = pi - 0.1, length.out = 30)
 grid <- as.data.frame(expand.grid(Dshore, theta))
-colnames(grid) = c("DistanceShore", "theta")
+colnames(grid) = c("BoundaryDistance", "BoundaryAngle")
 
 # Smooth omega
-z = matrix(fomega_cubic_advanced(grid), 30, 30)
+z = matrix(fomega_cubic(grid), 30, 30)
 
 # Create a function interpolating colors in the range of specified colors
 jet.colors <- colorRampPalette( c("blue", "green") )
@@ -748,250 +695,168 @@ times=seq(0,TMAX,by=dt)
 ```{r simulate with omega tanh in rectangle,cache=TRUE}
 # CRCVM with tanh smooth omega
 
-
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_rect_tanh=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+simulate_paralell<-function(ftau,fnu,fomega,v0=v0,x0=x0,times,border,n_cores=6,seed=42) {
   
-  set.seed((seed-1)*N+i)
+  #start cluster
+  cl <- makeCluster(n_cores) 
+  registerDoParallel(cl)
   
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_tanh,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=rect_border,verbose=FALSE)
+  N<-nrow(x0)
   
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
+  #paralell loop
+  data=foreach (i=1:N,.combine='rbind',.export=c("sim_CRCVM","fomega_tanh","fomega_poly",
+                "fomega_sin","fomega_sin_cos","fomega_sqrt","fomega_gaussian","fomega_minimal","fomega_quadratic"),
+                .packages=c("progress","MASS","sf","mgcv","smoothSDE")) %dopar% {
+    
+    set.seed((seed-1)*N+i)
+    
+    res=sim_CRCVM(ftau=ftau,fomega=fomega,fnu=fnu,v0=v0,x0=x0[i,],
+                      times=times,land=border,verbose=FALSE)
+    
+    data_sim=res$sim
+    data_sim$ID=factor(rep(i,length(data_sim$y1)))
+    data_shore=res$boundary[,c("p1","p2")]
+    cbind(data_sim,data_shore)
+  }
+  
+  #stop cluster
+  stopCluster(cl)
+  
+  return (data)
 }
 
-#stop cluster
-stopCluster(cl)
+data_rect_tanh<-simulate_paralell(ftau_constant,fnu_constant,fomega_tanh,v0,x0,times,rect_border)
 
 ```
 
-```{r}
+```{r plot rect_tanh, message=FALSE}
 
-
-#subsample to 10 minutes
-data_sim_rect_tanh_sub=data_sim_rect_tanh[seq(1,length(data_sim_rect_tanh$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = rect_border$geometry, fill = "grey", inherit.aes = FALSE) +
+get_trajectory_plot<-function(data,border,by=60) {
+  
+  #subsample to 10 minutes
+  data_sub=data[seq(1,nrow(data),by=by),]
+  
+  #create plot
+  plot<- ggplot() +
+    geom_sf(data = border$geometry, fill = "grey", inherit.aes = FALSE) +
     coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_rect_tanh_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_rect_tanh_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
+    geom_path(data = data_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
+    geom_point(data = data_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
     geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
     theme_minimal() +
     xlab("x") + ylab("y") +
     theme(legend.position = "none") 
+  
+  return (plot)
+}
+
+get_trajectory_plot(data_rect_tanh,rect_border)
 ```
 
 The process is avoiding land by rotating when it approaches the boundary. 
-Now, to have trajectories that tends to remain close to the boundary and move along it we can use the function \texttt{fomega_cubic} instead.
+Now, to have trajectories that tends to remain close to the boundary and move along it we can use the function \texttt{fomega_poly} with 
+a non zero attractive gaussian term instead.
 
 ```{r simulate with omega cubic attractive in rectangle,cache=TRUE}
 
-fomega_cubic_rect_attractive=function(cov_data) {
+fomega_cubic_rect=function(cov_data) {
   
-  fomega_cubic(cov_data,a=3,D0=0.5,D1=1.5,sigma_theta=pi/8,sigma_D=0.5,b=5)
+  fomega_poly(cov_data,a=1,b=5,D0=0.5,D1=1.5,sigma_D=0.5,sigma_theta=pi/8,p=1)
   
 }
-  
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
 
-
-
-data_sim_rect_cubic_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic_rect_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=rect_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-
-#stop cluster
-stopCluster(cl)
+data_rect_cubic<-simulate_paralell(ftau_constant,fnu_constant,fomega_cubic_rect,v0,x0,times,rect_border)
 
 ```
 
 ```{r}
 
-#subsample to 10 minutes
-data_sim_rect_cubic_attractive_sub=data_sim_rect_cubic_attractive[seq(1,length(data_sim_rect_cubic_attractive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = rect_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_rect_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_rect_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_rect_cubic,rect_border)
 ```
 
 We remove the attractive term in the function by taking parameter $b=0$.
 
+```{r simulate with omega cubic repulsive in rectangle,cache=TRUE,message=FALSE}
 
-```{r simulate with omega cubic repulsive in rectangle,cache=TRUE}
-
-fomega_cubic_rect_repulsive=function(cov_data) {
+fomega_cubic_repulsive_rect=function(cov_data) {
   
-  fomega_cubic(cov_data,a=2,D0=0.5,D1=1.5,sigma_theta=pi/10,sigma_D=0.5,b=0)
+  fomega_poly(cov_data,a=1,b=0,D0=0.5,D1=1.5,sigma_D=0.5,sigma_theta=pi/8,p=1)
   
 }
   
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_rect_cubic_repulsive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic_rect_repulsive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=rect_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-
-#stop cluster
-stopCluster(cl)
+data_rect_cubic_repulsive<-simulate_paralell(ftau_constant,fnu_constant,fomega_cubic_repulsive_rect,
+                                             v0,x0,times,rect_border)
 
 ```
 
 
 
 ```{r}
-
-#subsample to 10 minutes
-data_sim_rect_cubic_repulsive_sub=data_sim_rect_cubic_repulsive[seq(1,length(data_sim_rect_cubic_repulsive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = rect_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_rect_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_rect_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_rect_cubic_repulsive,rect_border)
 ```
 
-```{r simulate with omega minimal in rectangle,cache=TRUE}
+We can also increase the parameter $p$ in the polynomial omega function to get a steeper function
+at the extremities.
 
-fomega_minimal_rect_attractive=function(cov_data) {
+```{r simulate with omega cubic attractive in rectangle,cache=TRUE,message=FALSE}
+
+fomega_poly_rect=function(cov_data) {
+  
+  fomega_poly(cov_data,a=1,b=0,D0=0.5,D1=1.5,sigma_D=0.5,sigma_theta=pi/8,p=2)
+  
+}
+
+data_rect_poly<-simulate_paralell(ftau_constant,fnu_constant,fomega_poly_rect,v0,x0,times,rect_border)
+
+```
+
+```{r}
+
+get_trajectory_plot(data_rect_poly,rect_border)
+```
+
+We now try our \texttt{fome_sin_cos} function defined with a product of sin and cosine.
+
+```{r simulate with omega cubic attractive in rectangle,cache=TRUE,message=FALSE}
+
+fomega_sin_cos_rect=function(cov_data) {
+  
+  
+  fomega_sin_cos(cov_data,omega_0=10,D0=0.8,p=1,b=0,D1=1,theta1=pi/4,sigma_D=1,sigma_theta=0.5)
+  
+}
+
+data_rect_sin_cos<-simulate_paralell(ftau_constant,fnu_constant,fomega_sin_cos_rect,v0,x0,times,rect_border)
+
+```
+
+```{r}
+
+get_trajectory_plot(data_rect_sin_cos,rect_border)
+```
+
+
+
+```{r simulate with omega minimal in rectangle,cache=TRUE,message=FALSE}
+
+fomega_minimal_rect=function(cov_data) {
   
   fomega_minimal(cov_data,nu=4,D0=0.5,D1=1.5,a=3,b=10,sigma_D=0.5,sigma_theta=pi/8)
 }
   
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
 
+data_rect_minimal<-simulate_paralell(ftau_constant,fnu_constant,fomega_minimal_rect,v0,x0,times,rect_border)
 
-
-data_sim_rect_minimal_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_minimal_rect_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=rect_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-
-#stop cluster
-stopCluster(cl)
 
 ```
 
 ```{r}
 
-#subsample to 10 minutes
-data_sim_rect_minimal_attractive_sub=data_sim_rect_minimal_attractive[seq(1,length(data_sim_rect_minimal_attractive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = rect_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_rect_minimal_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_rect_minimal_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_rect_minimal,rect_border)
 ```
 
 
-
-Until now, we kept the parameter $\tau$ constant. We can emphasize the tendency to move along the boundary by using a smooth $\tau$ given by the functions \texttt{ftau_tanh} or \texttt{ftau_gaussian}. Here, we plot trajectories for the SDE model where the smoth $\omega$ parameter is given by \texttt{fomega_cubic} and the smooth $\tau$ parameter is given by \texttt{ftau\_gaussian}.
-
-```{r simulate with omega cubic tau gaussian in rectangle,cache=TRUE}
-
-
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_rect_cubic_gaussian_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  
-  res=sim_CRCVM(ftau=ftau_gaussian,fomega=fomega_cubic_rect_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=rect_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-
-#stop cluster
-stopCluster(cl)
-
-```
-
-```{r}
-#subsample to 10 minutes
-data_sim_rect_cubic_gaussian_attractive_sub=data_sim_rect_cubic_gaussian_attractive[seq(1,length(data_sim_rect_cubic_gaussian_attractive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = rect_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_rect_cubic_gaussian_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_rect_cubic_gaussian_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
-```
+Until now, we kept the parameter $\tau$ constant. We could emphasize the tendency to move along the boundary by using a smooth $\tau$ given by the functions \texttt{ftau_tanh} or \texttt{ftau_gaussian}.
 
 
 Finally, we compare this to Hanks simulation technique for reflected SDE.
@@ -1006,7 +871,7 @@ registerDoParallel(cl)
 
 
 
-data_sim_rect_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+data_rect_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
   set.seed((seed-1)*N+i)
   
@@ -1022,18 +887,8 @@ stopCluster(cl)
 
 
 ```{r}
-#subsample to 10 minutes
-data_sim_rect_hanks_sub=data_sim_rect_hanks[seq(1,length(data_sim_rect_hanks$time),by=60),]
 
-ggplot() +
-    geom_sf(data = rect_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_rect_hanks_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_rect_hanks_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_rect_hanks,rect_border)
 ```
 
 # Trajectories in a circular domain.
@@ -1044,54 +899,20 @@ The values for the parameter of the smooth function $\omega$ and $\tau$ that pro
 ```{r simulate with omega cubic tau gaussian in circle,cache=TRUE}
 
 
-
 #change parameter values 
-fomega_cubic_circ_attractive=function(cov_data) {
+fomega_cubic_attractive_circ=function(cov_data) {
   
-   fomega_cubic(cov_data,a=30,D0=0.5,D1=3,sigma_theta=pi/10,sigma_D=1,b=5)
+   fomega_poly(cov_data,a=30,D0=0.5,D1=3,sigma_theta=pi/10,sigma_D=1,b=5,p=1,theta1=pi/2)
 }
 
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_circ_cubic_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic_circ_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=circ_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-
-#stop cluster
-stopCluster(cl)
-
+data_circ_cubic_attractive <-simulate_paralell(ftau_constant,fnu_constant,fomega_cubic_attractive_circ,v0,x0,times,circ_border)
 
 ```
 
 
 ```{r}
 
-#subsample to 10 minutes
-data_sim_circ_cubic_attractive_sub=data_sim_circ_cubic_attractive[seq(1,length(data_sim_circ_cubic_attractive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = circ_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_circ_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_circ_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_circ_cubic_attractive,circ_border)
 ```
 
 
@@ -1100,33 +921,12 @@ ggplot() +
 
 
 #change parameter values 
-fomega_cubic_circ_repulsive=function(cov_data) {
+fomega_cubic_repulsive_circ=function(cov_data) {
   
-   fomega_cubic(cov_data,a=30,D0=0.5,D1=1.5,sigma_theta=pi/10,sigma_D=0.5,b=0)
+   fomega_poly(cov_data,a=3,D0=0.5,D1=1.5,sigma_theta=pi/10,sigma_D=0.5,b=0,theta=pi/2,p=1)
 }
 
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_circ_cubic_repulsive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic_circ_repulsive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=circ_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-
-#stop cluster
-stopCluster(cl)
+data_circ_cubic_repulsive <-simulate_paralell(ftau_constant,fnu_constant,fomega_cubic_repulsive_circ,v0,x0,times,circ_border)
 
 
 ```
@@ -1134,18 +934,7 @@ stopCluster(cl)
 
 ```{r}
 
-#subsample to 10 minutes
-data_sim_circ_cubic_repulsive_sub=data_sim_circ_cubic_repulsive[seq(1,length(data_sim_circ_cubic_repulsive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = circ_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_circ_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_circ_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_circ_cubic_repulsive,circ_border)
 ```
 
 
@@ -1162,7 +951,7 @@ registerDoParallel(cl)
 
 
 
-data_sim_circ_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+data_circ_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
   set.seed((seed-1)*N+i)
   
@@ -1178,323 +967,169 @@ stopCluster(cl)
 
 
 ```{r}
-#subsample to 10 minutes
-data_sim_circ_hanks_sub=data_sim_circ_hanks[seq(1,length(data_sim_circ_hanks$time),by=60),]
-
-ggplot() +
-    geom_sf(data = circ_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_circ_hanks_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_circ_hanks_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_circ_hanks,circ_border)
 ```
+
+
+
 # Trajectories in a circular domain with islands
 
 
-
-
 ```{r simulate with omega cubic and tau gaussian in circle with islands,cache=TRUE}
 
-set.seed(42)
 
 
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
+data_circ_island_cubic_attractive=simulate_paralell(ftau_constant,fnu_constant,fomega_cubic_attractive_circ,v0,x0,times,circ_island_border)
 
-
-
-data_sim_circ_island_cubic_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_gaussian_circ_island,fomega=fomega_cubic_circ_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=circ_island_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-#stop cluster
-stopCluster(cl)
 
 
 ```
 
 ```{r}
 
-data_sim_circ_island_cubic_attractive_sub=data_sim_circ_island_cubic_attractive[seq(1,length(data_sim_circ_island_cubic_attractive$y1),by=10),]
-
-ggplot() +
-    geom_sf(data = circ_island_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_circ_island_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_circ_island_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_circ_island_cubic_attractive,circ_island_border)
 ```
 
 
 ```{r simulate with omega cubic and tau gaussian in circle with islands,cache=TRUE}
-
-
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_circ_island_cubic_repulsive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_gaussian_circ_island,fomega=fomega_cubic_circ_repulsive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=circ_island_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-#stop cluster
-stopCluster(cl)
-
+data_circ_island_cubic_repulsive<- simulate_paralell(ftau_constant,fnu_constant,fomega_cubic_repulsive_circ,v0,x0,times,circ_island_border)
 
 ```
 
 ```{r}
-
-data_sim_circ_island_cubic_repulsive_sub=data_sim_circ_island_cubic_repulsive[seq(1,length(data_sim_circ_island_cubic_repulsive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = circ_island_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_circ_island_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_circ_island_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_circ_island_cubic_repulsive,circ_island_border)
 ```
 
 
 # Trajectories in Scoresby Sound fjords
 
-```{r simulate with omega tanh in fjords,cache=TRUE}
+Now we simulate trajectories in the fjords.
 
 
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
-
-
-
-data_sim_fjords_tanh=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_tanh,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=land_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-#stop cluster
-stopCluster(cl)
-
-
+```{r simulate with omega cubic and tau gaussian in circle with islands,cache=TRUE}
+data_fjords_tanh<- simulate_paralell(ftau_constant,fnu_constant,fomega_tanh,v0,x0,times,land_border)
 ```
 
 ```{r}
+get_trajectory_plot(data_fjords_tanh,land_border)
+```
 
-#subsample to 10 minutes
-data_sim_fjords_tanh_sub=data_sim_fjords_tanh[seq(1,length(data_sim_fjords_tanh$y1),by=60),]
+```{r define function to get animated trajectories,eval=FALSE}
 
-ggplot() +
-    geom_sf(data = land_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_fjords_tanh_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_fjords_tanh_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+animate_trajectory_plot<- function(data,border,by=60,anim_name="sim.gif") {
+    
+  #subsample 
+  data_sub=data[seq(1,nrow(data),by=by),]
+
+  # Basic ggplot setup
+  plot <- ggplot() +
+    geom_sf(data=border$geometry,fill="grey")+
+    coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
+    geom_path(data=data_sub, 
+              aes(x = y1, y = y2,group=ID),size = 1, 
+              lineend = "round",alpha=0.15) +     
+    geom_point(data=data_sub,
+               aes(x = y1, y = y2,shape=ID),size =4 ) +  
+    labs(title = "Simulated trajectory in Scoresby Sound ", 
+         subtitle = "Time : {frame_along} h", 
+         x = "X Position", 
+         y = "Y Position") +
+    theme_minimal()
+  
+  
+  anim <- plot + 
+    transition_reveal(along = time) + 
+    labs(subtitle = "Time: {round(frame_along,1)} hours") 
+  
+  # Save the animation
+  animate(anim, nframes = 100, fps = 5, width = 800, height = 600, 
+          renderer = gifski_renderer(anim_name))
+  }
+
 
 ```
 
-```{r simulate with omega cubic and tau gaussian in fjords,cache=TRUE}
+
+```{r}
+animate_trajectory_plot(data_fjords_tanh,land_border,by=60,anim_name="sim_fjords_tanh.gif")
+```
+
+```{r simulate with omega cubic in fjords,cache=TRUE}
 
 #set parameters values
-fomega_cubic_fjords_attractive<- function(cov_data){
- fomega_cubic(cov_data,a=1,D0=0.3,D1=0.8,sigma_theta=pi/8,sigma_D=0.5,b=5)
+fomega_fjords_cubic_attractive<- function(cov_data){
+ fomega_poly(cov_data,a=3,D0=0.5,D1=1,sigma_theta=pi/8,sigma_D=0.5,b=4,theta1=pi/2,p=1)
 }
 
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) 
-registerDoParallel(cl)
-
-
-
-data_sim_fjords_cubic_attractive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic_fjords_attractive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=land_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-#stop cluster
-stopCluster(cl)
-
-
-
+data_fjords_cubic_attractive<- simulate_paralell(ftau_constant,fnu_constant,fomega_fjords_cubic_attractive,v0,x0,times,land_border)
 ```
 
 ```{r}
-#subsample to 10 minutes
-data_sim_fjords_cubic_attractive_sub=data_sim_fjords_cubic_attractive[seq(1,length(data_sim_fjords_cubic_attractive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = land_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_fjords_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_fjords_cubic_attractive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_fjords_cubic_attractive,land_border)
 ```
 
-```{r animate trajectory sim_fjords_cubic_gaussian_sub,eval=FALSE}
 
 
-# Basic ggplot setup
-plot_data_sim_fjords_cubic_attractive_sub <- ggplot() +
-  geom_sf(data=land_border$geometry,fill="grey")+
-  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
-  geom_path(data=data_sim_fjords_cubic_attractive_sub, 
-            aes(x = y1, y = y2,group=ID),size = 1, 
-            lineend = "round",alpha=0.15) +     
-  geom_point(data=data_sim_fjords_cubic_attractive_sub,
-             aes(x = y1, y = y2,shape=ID),size =4 ) +  
-  labs(title = "Simulated trajectory in Scoresby Sound ", 
-       subtitle = "Time : {frame_along} h", 
-       x = "X Position", 
-       y = "Y Position") +
-  theme_minimal()
-
-
-anim <- plot_data_sim_fjords_cubic_attractive_sub + 
-  transition_reveal(along = time) + 
-  labs(subtitle = "Time: {round(frame_along,1)} hours") 
-
-# Save the animation
-animate(anim, nframes = 100, fps = 5, width = 800, height = 600, 
-        renderer = gifski_renderer("sim_fjords_cubic_attractive_sub.gif"))
-
+```{r}
+animate_trajectory_plot(data_fjords_cubic_attractive,land_border,anim_name="sim_fjords_cubic_attractive.gif")
 ```
 
-![Simulated Trajectories](sim_fjords_cubic_attractive_sub.gif)
+
+
+
+![Simulated Trajectories](sim_fjords_cubic_attractive.gif)
 
 
 We now simulate trajectories without the attractive gaussian term in $\omega$.
 
-```{r simulate with omega cubic advanced and tau gaussian in fjords,cache=TRUE}
-
-
+```{r simulate with omega cubic repulsive in fjords,cache=TRUE}
 
 fomega_cubic_fjords_repulsive=function(cov_data) {
   fomega_cubic(cov_data,a=1,D0=0.3,D1=0.8,sigma_theta=pi/8,sigma_D=0.3,b=0)
 }
 
-
-# Generate samples ---------------
-cores=detectCores()
-cl <- makeCluster(6) #not to overload your computer
-registerDoParallel(cl)
+data_fjords_cubic_repulsive<- simulate_paralell(ftau_constant,fnu_constant,fomega_fjords_cubic_repulsive,v0,x0,times,land_border)
+```
 
 
 
-data_sim_fjords_cubic_repulsive=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
-  
-  set.seed((seed-1)*N+i)
-  
-  res=sim_CRCVM(ftau=ftau_constant,fomega=fomega_cubic_fjords_repulsive,fnu=fnu_constant,v0=v0,x0=x0[i,],
-                    times=times,land=land_border,verbose=FALSE)
-  
-  data_sim=res$sim
-  data_sim$ID=factor(rep(i,length(data_sim$y1)))
-  data_shore=res$shore[,c("p1","p2")]
-  cbind(data_sim,data_shore)
-}
-#stop cluster
-stopCluster(cl)
-
+```{r}
+get_trajectory_plot(data_fjords_cubic_repulsive,land_border)
 ```
 
 ```{r}
-
-#subsample to 10 minutes
-data_sim_fjords_cubic_repulsive_sub=data_sim_fjords_cubic_repulsive[
-  seq(1,length(data_sim_fjords_cubic_repulsive$y1),by=60),]
-
-ggplot() +
-    geom_sf(data = land_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_fjords_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_fjords_cubic_repulsive_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none")
-
+animate_trajectory_plot(data_fjords_cubic_repulsive,land_border,anim_name="sim_fjords_cubic_repulsive.gif")
 ```
 
-```{r animate trajectory sim_fjords_cubic_advanced_gaussian_sub,eval=FALSE}
+![Simulated Trajectories](sim_fjords_cubic_repulsive.gif)
 
-# Basic ggplot setup
-plot_data_sim_fjords_cubic_repulsive_sub <- ggplot() +
-  geom_sf(data=land_border$geometry,fill="grey")+
-  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
-  geom_path(data=data_sim_fjords_cubic_repulsive_sub, 
-            aes(x = y1, y = y2,group=ID),size = 1, 
-            lineend = "round",alpha=0.15) +     
-  geom_point(data=data_sim_fjords_cubic_repulsive,
-             aes(x = y1, y = y2,shape=ID),size =4 ) +  
-  labs(title = "Simulated trajectory in Scoresby Sound ", 
-       subtitle = "Time : {frame_along} h", 
-       x = "X Position", 
-       y = "Y Position") +
-  theme_minimal()
+```{r simulate with omega quadratic in fjords,cache=TRUE}
 
+fomega_fjords_quadratic=function(cov_data) {
+  fomega_quadratic(cov_data,a=0.5,D0=3)
+}
 
-anim <- plot_data_sim_fjords_cubic_repulsive_sub + 
-  transition_reveal(along = time) + 
-  labs(subtitle = "Time: {round(frame_along,1)} hours") 
-
-# Save the animation
-animate(anim, nframes = 100, fps = 5, width = 800, height = 600, 
-        renderer = gifski_renderer("sim_fjords_cubic_repulsive_sub.gif"))
-
+data_fjords_quadratic<- simulate_paralell(ftau_constant,fnu_constant,fomega_fjords_quadratic,v0,x0,times,land_border)
 ```
 
-![Simulated Trajectories](sim_fjords_cubic_repulsive_sub.gif)
+
+```{r}
+get_trajectory_plot(data_fjords_quadratic,land_border)
+```
+```{r simulate with omega sin cos in fjords,cache=TRUE}
+
+fomega_fjords_sin_cos=function(cov_data) {
+  fomega_sin_cos(cov_data,omega_0=10,D0=0.8,p=1,b=0)
+}
+
+
+data_fjords_sin_cos<- simulate_paralell(ftau_constant,fnu_constant,fomega_fjords_sin_cos,v0,x0,times,land_border)
+```
+
+
+```{r}
+get_trajectory_plot(data_fjords_sin_cos,land_border)
+```
 
 Finally, we compare it to Hanks simulation technique for reflected SDE.
 
@@ -1506,7 +1141,7 @@ registerDoParallel(cl)
 
 
 
-data_sim_fjords_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
+data_fjords_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MASS","sf","mgcv")) %dopar% {
   
   set.seed((seed-1)*N+i)
   
@@ -1519,23 +1154,51 @@ data_sim_fjords_hanks=foreach (i=1:N,.combine='rbind',.packages=c("progress","MA
 stopCluster(cl)
 ```
 
-
-
 ```{r}
-#subsample to 10 minutes
-data_sim_fjords_hanks_sub=data_sim_fjords_hanks[seq(1,length(data_sim_fjords_hanks$time),by=60),]
-
-ggplot() +
-    geom_sf(data = land_border$geometry, fill = "grey", inherit.aes = FALSE) +
-    coord_sf(datum = st_crs("+init=EPSG:32626 +units=km")) +
-    geom_path(data = data_sim_fjords_hanks_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = data_sim_fjords_hanks_sub, aes(x = y1, y = y2, col = ID), size = 0.1) +
-    geom_point(data = x0, aes(x = x1, y = x2), shape = 3, size = 2, col = "red") +
-    theme_minimal() +
-    xlab("x") + ylab("y") +
-    theme(legend.position = "none") 
+get_trajectory_plot(data_fjords_hanks,land_border)
 ```
 
+```{r}
+animate_trajectory_plot(data_fjords_hanks,land_border,anim_name="sim_fjords_hanks.gif")
+```
+
+```{r simulate with omega sin cos in fjords,cache=TRUE}
+
+#set parameters values
+fomega_fjords_sin_cos_attractive<- function(cov_data){
+ fomega_sin_cos(cov_data,omega_0=20,D0=0.5,p=2,b=3,D1=1,theta1=pi/2/sqrt(3),sigma_D=1,sigma_theta=0.5)
+}
+
+data_fjords_sin_cos_attractive<- simulate_paralell(ftau_constant,fnu_constant,
+                                                   fomega_fjords_sin_cos_attractive,v0,x0,times,land_border)
+```
+
+```{r}
+get_trajectory_plot(data_fjords_sin_cos_attractive,land_border)
+```
+We try a higher order polynomial.
+
+
+```{r simulate with omega cubic repulsive in fjords,cache=TRUE}
+
+fomega_fjords_poly_attractive=function(cov_data) {
+  fomega_poly(cov_data,a=1,D0=0.3,D1=1,sigma_theta=pi/8,sigma_D=1,b=3,p=3)
+}
+
+data_fjords_poly_attractive<- simulate_paralell(ftau_constant,fnu_constant,
+                                                fomega_fjords_poly_attractive,v0,x0,times,land_border)
+```
+
+
+
+```{r, message=FALSE}
+plot=get_trajectory_plot(data_fjords_poly_attractive,land_border)
+```
+
+```{r}
+animate_trajectory_plot(data_fjords_cubic_repulsive,land_border,anim_name="sim_fjords_cubic_repulsive.gif")
+```
+# Create final plots for the paper
 
 
 ```{r zoom in fjords}
