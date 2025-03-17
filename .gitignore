@@ -11,6 +11,8 @@
 /R/simulation_study/cluster/CRCVM/rect/Rscripts
 /R/simulation_study/cluster/CRCVM/circ/results*
 /R/simulation_study/cluster/CRCVM/circ/Rscripts
+/R/simulation_study/cluster/CTCRW/fjords/results*
+/R/simulation_study/cluster/CTCRW/fjords/Rscripts
 
 # html plots of Rmarkdown rendering
 *.html
