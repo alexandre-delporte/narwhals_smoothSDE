@@ -27,7 +27,7 @@ library(smoothSDE)          #to compute nearest shore point
 # READ HYPERPARAMETERS FILE
 
 # Read hyperparameters from a user specified file
-hyperparams_file="hyperparams_set2_12.txt"
+hyperparams_file="hyperparams_set2_24.txt"
 path=here("R","simulation_study","cluster","CTCRW","fjords")
 
 # Read the file and evaluate each line

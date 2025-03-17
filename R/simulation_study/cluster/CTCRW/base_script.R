@@ -8,7 +8,7 @@
 #
 # Script Name:    base_script_Ishore.R
 #
-# Script Description: Base script for simulation study with Ishore covariate.. 
+# Script Description: Base script for simulation study with CTCRW.. 
 # Scripts to execute on the clusters for parameter estimation are generated from this script.
 #
 #
@@ -24,7 +24,7 @@ library(doParallel)         #parallel computing
 
 
 domain_name="fjords"
-par_dir=here("R","simulation_study","cluster",domain_name)
+par_dir=here("R","simulation_study","cluster","CTCRW",domain_name)
 set_up_file=paste("set_up_",domain_name,".R",sep="")
 source(file.path(par_dir,set_up_file))     #get set up for simulation study
 source(file.path(here("R","simulation_study","CVM_functions.R")))  #get functions to simulate trajectories
@@ -168,7 +168,7 @@ ctcrw_results <- foreach(
       data = data,
       type = "CTCRW",
       response = c("y1", "y2"),
-      par0 = PAR0[1:4],
+      par0 = c(0,0,PAR0),
       fixpar = c("mu1", "mu2"),
       other_data = list("H" = H)
     )
@@ -221,14 +221,16 @@ write_estimates_csv=function(results,model_type="ctcrw") {
       
       chain=ifelse(j==1,"hID","lID")
       model=results[i,j+1][[1]]
-    
+      
       model_name=paste(model_type,settings[1],settings[2],chain,sep="_")
       
       # Check if model is a valid SDE and skip if not
       if (!inherits(model, "SDE") || inherits(model, "try-error")) {
-        message(paste("Skipping invalid model ", model_name))
+        message(paste("Skipping invalid model ", model_name,'\n', model))
         next
       }
+      
+      
       
       #re and fe coeffs
       coeffs=rbind(model$coeff_re(),model$coeff_fe()) 
@@ -250,14 +252,36 @@ write_estimates_csv=function(results,model_type="ctcrw") {
       std_log_lambda=all_std$log_lambda
       std_log_sigma_obs=all_std$log_sigma_ob
       
+      
       #create dataframe
       coeffs_df=data.frame("coeff_name"=factor(c(coeff_names,log_lambda_names,"log_sigma_obs")),
                            "estimate"=c(coeff_values,log_lambda_values,log_sigma_obs_value),
                            "std"=c(std_coeffs,std_log_lambda,std_log_sigma_obs))
       
+      # add mean obtained from samples with joint covariance matrix
+      post_coeff=try(model$post_coeff(n_post=10000))
+      if (inherits(post_coeff, "try-error")) {
+        message(paste("Invalid joint covariance matrix for ", model_name,'\n', model))
+        next
+      }
+      
+      post_par=list(
+        "tau"=exp(post_coeff$coeff_fe[,"tau.(Intercept)"]),
+        "nu"=exp(post_coeff$coeff_fe[,"nu.(Intercept)"]),
+        "sigma_tau"=1/sqrt(exp(post_coeff$log_lambda[,"tau.s(ID)"])),
+        "sigma_nu"=1/sqrt(exp(post_coeff$log_lambda[,"nu.s(ID)"])))
+      
+      mean_par<-lapply(post_par,mean)
+      sd_par<-lapply(post_par,sd)
+      post_par_df<- data.frame("coeff_name"=names(post_par),"estimate"=unlist(mean_par),
+                               "std"=unlist(sd_par))
+      rownames(post_par_df) <- NULL
+      
+      coeffs_df=rbind(coeffs_df,post_par_df)
+      
       
       # path for csv file
-      output_file <- file.path(par_dir, paste0("results_","Ishore_",hyper_params_file_name),
+      output_file <- file.path(par_dir, paste0("results_",hyper_params_file_name),
                                paste0("estimates_", model_name, "_seed", seed, ".csv"))
       
       # Wwite the csv file
