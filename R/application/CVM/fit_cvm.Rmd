@@ -91,15 +91,6 @@ We now extract the estimated parameters and their standard deviations. These est
 
 ```{r results baseline_ctcrw0}
 
-estimates_bas_ctcrw0=as.list(baseline_ctcrw0$tmb_rep(),what="Est")
-std_bas_ctcrw0=as.list(baseline_ctcrw0$tmb_rep(),what="Std")
-
-```
-
-We process the results and show a table with the estimates and their standard deviations.
-
-```{r render coefficient estimates table baseline_ctcrw0 }
-
 # Function to extract estimate values into a data frame format
 combine_to_df <- function(estimates, std_dev, param_name) {
   data.frame(
@@ -109,81 +100,127 @@ combine_to_df <- function(estimates, std_dev, param_name) {
   )
 }
 
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(estimates_bas_ctcrw0$log_sigma_obs, 
-                               std_bas_ctcrw0$log_sigma_obs, "log_sigma_obs")
-coeff_fe <- combine_to_df(estimates_bas_ctcrw0$coeff_fe, 
-                          std_bas_ctcrw0$coeff_fe, 
-                          rownames(estimates_bas_ctcrw0$coeff_fe))
+get_raw_latex_tab<- function(sde,show=TRUE) {
+  
+  estimates=as.list(sde$tmb_rep(),what="Est")
+  std=as.list(sde$tmb_rep(),what="Std")
+  
+  # Create data frames for each set
+  log_sigma_obs <- combine_to_df(estimates$log_sigma_obs, 
+                                 std$log_sigma_obs, "log_sigma_obs")
+  coeff_fe <- combine_to_df(estimates$coeff_fe,
+                            std$coeff_fe, 
+                            rownames(estimates$coeff_fe))
+  if (!(is.null(rownames(estimates$coeff_re)))) {
+    
+    coeff_re <- combine_to_df(estimates$coeff_re,
+                            std$coeff_re, 
+                            rownames(estimates$coeff_re))
+  
+  
+    log_lambda <- combine_to_df(estimates$log_lambda,
+                            std$log_lambda, 
+                            rownames(estimates$log_lambda))
+    
+     # Combine all data frames into one
+    table_data <- bind_rows(log_sigma_obs, coeff_fe,coeff_re,log_lambda)
+  } else {
+    table_data <- bind_rows(log_sigma_obs, coeff_fe)
+  }
+  
+  latex_table <- xtable(table_data, 
+                        caption = "Parameter Estimates and Standard Errors")
+  
+  if (show) {
+    print(
+    latex_table,type="latex",
+    include.rownames = FALSE,
+    sanitize.text.function = identity,
+    hline.after = c(-1, 0, nrow(table_data)-1),  
+    table.placement="H")
+  }
+  
+  return (latex_table)
 
-# Combine all data frames into one
-table_data_baseline_ctcrw0 <- bind_rows(log_sigma_obs, coeff_fe)
+  
+}
+
+raw_ctcrw0_tab=get_raw_latex_tab(baseline_ctcrw0)
 
 ```
 
-```{r, results='asis',message=FALSE}
-latex_table <- xtable(table_data_baseline_ctcrw0, 
-                      caption = "Parameter Estimates and Standard Errors")
+```{r}
 
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,table.placement="H")
-```
 
-From this we can obtain $95\%$ confidence intervals for the parameters $\tau$, $\nu$ and $\sigma_{obs}$.
+get_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,show=FALSE) {
+  
+  post_coeff=sde$post_coeff(n_post=100000)
+  if (ncol(post_coeff$log_lambda)==0) {
+                  
+  post_par=list(
+  "tau"=exp(post_coeff$coeff_fe[,"tau.(Intercept)"]),
+  "nu"=exp(post_coeff$coeff_fe[,"nu.(Intercept)"])) 
+  
+  parameter_names=c("$\\tau$", "$\\nu$")
+  
+  } else {
+  post_par=list(
+  "tau"=exp(post_coeff$coeff_fe[,"tau.(Intercept)"]),
+  "nu"=exp(post_coeff$coeff_fe[,"nu.(Intercept)"]),
+  "sigma_tau"=1/sqrt(exp(post_coeff$log_lambda[,"tau.s(ID)"])),
+  "sigma_nu"=1/sqrt(exp(post_coeff$log_lambda[,"nu.s(ID)"])))
+  
+  parameter_names=c("$\\tau$", "$\\nu$","$\\sigma_{\\tau}$","$\\sigma_{\\nu}$")
+  }
+  
+  if (include_sigma_obs) {
+    post_par$sigma_obs=1000*exp(post_coeff$log_sigma_obs)
+  }
 
-```{r CI baseline_ctcrw0 parameters}
-
-post_coeff_bas_ctrcw0=baseline_ctcrw0$post_coeff(n_post=10000)
-post_par_bas_ctcrw0=
-  list("sigma_obs"=1000*exp(post_coeff_bas_ctrcw0$log_sigma_obs),
-              "tau"=exp(post_coeff_bas_ctrcw0$coeff_fe[,"tau.(Intercept)"]),
-              "nu"=exp(post_coeff_bas_ctrcw0$coeff_fe[,"nu.(Intercept)"]))
-mean_par_bas_ctcrw0=lapply(post_par_bas_ctcrw0,mean)
-sd_par_bas_ctcrw0=lapply(post_par_bas_ctcrw0,sd)
-quant_par_bas_ctcrw0 <- lapply(post_par_bas_ctcrw0, 
-                               quantile, probs = c(0.025, 0.975))
-
-```
-
-We include the results in a latex table.
-
-```{r CI table baseline_ctcrw0 parameters,results='asis',message=FALSE}
-
-parameter_names <- names(mean_par_bas_ctcrw0)
-estimates <- mean_par_bas_ctcrw0
-conf_intervals <- sapply(parameter_names, function(param) {
-  sprintf("$[%.2f; %.2f]$", quant_par_bas_ctcrw0[[param]][1], 
-          quant_par_bas_ctcrw0[[param]][2])
-})
-
-table_data <- data.frame(
-  Parameter = c("$\\sigma_{obs}$","$\\tau$", "$\\nu$"),
-  Estimate = sprintf("$%.2f$", mean_par_bas_ctcrw0),
+  mean_par=lapply(post_par,mean)
+  sd_par=lapply(post_par,sd)
+  quant_par <- lapply(post_par,
+                      quantile, probs = c(0.025, 0.975))
+  
+  parameter_names <- names(mean_par)
+  estimates <- mean_par
+  conf_intervals <- sapply(parameter_names, function(param) {
+  sprintf("$[%.2f; %.2f]$", quant_par[[param]][1], 
+          quant_par[[param]][2])
+    })
+  
+  
+  if (include_sigma_obs) {
+    parameter_names=c(parameter_names,"$\\sigma_{\\obs}$")
+  }
+  table_data <- data.frame(
+    Parameter = parameter_names,
+  Estimate = sprintf("$%.2f$", mean_par),
   CI = conf_intervals,
-  stringsAsFactors = FALSE
-)
-
-
-
-```
-
-```{r,results='asis',echo=FALSE}
-# Create an xtable object
-xtab <- xtable(
+  stringsAsFactors = FALSE)
+  
+  xtab <- xtable(
   table_data,
-  caption = "Baseline estimations",
-  label = "table:baseline_estimations"
-)
-
-# Customize xtable options
-print(
-  xtab,
+  caption = paste(sde$type(),"baseline estimations"),
+  label = paste0("table:",sde$type(),"_baseline_estimations"))
+  
+  if (show) {
+  print(
+  xtab,type="latex",
   include.rownames = FALSE,
   sanitize.text.function = identity,  # Prevent escaping of LaTeX math symbols
-  hline.after = c(-1, 0, nrow(table_data)),
-  table.placement="H"
-)
+  hline.after = c(-1, 0, nrow(table_data)),  
+  table.placement="H")
+  }
+  
+  return(xtab)
+
+} 
+
+final_ctcrw0_tab=get_final_baseline_tab(baseline_ctcrw0,show=TRUE)
 ```
+
+
 
 The estimate for $\tau$ is $\bar \tau =1.08$ h and the estimate for $\nu$ is $\bar \nu =4.69$ km/h. The measurement error standard deviation is estimated to $\bar \sigma_{obs}\simeq 38$ m. The measurement error in Fastloc GPS data mainly depends on the number of satellite that were used to compute the location. This number might change from a data point to another. However, we don't know the number of satellites that computed the position in the data. That is why we assume a constant standard deviation for the measurement error. We know from Weensveen paper, table 3, that it should be at most around 30m when only 4 satellites are involved, and then decrease as the number of satellites increases. This suggest that the measurement error might be slightly overestimated here.
 
@@ -226,35 +263,7 @@ for (i in seq_along(list_baseline_ctcrw0)) {
 
 ```
 
-```{r render estimates table baselines with fixed mesaurement error,results='asis', message=FALSE}
 
-for (i in seq_along(list_baseline_ctcrw0)) {
-  estimates=list_baseline_ctcrw0_est[[i]]
-  std=list_baseline_ctcrw0_std[[i]]
-  
-  # Create data frames for each set
-  log_sigma_obs <- combine_to_df(estimates$log_sigma_obs, 
-                               std$log_sigma_obs, "log_sigma_obs")
-  coeff_fe <- combine_to_df(estimates$coeff_fe, 
-                          std$coeff_fe, 
-                          rownames(estimates$coeff_fe))
-
-  # Combine all data frames into one
-  table_data <- bind_rows(log_sigma_obs, coeff_fe)
-  
-  latex_table <- xtable(
-    table_data, 
-    caption = paste(
-      "Parameter Estimates and Standard Errors for fixed \\(\\sigma_{obs}=\\) ",
-      sigma_obs[i]," m"),
-    xtable.table.placement="H")
-
-  # Print LaTeX table
-  print(latex_table, type = "latex", include.rownames = FALSE,table.placement="H")
-
-}
-
-```
 
 ```{r plot tau and nu estimates as a function of measurement error}
 tau_estimates=sapply(list_baseline_ctcrw0_est,
@@ -283,7 +292,7 @@ ggplot(df, aes(x = 1000*sigma_obs, y = value)) +
 
 ```
 
-We see a clear effect of the fixed measurement error on the estimates of $\tau$, and a slight influence of $\nu$. We also remark that as the measurement error grows, the uncertainty on the estimates of $\tau$ and $\nu$ increases. Overall, knowing or estimating precisely the measurement error will be crucial in the analysis.
+We see a clear effect of the fixed measurement error on the estimates of $\tau$, and a slight influence of $\nu$. We also remark that as the measurement error grows, the uncertainty on the estimates of $\tau$ and $\nu$ incre.ases. Overall, knowing or estimating precisely the measurement error will be crucial in the analysis. On the whole data, it seems more likely to have an error about 50 metres. We now fix the measurement error to 50m
 
 ### CTCRW with random individual effects
 
@@ -293,10 +302,12 @@ We see a clear effect of the fixed measurement error on the estimates of $\tau$,
 #model formula
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"))
 
+H=array(rep(0.05^2*diag(2),n_pre12),dim=c(2,2,n_pre12))
+
 #Fit baseline with measurement error estimated from the data
 baseline_ctcrw1<- SDE$new(formulas = formulas,data = dataBE12,type = "CTCRW",
                           response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),
+                    par0 = par0,other_data=list("H"=H),
                     fixpar=c("mu1","mu2"))
 baseline_ctcrw1$fit()
 
@@ -304,95 +315,8 @@ baseline_ctcrw1$fit()
 
 
 ```
-
-```{r results baseline_ctcrw1}
-
-estimates_bas_ctcrw1=as.list(baseline_ctcrw1$tmb_rep(),what="Est")
-std_bas_ctcrw1=as.list(baseline_ctcrw1$tmb_rep(),what="Std")
-
-```
-
-```{r render estimates table baseline_ctcrw1}
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(estimates_bas_ctcrw1$log_sigma_obs,
-                               std_bas_ctcrw1$log_sigma_obs, "log_sigma_obs")
-coeff_fe <- combine_to_df(estimates_bas_ctcrw1$coeff_fe,
-                          std_bas_ctcrw1$coeff_fe,
-                          rownames(estimates_bas_ctcrw1$coeff_fe))
-log_lambda <- combine_to_df(estimates_bas_ctcrw1$log_lambda, 
-                            std_bas_ctcrw1$log_lambda, 
-                            rownames(estimates_bas_ctcrw1$log_lambda))
-coeff_re <- combine_to_df(estimates_bas_ctcrw1$coeff_re, 
-                          std_bas_ctcrw1$coeff_re, 
-                          rownames(estimates_bas_ctcrw1$coeff_re))
-
-# Combine all data frames into one
-table_data_baseline_ctcrw1 <- bind_rows(log_sigma_obs, coeff_fe, log_lambda, coeff_re)
-
-```
-
-```{r, results='asis', echo=FALSE}
-latex_table <- xtable(table_data_baseline_ctcrw1, 
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,table.placement="H")
-```
-
-As previously, we can obtain $95\%$ confidence intervals for the parameters $\tau$, $\nu$ and $\sigma_{obs}$, and include the results in a latex table.
-
-```{r CI baseline_ctcrw1 parameters}
-
-post_coeff_bas_ctrcw1=baseline_ctcrw1$post_coeff(n_post=10000)
-post_par_bas_ctcrw1=list(
-  "sigma_obs"=1000*exp(post_coeff_bas_ctrcw1$log_sigma_obs),
-  "tau"=exp(post_coeff_bas_ctrcw1$coeff_fe[,"tau.(Intercept)"]),
-  "nu"=exp(post_coeff_bas_ctrcw1$coeff_fe[,"nu.(Intercept)"]),
-  "sigma_tau"=1/sqrt(exp(post_coeff_bas_ctrcw1$log_lambda[,"tau.s(ID)"])),
-  "sigma_nu"=1/sqrt(exp(post_coeff_bas_ctrcw1$log_lambda[,"nu.s(ID)"])))
-
-mean_par_bas_ctcrw1=lapply(post_par_bas_ctcrw1,mean)
-sd_par_bas_ctcrw1=lapply(post_par_bas_ctcrw1,sd)
-quant_par_bas_ctcrw1 <- lapply(post_par_bas_ctcrw1, 
-                               quantile, probs = c(0.025, 0.975))
-
-```
-
-```{r CI table baseline_ctcrw1 parameters, message=FALSE}
-
-parameter_names <- names(mean_par_bas_ctcrw1)
-estimates <- mean_par_bas_ctcrw1
-conf_intervals <- sapply(parameter_names, function(param) {
-  sprintf("$[%.2f; %.2f]$", quant_par_bas_ctcrw1[[param]][1], 
-          quant_par_bas_ctcrw1[[param]][2])
-})
-
-table_data <- data.frame(
-  Parameter = 
-    c("$\\sigma_{obs}$","$\\tau$", "$\\nu$","$\\sigma_{\\tau}$","$\\sigma_{\\nu}$"),
-  Estimate = sprintf("$%.2f$", mean_par_bas_ctcrw1),
-  CI = conf_intervals,
-  stringsAsFactors = FALSE
-)
-
-
-
-```
-```{r,results='asis',echo=FALSE}
-xtab <- xtable(
-  table_data,
-  caption = "Baseline estimations with random effects",
-  label = "table:baseline_estimations_with_random_effects"
-)
-
-print(
-  xtab,type="latex",
-  include.rownames = FALSE,
-  sanitize.text.function = identity,  # Prevent escaping of LaTeX math symbols
-  hline.after = c(-1, 0, nrow(table_data)),  
-  table.placement="H"
-)
+```{r}
+final_tab_ctcrw1=get_final_baseline_tab(baseline_ctcrw1,show=TRUE)
 ```
 
 Note that the random effect is multiplicative and not additive since it appears in the $\log$ of the parameters. We can plot the estimates on the parameter scale for each narwhal.
@@ -403,63 +327,6 @@ baseline_ctcrw1$get_all_plots(baseline=NULL,show_CI="simultaneous")
 
 ```
 
-### RACVM without random individual effects
-
-We can also test whether adding a constant rotational $\omega$ in the SDE model would make sense. For this, we fit a RACVM model.
-
-```{r fit baseline racvm,message=FALSE}
-
-#initial parameters
-par0 <- c(0,0,1,4,0)
-
-#model formula
-formulas <- list(mu1=~1,mu2=~1,
-                 tau =~1,
-                 nu=~1,
-                 omega=~1)
-
-
-#Fit baseline with measurement error estimated from the data
-baseline_racvm0<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM",
-                          response = c("x","y"),
-                    par0 = par0,other_data=list("log_sigma_obs0"=log(0.05)),
-                    fixpar=c("mu1","mu2"))
-baseline_racvm0$fit()
-
-
-```
-
-```{r results baseline_racvm0}
-
-estimates_bas_racvm0=as.list(baseline_racvm0$tmb_rep(),what="Est")
-std_bas_racvm0=as.list(baseline_racvm0$tmb_rep(),what="Std")
-
-
-```
-
-```{r render estimates table baseline_racvm0}
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(estimates_bas_racvm0$log_sigma_obs, 
-                               std_bas_racvm0$log_sigma_obs, "log_sigma_obs")
-coeff_fe <- combine_to_df(estimates_bas_racvm0$coeff_fe,
-                          std_bas_racvm0$coeff_fe, 
-                          rownames(estimates_bas_racvm0$coeff_fe))
-
-# Combine all data frames into one
-table_data_baseline_racvm0 <- bind_rows(log_sigma_obs, coeff_fe)
-
-```
-
-```{r, results='asis', echo=FALSE}
-latex_table <- xtable(table_data_baseline_racvm0, 
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,table.placement="H")
-```
-
-The estimate of $\omega$ is $0$. This indicates that a \textbf{constant} parameter $\omega$ is irrelevant in the model. As a consequence, the final baseline model we keep is \texttt{baseline\_ctcrw1} which corresponds to a CTCRW with constant parameters $\tau$ and $\nu$ and mean velocity fixed to zero.
 
 ## Sensitivity analysis of the baseline CTCRW to the tagging effect threshold
 
@@ -477,102 +344,22 @@ formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"))
 baseline_ctcrw1_24h<- SDE$new(
   formulas = formulas,data = dataBE24,type = "CTCRW",
   response = c("x","y"),par0 = par0,
-  other_data=list("log_sigma_obs0"=log(0.05)),
+  other_data=list("H"=H),
   fixpar=c("mu1","mu2"))
+
+baseline_ctcrw1_24h$update_lambda(c(exp(3),exp(5)))
+baseline_ctcrw1_24h$update_map(list("log_lambda"=factor(c(NA,NA))))
 
 baseline_ctcrw1_24h$fit()
 
 
 ```
-
-```{r results baseline_ctcrw1_24h}
-
-estimates_bas_ctcrw1_24h=as.list(baseline_ctcrw1_24h$tmb_rep(),what="Est")
-std_bas_ctcrw1_24h=as.list(baseline_ctcrw1_24h$tmb_rep(),what="Std")
-
+```{r}
+final_tab_ctcrw1_24h=get_final_baseline_tab(baseline_ctcrw1_24h,show=TRUE)
 ```
 
-```{r render estimates table baseline_ctcrw1_24h}
+The standard deviations are wider due to the smaller amount of data, but also due to the fact that the measurement error is estimated higher than before. $\tau$ seems to be estimated below the value we obtained for the dataset \texttt{dataBE12}, but the CIs of the two estimates overlap.
 
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(
-  estimates_bas_ctcrw1_24h$log_sigma_obs, 
-  std_bas_ctcrw1_24h$log_sigma_obs, "log_sigma_obs")
-
-coeff_fe <- combine_to_df(estimates_bas_ctcrw1_24h$coeff_fe, 
-                          std_bas_ctcrw1_24h$coeff_fe, 
-                          rownames(estimates_bas_ctcrw1_24h$coeff_fe))
-
-# Combine all data frames into one
-table_data_baseline_ctcrw1_24h <- bind_rows(log_sigma_obs, coeff_fe)
-
-```
-
-```{r, results='asis',echo=FALSE}
-latex_table <- xtable(table_data_baseline_ctcrw1_24h, 
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,
-      table.placement="H")
-```
-
-The standard deviations are wider due to the smaller amount of data, but also due to the fact that the measurement error is estimated higher than before. $\tau$ seems to be estimated slightly below the value we obtained for the dataset \texttt{dataBE12}, but the difference seems reasonable as the CI of the two estimates overlap.
-
-```{r fit baseline sensitivity analysis tagging effect fixed error,message=FALSE}
-
-sigma_obs=exp(estimates_bas_ctcrw1$log_sigma_obs)
-H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
-
-#Fit baseline with measurement error 
-baseline_ctcrw1_24h_fixed_error<- SDE$new(formulas = formulas,
-                                          data = dataBE24,type = "CTCRW",
-                                          response = c("x","y"),
-                                          par0 = par0,
-                                          other_data=list("H"=H),
-                                          fixpar=c("mu1","mu2"))
-baseline_ctcrw1_24h_fixed_error$fit()
-
-
-```
-
-```{r results baseline_ctcrw1_24h_fixed_error}
-
-estimates_bas_ctcrw1_24h_fixed_error=as.list(
-  baseline_ctcrw1_24h_fixed_error$tmb_rep(),what="Est")
-std_bas_ctcrw1_24h_fixed_error=as.list(
-  baseline_ctcrw1_24h_fixed_error$tmb_rep(),what="Std")
-
-```
-
-```{r render estimates table baseline_ctcrw1_24h_fixed_error }
-
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(
-  estimates_bas_ctcrw1_24h_fixed_error$log_sigma_obs,
-  std_bas_ctcrw1_24h_fixed_error$log_sigma_obs, "log_sigma_obs")
-coeff_fe <- combine_to_df(
-  estimates_bas_ctcrw1_24h_fixed_error$coeff_fe, 
-  std_bas_ctcrw1_24h_fixed_error$coeff_fe, 
-  rownames(estimates_bas_ctcrw1_24h_fixed_error$coeff_fe))
-
-# Combine all data frames into one
-table_data_baseline_ctcrw1_24h_fixed_error <- bind_rows(log_sigma_obs, coeff_fe)
-
-```
-
-```{r, results='asis',echo=FALSE}
-latex_table <- xtable(table_data_baseline_ctcrw1_24h_fixed_error, 
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,
-      table.placement="H")
-```
-
-When the measurement error is fixed to the value we initially estimated from the whole dataset \texttt{dateBE12}, we observe a big decrease in the estimate of $\tau$. This indeed suggest a shift in the behavior of the whales within the time interval [12h,24h] after tagging, which might invalidate our results.
 
 # Response CTCRW models
 
@@ -588,8 +375,7 @@ par0 <- c(0,0,1,4)
 #model formula
 formulas <- list(mu1=~1,mu2=~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"))
 
-sigma_obs=exp(estimates_bas_ctcrw1$log_sigma_obs)
-H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+H=array(rep(0.05^2*diag(2),n_post),dim=c(2,2,n_post))
 
 #Fit respopnse with measurement error estimated from the baseline
 response_ctcrw1<- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",
@@ -601,50 +387,20 @@ response_ctcrw1$fit()
 
 ```
 
-```{r results response_ctcrw1}
 
-estimates_res_ctcrw1=as.list(response_ctcrw1$tmb_rep(),what="Est")
-std_res_ctcrw1=as.list(response_ctcrw1$tmb_rep(),what="Std")
-
-
-```
-
-```{r render estimates table response_ctcrw1}
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(estimates_res_ctcrw1$log_sigma_obs, 
-                               std_res_ctcrw1$log_sigma_obs, "log_sigma_obs")
-coeff_fe <- combine_to_df(estimates_res_ctcrw1$coeff_fe,
-                          std_res_ctcrw1$coeff_fe, 
-                          rownames(estimates_res_ctcrw1$coeff_fe))
-
-# Combine all data frames into one
-table_data_response_ctcrw1 <- bind_rows(log_sigma_obs, coeff_fe)
-
-```
-
-```{r, results='asis', echo=FALSE}
-latex_table <- xtable(table_data_response_ctcrw1, 
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,
-      table.placement="H")
-```
-
-The estimated standard deviation of the random effects can be computed with \texttt{sdev} method in \texttt{smoothSDE}.
 
 ```{r}
-response_ctcrw1$sdev()
+final_tab_response_ctcrw1=get_final_baseline_tab(response_ctcrw1,show=TRUE)
 ```
 
-The estimates are lower than those obtained from the data before exposure. This may happen because we have short trajectories before exposure, that may not represent the whole range of possible movement for each narwhal, and therefore there may be more varieties of movements between the different individuals. On the contrary, the trajectories during exposure are longer so we can reasonably say that they represent better the range of possible movement. The lower standard deviation of the random effects might then indicate that on the long run, the narwhals in the study tend to have similar movement characteristics.
+
+The estimates are lower than those obtained from the data before exposure with first 12h removed, but quite similar to the data before exposure with first 24h removed. 
 
 The estimated value for $\tau$ is slightly lower than the value we obtained from the data before exposure. The value for $\nu$ is also slightly lower. In both cases, the CI of the estimate overlaps with the CI of the estimate from the data before exposure. To better understand if this difference in the estimated values of the parameters is due to the presence of the ship, we will introduce the exposure to ship \texttt{ExpShip} (or $E_{ship}$ in the paper) covariate in the model.
 
 ## Response models with splines of ExpShip
 
-The intercept of the parameters $\tau$ and $\nu$ are considered as offset in the statistical model, and fixed using the estimates we get from the baseline model \texttt{baseline\_ctcrw1}. The measurement error is an offset 7that is fixed to the value that has been estimated from the data before exposure.
+The intercept of the parameters $\tau$ and $\nu$ are considered as offset in the statistical model, and fixed using the estimates we get from the baseline model \texttt{baseline\_ctcrw1}. The measurement error is an offset that is fixed to the value that has been estimated from the data before exposure.
 
 In the response model, we suppose that the presence of the ship has a similar effect on all the narwhals. Therefore, we estimate a mean reaction (if any) to the presence of the ship. We are aware that a variety of reactions might be possible, depending on the narwhals habituation to noise or on the specific place where it has been approached by the ship for instance. This variety of reaction can be assessed visually by looking at a small subset of the data, but is difficult to infer statistically (see [Heide-Jorgensen2021] figure 7).
 
@@ -657,9 +413,8 @@ formulas <- list(mu1=~1,mu2=~1,
                  nu=~s(ExpShip,k=10,bs="cs")+s(ID,bs="re"))
 
 
-# Fit response with measurement error fixed to baseline value
-sigma_obs=exp(estimates_bas_ctcrw1$log_sigma_obs)
-H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+# Fit response 
+H=array(rep(0.05^2*diag(2),n_post),dim=c(2,2,n_post))
 response_ctcrw_sp<- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",
                             response = c("x","y"),
                     par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
@@ -673,7 +428,7 @@ response_ctcrw_sp$update_lambda(
 response_ctcrw_sp$update_coeff_fe(baseline_ctcrw1$coeff_fe())
 #use the indices of the variable in the map for TMB 
 #to keep the coefficients in the right order
-#otherwise we may have issues in function post_coeff
+#otherwise we may have trouble in function post_coeff
 response_ctcrw_sp$update_map(list(coeff_re=factor(
   c(1:9,rep(NA,6),10:18,rep(NA,6))),
   coeff_fe=factor(rep(NA,4)),
@@ -684,44 +439,7 @@ response_ctcrw_sp$fit()
 
 ```
 
-```{r results response spline}
 
-estimates_res_ctcrw_sp=as.list(response_ctcrw_sp$tmb_rep(),what="Est")
-std_res_ctcrw_sp=as.list(response_ctcrw_sp$tmb_rep(),what="Std")
-
-
-```
-
-```{r render estimates table response_ctcrw_sp}
-
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(estimates_res_ctcrw_sp$log_sigma_obs, 
-                               std_res_ctcrw_sp$log_sigma_obs, "log_sigma_obs")
-coeff_fe <- combine_to_df(estimates_res_ctcrw_sp$coeff_fe,
-                          std_res_ctcrw_sp$coeff_fe,
-                          rownames(estimates_res_ctcrw_sp$coeff_fe))
-coeff_re <- combine_to_df(estimates_res_ctcrw_sp$coeff_re, 
-                          std_res_ctcrw_sp$coeff_re, 
-                          rownames(estimates_res_ctcrw_sp$coeff_re))
-log_lambda <- combine_to_df(estimates_res_ctcrw_sp$log_lambda, 
-                            std_res_ctcrw_sp$log_lambda, 
-                            rownames(estimates_res_ctcrw_sp$log_lambda))
-
-# Combine all data frames into one
-table_data_response_ctcrw_sp <- bind_rows(
-  log_sigma_obs, coeff_fe,coeff_re,log_lambda)
-
-```
-
-```{r,results='asis',echo=FALSE}
-latex_table <- xtable(table_data_response_ctcrw_sp, 
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,
-      table.placement="H")
-```
 
 ```{r plot smooth parameters response_ctcrw_sp}
 plot_smooth_par=response_ctcrw_sp$plot_par(var="ExpShip",
@@ -759,7 +477,7 @@ plot_smooth_par_distance
 
 ```
 
-The estimated smooth functions depend on the number of knots we choose in the splines. For $\nu$, the estimated smooth does not change as we increase gradually the degree of freedom to $10$, meaning that only a few knots (1 or 2) are needed. The effect of the presence of the ship on the parameter $\nu$ is easily interpreted : the closer the narwhals are to the ship, the higher their velocity, likely to move away or avoid the ship. Now, the estimated smooth function for $\tau$ requires more knots and is harder to interpret. Though there seem to be a decrease in persistence close to the ship, at a medium distance around $20$ km the persistence of the movement seem to increase. This is likely connected to figure 7 in [Heide-Jorgensen], where depending on how the narwhals were first exposed to the ship, they either change direction (lower persistence) or persist in their heading to flee away (higher persistence).
+The estimated smooth functions depend on the number of knots we choose in the splines. For $\nu$, the estimated smooth does not change as we increase gradually the degree of freedom to $10$, meaning that only a few knots (1 or 2) are needed. The effect of the presence of the ship on the parameter $\nu$ is easily interpreted : the closer the narwhals are to the ship, the higher their velocity, likely to move away or avoid the ship. Now, the estimated smooth function for $\tau$ requires more knots and is harder to interpret. Though there seem to be a decrease in persistence close to the ship, at a medium distance around $20$ km the persistence of the movement seem to increase. This is likely connected to figure 7 in [Heide-Jorgensen], where depending on how the narwhals were first exposed to the ship, they either change direction (lower persistence) or persist in their heading to flee away (higher persistence). This may be also linked to the complex fjords boundaries in which the narwhals move that can trigger very different reaction depending on where the narwhals has been exposed to the ship.
 
 However, we only plot 100 posterior draws here. If we increase to $n_{post}=1000$ posterior draws, the confidence intervals appear much wider. We now construct confidence intervals from 1000 posterior draws of the estimated coeffs and compare the smooth parameter with the baseline parameter.
 
@@ -791,8 +509,7 @@ formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
 
 
 # Fit response with measurement error fixed to baseline value
-sigma_obs=exp(estimates_bas_ctcrw1$log_sigma_obs)
-H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+H=array(rep(0.05^2*diag(2),n_post),dim=c(2,2,n_post))
 
 response_ctcrw_exp<- SDE$new(formulas = formulas,data = dataAE,type = "CTCRW",
                              response = c("x","y"),par0 = par0,
@@ -817,90 +534,56 @@ response_ctcrw_exp$fit()
 
 ```
 
-```{r results response_ctcrw_exp}
+```{r}
+get_final_response_tab<-function(sde,show=TRUE) {
+  
+  
+  post_coeff=sde$post_coeff(n_post=10000)
+  post_par=list(
+  "alpha_tau"=post_coeff$coeff_fe[,"tau.ExpShip"],
+  "alpha_nu"=post_coeff$coeff_fe[,"nu.ExpShip"])
 
-estimates_res_ctcrw_exp=as.list(response_ctcrw_exp$tmb_rep(),what="Est")
-std_res_ctcrw_exp=as.list(response_ctcrw_exp$tmb_rep(),what="Std")
+  mean_par=lapply(post_par,mean)
+  sd_par=lapply(post_par,sd)
+  quant_par <- lapply(post_par,
+                      quantile, probs = c(0.025, 0.975))
+  
+  parameter_names <- names(mean_par)
+  estimates <- mean_par
+  conf_intervals <- sapply(parameter_names, function(param) {
+    sprintf("$[%.2f; %.2f]$", quant_par[[param]][1], 
+            quant_par[[param]][2])
+  })
+  
+  table_data <- data.frame(
+    Parameter = 
+      c("$\\alpha_{\\tau}$","$\\alpha_{\\nu}$"),
+    Estimate = sprintf("$%.2f$", mean_par),
+    CI = conf_intervals,
+    stringsAsFactors = FALSE
+  )
+  xtab <- xtable(
+    table_data,
+    caption = "Response log linear estimations",
+    label = "table:response_log_linear_estimations"
+  )
+  
+  if (show) {
+    print(
+    xtab,type="latex",
+    include.rownames = FALSE,
+    sanitize.text.function = identity,  # Prevent escaping of LaTeX math symbols
+    hline.after = c(-1, 0, nrow(table_data)),
+    table.placement="H")
+  }
+  
+  return (xtab)
 
+}
 
+final_tab_response_ctcrw_exp=get_final_response_tab(response_ctcrw_exp)
 ```
 
-```{r render estimates table response_ctcrw_exp}
-
-# Create data frames for each set
-log_sigma_obs <- combine_to_df(estimates_res_ctcrw_exp$log_sigma_obs, 
-                               std_res_ctcrw_exp$log_sigma_obs, 
-                               "log_sigma_obs")
-coeff_fe <- combine_to_df(estimates_res_ctcrw_exp$coeff_fe, 
-                          std_res_ctcrw_exp$coeff_fe,
-                          rownames(estimates_res_ctcrw_exp$coeff_fe))
-
-# Combine all data frames into one
-table_data_response_ctcrw_exp <- bind_rows(log_sigma_obs, coeff_fe)
-
-```
-
-```{r, results='asis', echo=FALSE}
-latex_table <- xtable(table_data_response_ctcrw_exp,
-                      caption = "Parameter Estimates and Standard Errors")
-
-# Print LaTeX table
-print(latex_table, type = "latex", include.rownames = FALSE,
-      table.placement="H")
-```
-
-
-We can also compute $95 \%$ CI for the coefficients in the log-linear model.
-
-```{r CI response_ctcrw_exp parameters}
-
-post_coeff_res_exp=response_ctcrw_exp$post_coeff(n_post=10000)
-post_par_res_exp=list(
-  "alpha_tau"=post_coeff_res_exp$coeff_fe[,"tau.ExpShip"],
-  "alpha_nu"=post_coeff_res_exp$coeff_fe[,"nu.ExpShip"])
-
-mean_par_res_exp=lapply(post_par_res_exp,mean)
-sd_par_res_exp=lapply(post_par_res_exp,sd)
-quant_par_res_exp <- lapply(post_par_res_exp, 
-                               quantile, probs = c(0.025, 0.975))
-
-```
-
-```{r CI table response_ctcrw_exp parameters, message=FALSE}
-
-parameter_names <- names(mean_par_res_exp)
-estimates <- mean_par_res_exp
-conf_intervals <- sapply(parameter_names, function(param) {
-  sprintf("$[%.2f; %.2f]$", quant_par_res_exp[[param]][1], 
-          quant_par_res_exp[[param]][2])
-})
-
-table_data <- data.frame(
-  Parameter = 
-    c("$\\alpha_{\\tau}$","$\\alpha_{\\nu}$"),
-  Estimate = sprintf("$%.2f$", mean_par_res_exp),
-  CI = conf_intervals,
-  stringsAsFactors = FALSE
-)
-
-```
-
-
-```{r,results='asis',echo=FALSE}
-xtab <- xtable(
-  table_data,
-  caption = "Response log linear estimations",
-  label = "table:response_log_linear_estimations"
-)
-
-print(
-  xtab,type="latex",
-  include.rownames = FALSE,
-  sanitize.text.function = identity,  # Prevent escaping of LaTeX math symbols
-  hline.after = c(-1, 0, nrow(table_data)),
-  table.placement="H"
-)
-```
 
 
 We can now plot the estimated smooth parameters.
@@ -940,7 +623,7 @@ plot_smooth_par_distance=ggplot(plot_data, aes(x = distance, group = group)) +
 plot_smooth_par_distance
 ```
 
-The results are indeed similar to what we obtain using cubic splines with a low degree of freedom.
+The results are indeed similar to what we obtain using cubic splines with a low degree of freedom on both $\nu$ and $\tau$.
 
 ```{r plot CI response_ctcrw_exp and baseline,results='hide'}
 
@@ -967,7 +650,6 @@ post_coeff=baseline_ctcrw1$post_coeff(n_post=200)
 post_coeff_re=post_coeff$coeff_re
 post_coeff_fe=post_coeff$coeff_fe
 post_coeff_lambda=exp(post_coeff$log_lambda)
-post_coeff_sigma_obs=exp(post_coeff$log_sigma_obs)
 
 
 # Fit response for each draw of baseline coefficients
@@ -985,8 +667,7 @@ for (i in 1:nrow(post_coeff_fe)) {
     formulas <- list(mu1=~1,mu2=~1,tau =~ExpShip+s(ID,bs="re"),
                  nu=~ExpShip+s(ID,bs="re"))
     
-    sigma_obs=post_coeff_sigma_obs[i,1]
-    H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_post))
+    H=array(rep(0.05^2*diag(2),n_post),dim=c(2,2,n_post))
     
     response_ctcrw_exp_i<- SDE$new(formulas = formulas,data = dataAE,
                                    type = "CTCRW",
@@ -1037,6 +718,7 @@ quant_alpha<- list(
   alpha_nu=quantile(alpha_estimates[,2],probs = c(0.025, 0.975)))
 
 ```
+
 ```{r propagated CI alpha log linear coefficients, message=FALSE}
 
 parameter_names <- names(mean_alpha)
@@ -1167,9 +849,58 @@ plot_nu_response_exp
 
 ```
 
+
+
+## Compute recovery distances
+
+```{r}
+make_recovery_distances_tab<-function(p) {
+  
+  parameter_names=names(mean_alpha)
+  scaling=as.list(c(log(1-p),log(1+p)))
+  names(scaling)=parameter_names
+  estimates <- sapply(parameter_names,function(param) {
+    mean_alpha[[param]]/scaling[[param]]})
+  
+  conf_intervals <- sapply(parameter_names, function(param) {
+    sprintf("$[%.2f; %.2f]$", quant_alpha[[param]][1]/scaling[[param]], 
+            quant_alpha[[param]][2]/scaling[[param]])
+  })
+  
+  
+  table_data <- data.frame(
+    Parameter = 
+      c("$D_{\\tau}^{ship}$","$D_{\\nu}^{ship}$"),
+    Estimate = sprintf("$%.2f$", estimates),
+    CI = conf_intervals,
+    stringsAsFactors = FALSE
+  )
+  
+  xtab <- xtable(
+  table_data,
+  caption = "Estimated recovery distances of the baseline values",
+  label = paste0("table:recovery_distances_",p)
+  )
+
+  print(
+    xtab,type="latex",
+    include.rownames = FALSE,
+    sanitize.text.function = identity,  
+    hline.after = c(-1, 0, nrow(table_data)),
+    table.placement="H"
+  
+  )
+}
+
+make_recovery_distances_tab(0.5)
+
+make_recovery_distances_tab(0.1)
+```
+
+
 # Simulation from the baseline and response models
 
-We know want to investigate how the fitted model match the actual observations. To fo this, we simulate trajectories from the fitted model before and during exposure. First, we ignore that the narwhals move in a restricted area and only look at the shape of the trajectories.
+We know want to investigate how the fitted model match the actual observations. To do this, we simulate trajectories from the fitted model before and during exposure. We ignore that the narwhals move in a restricted area and only look at the shape of the trajectories.
 
 ## Without land constraints
 
@@ -1282,7 +1013,7 @@ land <- st_transform(land, crs = "+init=EPSG:32626 +units=km")
 
 baseline_ctcrw_sim_land=baseline_ctcrw1$simulate(z0 = z0_BE,
                                             data=baseline_ctcrw1$data(),
-                                            sd_noise=sigma_obs,land=land)
+                                            sd_noise=sigma_obs,land=land,reflect=TRUE)
 # Add a label to each dataset for plotting
 baseline_ctcrw_sim_land <- baseline_ctcrw_sim_land %>% 
   mutate(data_type = "Simulated with reflection on the boudary")
@@ -1307,7 +1038,7 @@ ggplot(baseline_trajectories_land) +geom_sf(data=land$geometry,fill="grey")+
 
 response_ctcrw_sim_land=response_ctcrw_exp$simulate(z0 = z0_AE,
                                             data=response_ctcrw_exp$data(),
-                                            sd_noise=sigma_obs,land=land)
+                                            sd_noise=sigma_obs,land=land,reflect=TRUE)
 # Add a label to each dataset for plotting
 response_ctcrw_sim_land <- response_ctcrw_sim_land %>% 
   mutate(data_type = "Simulated with reflection on the boudary")

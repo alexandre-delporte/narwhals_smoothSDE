@@ -5,7 +5,12 @@ date: "2024-06-07"
 output: html_document
 ---
 
-In this analysis, we introduce covariates \texttt{AngleNormal} and \texttt{Ishore} ($\Theta$ and $I_{shore}$) in the SDE models for the narwhal data. This allows to better understand how the fjords shoreline influences the narwhals movement in the baseline model.
+In this analysis, we introduce covariates \texttt{AngleNormal} and 
+\texttt{Ishore} ($\Theta$ and $I_{shore}$) in the SDE models for 
+the narwhal data.
+This allows to better understand how the fjords shoreline influences 
+the narwhals movement in the baseline model.
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -18,6 +23,8 @@ set.seed(42)
 
 library(smoothSDE)
 library(ggplot2)
+library(ggpubr)
+library(patchwork)
 library(dplyr)
 library(plotly)
 library(htmlwidgets)
@@ -25,6 +32,7 @@ library(mgcv)
 library(here)
 library(xtable)
 library(sf)
+library(purrr)
 library(gganimate) # animated trajectories
 library(doParallel)
 library(foreach)
@@ -35,20 +43,26 @@ source(file.path(here("R","simulation_study_CRCVM","CVM_functions.R")))
 
 # Set the path to the directory containing the data
 par_dir=here() #parent directory 
-narwhal_data_path <- file.path(par_dir,"Data","preprocessed_data","narwhals")  
+narwhal_data_path <- file.path(par_dir,
+                               "Data","preprocessed_data","narwhals")  
 
 #data before exposure with first 24h removed
-dataBE24=read.csv(file.path(narwhal_data_path,"DataBE24.csv"), header = TRUE,dec = ".")
+dataBE24=read.csv(file.path(narwhal_data_path,"DataBE24.csv"),
+                  header = TRUE,dec = ".")
 
 #data before exposure with first 12h removed
-dataBE12=read.csv(file.path(narwhal_data_path,"DataBE12.csv"), header = TRUE,dec = ".")
+dataBE12=read.csv(file.path(narwhal_data_path,"DataBE12.csv"),
+                  header = TRUE,dec = ".")
 
 #data after exposure
-dataAE=read.csv(file.path(narwhal_data_path,"DataAE.csv"), header = TRUE,dec = ".")
+dataAE=read.csv(file.path(narwhal_data_path,"DataAE.csv"),
+                header = TRUE,dec = ".")
 
 ```
 
-We choose thresholds on the distance to the shore to define the Ishore covariate.
+We choose thresholds on the distance to the shore
+to define the Ishore covariate.
+
 
 ```{r preprocess data}
 
@@ -83,8 +97,9 @@ n_post=length(dataAE$time) #number of observations after exposure
 ```
 
 
+We bind data before exposure and after exposure in a single dataframe.
 
-```{r}
+```{r bind data before and after exposure}
 
 all_data <- data.frame()
 
@@ -102,17 +117,149 @@ for (id in unique(dataBE12$ID)) {
 ```
 
 
+# Interpolate every minute
+
+
+
+```{r smooth and interpolate trajectories}
+smooth_interpolate <- function(df) {
+  
+  # Create a sequence of regular time points (every minute)
+  time_seq <- seq(min(df$time), max(df$time), by = 1/30)
+  
+  # Fit smoothing splines
+  smooth_x <- smooth.spline(df$time, df$x)
+  smooth_y <- smooth.spline(df$time, df$y)
+  
+  # Predict at regular intervals
+  interp_x <- predict(smooth_x, as.numeric(time_seq))$y
+  interp_y <- predict(smooth_y, as.numeric(time_seq))$y
+  
+  # Return the interpolated data
+  data.frame(time = time_seq, x = interp_x, y = interp_y, ID = unique(df$ID))
+}
+
+
+# Apply the function for each ID
+interpolated_dataBE12 <- dataBE12 %>%
+  group_by(ID) %>%
+  group_split() %>%
+  map_dfr(smooth_interpolate)
+
+# Plot the original and smoothed trajectories by ID
+plot_interpolation=ggplot() +
+  geom_point(data = dataBE12, aes(x = x, y = y, color = factor(ID)), size = 2) +
+  geom_path(data = interpolated_dataBE12, aes(x = x, y = y, color = factor(ID))) +
+  theme_minimal() +
+  labs(color = "Trajectory ID") +
+  ggtitle("GPS points and splines interpolation")
+```
+
+# Compute Dshore and theta from interpolation
+
+```{r}
+
+signed_angle <- function(u, v) {
+  #Compute signed angle in [-pi,pi] that rotates first vector into second vector 
+  # as in 
+  # https://math.stackexchange.com/questions/529555/signed-angle-between-2-vectors
+  u <- matrix(u, ncol = 2)
+  v <- matrix(v, ncol = 2)
+  if (nrow(u) != nrow(v)) stop("u and v must have the same number of 
+                                  rows")
+  result <- as.numeric(atan2(v[,2], v[,1]) - atan2(u[,2], u[,1]))
+  ind1 <- which(result > pi)
+  ind2 <- which(result <= -pi)
+  result[ind1] <- result[ind1] - 2*pi
+  result[ind2] <- result[ind2] + 2*pi
+  return(result) 
+} 
+
+
+add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
+  # Setup parallel backend
+  cl <- makeCluster(n_cores)
+  registerDoParallel(cl)
+  
+  # Split data by ID
+  ids <- unique(data$ID)
+  
+  # Process each ID in parallel
+  results <- foreach(id = ids, .combine = rbind, .packages = c("sf"),
+                     .export = c("nearest_boundary_points", "is_in_land", "signed_angle","border",
+                                 "D_low","D_up")  ) %dopar% {
+                                   # Filter data for the current ID
+                                   sub_data <- data[data$ID == id, ]
+                                   n_sub <- nrow(sub_data)
+                                   
+                                   # Time steps
+                                   dtimes <- sub_data[2:n_sub, "time"] -sub_data[1:(n_sub - 1), "time"]
+                                   
+                                   # Step lengths
+                                   dx <- sub_data[2:n_sub, "x"] - sub_data[1:(n_sub - 1), "x"]
+                                   dy <- sub_data[2:n_sub, "y"] - sub_data[1:(n_sub - 1), "y"]
+                                   
+                                   # Empirical velocity
+                                   vexp_df <- cbind(dx / dtimes, dy / dtimes)
+                                   
+                                   # Nearest points on shore
+                                   sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("x", "y")]), border))
+                                   
+                                   # Normal vectors
+                                   normal <- as.matrix(sub_data[2:n_sub, c("x", "y")] - sub_data[2:n_sub, c("p1", "p2")])
+                                   
+                                   # Angle between velocity and normal vector
+                                   theta_coast <- signed_angle(normal, vexp_df)
+                                   theta_coast <- c(theta_coast, 1)  # Adjust length
+                                   
+                                   # Initialize DistanceShore
+                                   Dshore <- rep(0, n_sub)
+                                   
+                                   for (i in 1:n_sub) {
+                                     y1 <- sub_data[i, "x"]
+                                     y2 <- sub_data[i, "y"]
+                                     if (!is_in_land(st_point(c(y1, y2)), border)) {
+                                       p1 <- sub_data[i, "p1"]
+                                       p2 <- sub_data[i, "p2"]
+                                       Dshore[i] <- sqrt((y1 - p1)^2 + (y2 - p2)^2)
+                                     }
+                                   }
+                                   
+                                   # Calculate Ishore
+                                   Ishore <- ifelse(Dshore < D_low, 1 / D_low, ifelse(Dshore > D_up, 0, 1 / Dshore))
+                                   
+                                   # Add columns to sub_data
+                                   sub_data$theta <- theta_coast
+                                   sub_data$DistanceShore <- Dshore
+                                   sub_data$Ishore <- Ishore
+                                   
+                                   return(sub_data)
+                                 }
+  
+  # Stop the cluster
+  stopCluster(cl)
+  
+  return(results)
+}
+
+interpolated_dataBE12=add_covs_parallel(interpolated_dataBE12)
+
+```
+
 # Fit baseline models
 
-We try sde models where the parameters are smooth function of the covariates AngleNormal and Ishore.
-Here, for simplicity we will always fix the measurement error to $30$ m. This choice is based on the paper of Weensven.
+We try sde models where the parameters are smooth function 
+of the covariates theta and Ishore.
+Here, for simplicity we will always fix the measurement error to $50$ m. 
+This choice is based on the paper of Weensven.
 We will assess the sensitivity of our results to the hyperparameter later.
 
 
 
 ## Baseline CTCRW with AngleNormal covariate in $\tau$
 
-The first model is a CTCRW where the covariate theta influences the persistence of the movement.
+The first model is a CTCRW where the covariate theta influences 
+the persistence of the movement.
 
 ```{r fit baseline_ctcrw0,message=FALSE}
 
@@ -120,14 +267,14 @@ The first model is a CTCRW where the covariate theta influences the persistence 
 par0 <- c(0,0,1,4)
 
 #model formula
-formulas <- list(mu1=~1,mu2=~1,tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"))
+formulas <- list(mu1=~1,mu2=~1,tau =~s(theta,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"))
 
 #Fixed measurement error
-sigma_obs=0.05
-H=array(rep(sigma_obs^2*diag(2),n_post),dim=c(2,2,n_pre12))
+sigma_obs=0.01
+H=array(rep(sigma_obs^2*diag(2),length(interpolated_dataBE12$time)),dim=c(2,2,length(interpolated_dataBE12$time)))
 
 #Fit baseline with measurement error estimated from the data
-baseline_ctcrw0<- SDE$new(formulas = formulas,data = dataBE12,type = "CTCRW",
+baseline_ctcrw0<- SDE$new(formulas = formulas,data = interpolated_dataBE12,type = "CTCRW",
                           response = c("x","y"),
                           par0 = par0,
                           other_data=list("H"=H),
@@ -146,7 +293,7 @@ combine_to_df <- function(estimates, std_dev, param_name) {
   )
 }
 
-get_raw_latex_tab<- function(sde,show=TRUE) {
+make_raw_latex_tab<- function(sde) {
   
   estimates=as.list(sde$tmb_rep(),what="Est")
   std=as.list(sde$tmb_rep(),what="Std")
@@ -172,28 +319,24 @@ get_raw_latex_tab<- function(sde,show=TRUE) {
   latex_table <- xtable(table_data, 
                         caption = "Parameter Estimates and Standard Errors")
   
-  if (show) {
-    print(latex_table, type = "latex", include.rownames = FALSE)
-  }
-  
-  return (latex_table)
 
+  print(latex_table, type = "latex", include.rownames = FALSE)
   
 }
 
 ```
 
-```{r estimates baseline_ctcrw0}
-raw_tab_baseline_ctcrw0=get_raw_latex_tab(baseline_ctcrw0)
+```{r raw estimates baseline_ctcrw0}
+make_raw_latex_tab(baseline_ctcrw0)
 ```
 
 
-We can get confidence intervals for the intercept of each parameter and the random effects standard deviations.
+We can get confidence intervals for the intercept 
+of each parameter and the random effects standard deviations.
 
 ```{r define function to get final results}
 
-
-get_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,show=TRUE) {
+get_baseline_estimates<- function(sde,include_sigma_obs=FALSE) {
   
   post_coeff=sde$post_coeff(n_post=10000)
   post_par=list(
@@ -211,6 +354,16 @@ get_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,show=TRUE) {
   quant_par <- lapply(post_par,
                       quantile, probs = c(0.025, 0.975))
   
+  return(list("estimates"=mean_par,"std.error"=sd_par,"quantiles"=quant_par))
+  
+}
+
+make_final_baseline_tab<-function(sde,include_sigma_obs=FALSE) {
+  
+  est=get_baseline_estimates(sde,include_sigma_obs)
+  mean_par=est$estimates
+  sd_par=est$std.error
+  quant_par=est$quantiles
   parameter_names <- names(mean_par)
   estimates <- mean_par
   conf_intervals <- sapply(parameter_names, function(param) {
@@ -233,16 +386,12 @@ get_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,show=TRUE) {
   caption = paste(sde$type(),"baseline estimations with random effects"),
   label = paste0("table:",sde$type(),"_baseline_estimations_with_random_effects"))
   
-  if (show) {
   print(
   xtab,type="latex",
   include.rownames = FALSE,
   sanitize.text.function = identity,  # Prevent escaping of LaTeX math symbols
   hline.after = c(-1, 0, nrow(table_data)),  
   table.placement="H")
-  }
-  
-  return(xtab)
 
 } 
 
@@ -252,16 +401,17 @@ get_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,show=TRUE) {
 ```{r final estimates baseline_ctcrw0, message=FALSE}
 
 
-final_tab_baseline_ctcrw0=get_final_baseline_tab(baseline_ctcrw0,include_sigma_obs=FALSE)
+make_final_baseline_tab(baseline_ctcrw0,include_sigma_obs=FALSE)
 
 
 ```
 
 
-We can now plot the smooth parameter $\tau$ as a function of the covariate \texttt{AngleNormal}.
+We can now plot the smooth parameter $\tau$ as a 
+function of the covariate \texttt{AngleNormal}.
 
 ```{r plot smooth parameters baseline_ctcrw0 }
-baseline_ctcrw0$plot_par(var="theta_translated",
+baseline_ctcrw0$plot_par(var="theta",
                          par_names=c("tau","nu"),n_post=100)
 
 ```
@@ -270,14 +420,19 @@ baseline_ctcrw0$plot_par(var="theta_translated",
 baseline_ctcrw0$get_all_plots(baseline=NULL,show_CI="simultaneous")
 ```
 
-The movement is clearly more persistent along the shoreline, meaning that $\tau$ increases when \texttt{AngleNormal} is close to $\pm \frac{\pi}{2}$). 
+The movement is clearly more persistent along the shoreline, meaning
+that $\tau$ increases when \texttt{AngleNormal} is close to $\pm \frac{\pi}{2}$). 
 
 
 
-## Baseline racvm with AngleNormal covariate in tau and omega
+## Baseline racvm with $\Theta$ covariate in tau and omega
 
-We now decide to introduce a rotational parameter $\omega$ in the SDE to allow the velocity to rotate depending on the narwhals position with respect to the shoreline.
-We start by introducing the covariate \texttt{theta} in the new smooth parameter $\omega$ to understand how the animals may rotate depending on the direction of their movement with respect to the shoreline.
+We now decide to introduce a rotational parameter $\omega$ in the SDE to
+allow the velocity to rotate depending on the narwhals position with 
+respect to the shoreline.
+We start by introducing the covariate \texttt{theta} in the new smooth 
+parameter $\omega$ to understand how the animals may rotate depending on 
+the direction of their movement with respect to the shoreline.
 
 ```{r fit baseline_racvm0,cache=TRUE}
 
@@ -292,7 +447,8 @@ formulas <- list(mu1=~1,mu2=~1,
 
 
 # Fit baseline with measurement error estimated from the data
-baseline_racvm0<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM_SSM",response = c("x","y"),
+baseline_racvm0<- SDE$new(formulas = formulas,data = dataBE12,
+                          type = "RACVM_SSM",response = c("x","y"),
                     par0 = par0,other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 baseline_racvm0$fit()
@@ -302,15 +458,15 @@ baseline_racvm0$fit()
 ```
 
 
-```{r estimates baseline_racvm0}
-raw_tab_baseline_racvm0=get_raw_latex_tab(baseline_racvm0)
+```{r raw estimates baseline_racvm0}
+make_raw_latex_tab(baseline_racvm0)
 ```
 
 
 
 ```{r final estimates baseline_racvm0, message=FALSE}
 
-final_tab_baseline_racvm0=get_final_baseline_tab(baseline_racvm0,include_sigma_obs=FALSE)
+make_final_baseline_tab(baseline_racvm0,include_sigma_obs=FALSE)
 
 ```
 
@@ -320,18 +476,28 @@ baseline_racvm0$plot_par(var="theta_translated",
 
 ```
 
-$\omega$ close to $\pm \pi$ indicates movement toward the shoreline. Here, it seems that the narwhals have a slight tendency to rotate, presumably to move along the shoreline or change direction, when they are heading toward the shore. However, it is not very clear since the confidence intervals are wide.
+$\omega$ close to $\pm \pi$ indicates movement toward the shoreline.
+Here, it seems that the narwhals have a slight tendency to rotate,
+presumably to move along the shoreline or change direction, 
+when they are heading toward the shore.
+However, it is not very clear since the confidence intervals are wide.
 
 ```{r plot smooth parameter CI baseline_racvm0}
 baseline_racvm0$get_all_plots(baseline=NULL,show_CI="pointwise")
 ```
 
 
-## Baseline with AngleNormal and DistanceShore in omega and tau
+## Baseline with theta and DistanceShore in $\omega$ and $\tau$
 
-We add the effect of the distance to the shore through the covariate \texttt{Ishore_translated}.
+We add the effect of the distance to the shore 
+through the covariate \texttt{Ishore_translated}.
 This model has a lot of parameters and takes around 15 minutes to fit. 
-Indeed, we will need to fix the penalties in the tensor splines in advance to ensure convergence of the optimizer. The standard deviation of the random effects and the smoothing penalties for the splines in $\tau$ will still be estimated from the data and not fixed. To illustrate this we first fit a model where the smoothing penalties are all estimated from the data.
+Indeed, we will need to fix the penalties in the tensor splines in 
+advance to ensure convergence of the optimizer. 
+The standard deviation of the random effects and the smoothing penalties 
+for the splines in $\tau$ will still be estimated from the data and not fixed.
+To illustrate this we first fit a model where the smoothing penalties 
+are all estimated from the data.
 
 
 ```{r fit baseline_racvm1_unstable,cache=TRUE,message=FALSE}
@@ -363,13 +529,20 @@ baseline_racvm1_unstable$sdev()
 
 ```
 
-The smoothing penalties estimates are extremely low (the smoothing penalties are the inverse of the square root of \texttt{omega.te(theta\_translated,Ishore\_translated)}). This suggests that the optimization did not go well and numerical errors occurred. For this reason, we decide to fix the smoothing penalties to "reasonable" values in the tensor splines.
+The smoothing penalties estimates are extremely low (the smoothing penalties are
+the inverse of the square root
+of \texttt{omega.te(theta\_translated,Ishore\_translated)}).
+This suggests that the optimization did not go well and numerical errors
+occurred. For this reason, we decide to fix the smoothing penalties to 
+"reasonable" values in the tensor splines.
 
-First, we get good values for the smoothing penalty by approximating an expected "reasonable" surface with tensor splines, using the parametric function defined in the paper.
+First, we get good values for the smoothing penalty by approximating an 
+expected "reasonable" surface with tensor splines, using the 
+parametric function defined in the paper.
 
-```{r}
+```{r get smooth penalty values}
 
-fomega=function(cov_data,a=1,b=2,D0=0.3,D1=1,sigma_D=0.3,sigma_theta=pi/6){
+fomega=function(cov_data,a=3,b=2,D0=0.4,D1=1,sigma_D=0.5,sigma_theta=pi/6){
   Dshore=cov_data$DistanceShore
   theta=cov_data$theta
   if (is.null(Dshore)){
@@ -377,8 +550,10 @@ fomega=function(cov_data,a=1,b=2,D0=0.3,D1=1,sigma_D=0.3,sigma_theta=pi/6){
   }
   
   a*theta*(theta-pi/2)*(theta+pi/2)*exp(-Dshore/D0)/Dshore+
-      b*(exp(-1/2*(((theta+pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2))-
-           exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+((Dshore-D1)/sigma_D)^2)))
+      b*(exp(-1/2*(((theta+pi/2/sqrt(3))/sigma_theta)^2+
+                     ((Dshore-D1)/sigma_D)^2))-
+           exp(-1/2*(((theta-pi/2/sqrt(3))/sigma_theta)^2+
+                       ((Dshore-D1)/sigma_D)^2)))
 }
 
 # Splines smooth for omega -------------------- 
@@ -418,7 +593,9 @@ new_map=list("log_lambda"=factor(c(1,2,3,rep(NA,2))))
 
 
 #parameters formulas
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
+formulas <- list(mu1 = ~1 ,mu2 =~1,
+                 tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),
+                 nu=~s(ID,bs="re"),
                    omega=~te(theta_translated,Ishore_translated,k=c(5,5),bs="cs"))
 
 # Fit baseline
@@ -434,13 +611,13 @@ baseline_racvm1$fit()
 ```
 
 
-```{r estimates baseline_racvm1}
-raw_tab_baseline_racvm1=get_raw_latex_tab(baseline_racvm1)
+```{r raw estimates baseline_racvm1}
+make_raw_latex_tab(baseline_racvm1)
 ```
 
 ```{r final estimates baseline_racvm1, message=FALSE}
 
-final_tab_baseline_racvm1=get_final_baseline_tab(baseline_racvm1,include_sigma_obs=FALSE)
+make_final_baseline_tab(baseline_racvm1,include_sigma_obs=FALSE)
 
 ```
 
@@ -448,8 +625,11 @@ final_tab_baseline_racvm1=get_final_baseline_tab(baseline_racvm1,include_sigma_o
 
 Ishore_values=c(1/0.25,1/2,1/10)
 plots=lapply(1:length(Ishore_values),function(i){
-  baseline_racvm1$plot_par(var="theta_translated",covs=data.frame("ID"="Asgeir","Ishore_translated"=Ishore_values[i]),
-                         par_names=c("omega"),n_post=100)})
+  baseline_racvm1$plot_par(
+    var="theta_translated",
+    covs=data.frame("ID"="Asgeir","Ishore_translated"=Ishore_values[i]),
+    par_names=c("omega"),n_post=100)})
+
 plots
 
 ```
@@ -492,8 +672,12 @@ lapply(seq_along(plots_bas_racvm1), function(i) {
   }
     })
 ```
-Now, we would like to demonstrate how the Distance to shore influences the smooth parameter $\omega$.
-We plot the estimated smooth parameter $\omega$ as a function of the angle for different values of the Distance to shore.
+
+
+Now, we would like to demonstrate how the Distance to shore 
+influences the smooth parameter $\omega$.
+We plot the estimated smooth parameter $\omega$ as a function 
+of the angle for different values of the Distance to shore.
 
 ```{r smooth omega baseline_racvm1}
 
@@ -556,26 +740,33 @@ get_shore_influence_plot<-function(sde) {
 
 shore_influence_plot_baseline_racvm1=get_shore_influence_plot(baseline_racvm1)
 
-ggsave("omega_DistanceShore_levels.pdf", plot=shore_influence_plot_baseline_racvm1, path="baseline_racvm1", width=10, height=6, units="in")
+ggsave("omega_DistanceShore_levels.pdf",
+       plot=shore_influence_plot_baseline_racvm1,
+       path="baseline_racvm1", width=10, height=6, units="in")
 
 
 
 ```
 
-There seems to be a rotation close to the shore when the angle $\Theta \in [-\pi,-\frac{\pi}{2}] \cup [\frac{\pi}{2},\pi]$, which means movement toward the shore. However, again the confidence intervals are too wide to really conclude.
-Moreover, we fixed the smoothing penalties in the tensor splines. Changing their values can influence the shape of the estimated functions : lower values will produce functions that are more wiggily in each direction.
+There seems to be a rotation close to the shore when the angle
+$\Theta \in [-\pi,-\frac{\pi}{2}] \cup [\frac{\pi}{2},\pi]$, which means
+movement toward the shore. However, again the confidence intervals are 
+too wide to really conclude.
+Moreover, we fixed the smoothing penalties in the tensor splines. 
+Changing their values can influence the shape of the estimated functions :
+lower values will produce functions that are more wiggily in each direction.
 
 
 
 
-```{r}
+```{r define smooth parametric estimate baseline_racvm1}
 
-estimate_parametric_omega=function(model,fixed_a=1) {
+estimate_parametric_omega=function(model,fixed_a=NULL,probs=c(0.5,0.95)) {
     
     data=model$data()
     
-    Dshore=seq(from=quantile(data$DistanceShore_translated,0.5),
-               to=quantile(data$DistanceShore_translated,0.95),length.out=30)
+    Dshore=seq(from=quantile(data$DistanceShore_translated,probs[1]),
+               to=quantile(data$DistanceShore_translated,probs[2]),length.out=30)
     Ishore=1/Dshore
     theta_translated=seq(from=-pi,to=pi,length.out=30)
     grid<- as.data.frame(expand.grid(Ishore,theta_translated))
@@ -608,32 +799,62 @@ estimate_parametric_omega=function(model,fixed_a=1) {
     data_copy=data
     colnames(data_copy)=c("Ishore","theta","ID","DistanceShore","z")
     
+    if (is.null(fixed_a)) {
+      
+      fit_optim <- optim(par = log(c(1,0.5,0.1,2,0.5,pi/6)),
+                       fn = function(params) {
+                         
+                        # Compute predicted z values
+                        z_pred <- fomega(data_copy,exp(params[1]),
+                                         exp(params[2]),exp(params[3]),
+                                         exp(params[4]),exp(params[5]),
+                                         exp(params[6]))
+                         
+                         # Return sum of squared residuals
+                         sum((data_copy$z - z_pred)^2)
+                       })
+      
+    } 
+    else {
     fit_optim <- optim(par = log(c(0.5,0.1,2,0.5,pi/6)),
                        fn = function(params) {
                          
                         # Compute predicted z values
                         z_pred <- fomega(data_copy,fixed_a,exp(params[1]),
-                                         exp(params[2]),exp(params[3]),exp(params[4]),exp(params[5]))
+                                         exp(params[2]),exp(params[3]),
+                                         exp(params[4]),exp(params[5]))
                          
                          # Return sum of squared residuals
                          sum((data_copy$z - z_pred)^2)
                        })
     
-    
+    }
     est_par=fit_optim$par
     
-    print(exp(est_par))
-    
     # Compute the predicted values using the estimated parameters
-    z_pred_starting <- fomega(grid,fixed_a,exp(est_par[1]),
-                              exp(est_par[2]),exp(est_par[3]),exp(est_par[4]),exp(est_par[5]))
+    if (is.null(fixed_a)) {
+      
+      z_pred_starting <- fomega(grid,exp(est_par[1]),
+                              exp(est_par[2]),exp(est_par[3]),
+                              exp(est_par[4]),exp(est_par[5]),
+                              exp(est_par[6]))
+      
+      
+    } else {
+    z_pred_starting <- fomega(grid,fixed_a,
+                              exp(est_par[1]),exp(est_par[2]),
+                              exp(est_par[3]),exp(est_par[4]),
+                              exp(est_par[5]))
+    }
     
     # Reshape z_pred_starting to a matrix for plotting
-    z_pred_matrix <- matrix(z_pred_starting, nrow = length(Dshore), ncol = length(theta_translated))
+    z_pred_matrix <- matrix(z_pred_starting, nrow = length(Dshore),
+                            ncol = length(theta_translated))
     
     
     # Create the 3D surface plot using plot_ly
-    plot_parametric <- plot_ly(x = ~theta_translated, y = ~Dshore, z = ~z_pred_matrix) %>%
+    plot_parametric <- plot_ly(x = ~theta_translated, y = ~Dshore,
+                               z = ~z_pred_matrix) %>%
       add_surface() %>%
       layout(title = "Estimated parametric surface for omega",
              scene = list(
@@ -642,17 +863,26 @@ estimate_parametric_omega=function(model,fixed_a=1) {
                zaxis = list(title = "Predicted z")
              ))
     
-    return (list("est_par"=est_par,"splines_surface"=plot_splines,"parametric_surface"=plot_parametric))
+    return (list("est_par"=exp(est_par),"splines_surface"=plot_splines,
+                 "parametric_surface"=plot_parametric))
     
 }
 
-res_racvm1=estimate_parametric_omega(baseline_racvm1,fixed_a=2)
+res_racvm1=estimate_parametric_omega(baseline_racvm1,fixed_a=0.3)
 
 res_racvm1
 ```
 
-This model in indeed very complex and involves a large number of parameters given the amount of data points we have for the trajectories before exposure.
-We can try to fit the exact same model on all the data to check if we get the same kind of results with tighter confidence intervals. Here, we fix the measurement error standard deviation because we get a non positive definite Hessian matrix in the optimization otherwise.
+
+
+This model in indeed very complex and involves a large number of parameters 
+given the amount of data points we have for the trajectories before exposure.
+We can try to fit the exact same model on all the data to check if
+we get the same kind of results with tighter confidence intervals.
+Here, we fix the measurement error standard deviation because 
+we get a non positive definite Hessian matrix in the optimization otherwise.
+
+
 
 ```{r fit all_racvm1,cache=TRUE}
 
@@ -665,11 +895,13 @@ new_map=list("log_lambda"=factor(c(1,2,3,rep(NA,2))))
 
 #Fixed measurement error
 sigma_obs=0.05
-H=array(rep(sigma_obs^2*diag(2),length(all_data$time)),dim=c(2,2,length(all_data$time)))
+H=array(rep(sigma_obs^2*diag(2),length(all_data$time)),
+        dim=c(2,2,length(all_data$time)))
 
 
 #parameters formulas
-formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
+formulas <- list(mu1 = ~1 ,mu2 =~1,
+                 tau =~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),
                    omega=~te(theta_translated,Ishore_translated,k=c(5,5),bs="cs"))
 
 # Fit baseline
@@ -704,12 +936,13 @@ plots_all_racvm1
 
 ```{r final estimates all_racvm1, message=FALSE}
 
-final_tab_all_racvm1=get_final_baseline_tab(all_racvm1,include_sigma_obs=FALSE)
+make_final_baseline_tab(all_racvm1,include_sigma_obs=FALSE)
 
 ```
 
 
-We now come back to the data before exposure and try a more parsimonious model by removing the dependence of $\tau$ on
+We now come back to the data before exposure and try a more parsimonious 
+model by removing the dependence of $\tau$ on
 the covariate \texttt{theta\_translated}.
 
 ## Baseline with theta and Ishore in omega 
@@ -724,15 +957,18 @@ init_lambda=c(exp(3),exp(3),m1$sp)
 new_map=list("log_lambda"=factor(c(1,2,rep(NA,2))))
 
 
+#Fixed measurement error
+sigma_obs=0.01
+H=array(rep(sigma_obs^2*diag(2),length(interpolated_dataBE12$time)),dim=c(2,2,length(interpolated_dataBE12$time)))
 
 #parameters formulas
 formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
-                   omega=~te(theta_translated,Ishore_translated,k=c(5,5),bs=c("cs")))
+                   omega=~te(theta,Ishore,k=c(5,5),bs=c("cs")))
 
 # Fit baseline
-baseline_racvm2<- SDE$new(formulas = formulas,data = dataBE12,type = "RACVM_SSM",
-                    response = c("x","y"),par0 = par0,other_data=list("H"=H),
-                    fixpar=c("mu1","mu2"))
+baseline_racvm2<- SDE$new(formulas = formulas,data = interpolated_dataBE12,
+                    type = "RACVM_SSM",response = c("x","y"),par0 = par0,
+                    other_data=list("H"=H),fixpar=c("mu1","mu2"))
 
 baseline_racvm2$update_lambda(init_lambda)
 baseline_racvm2$update_map(new_map)
@@ -744,7 +980,7 @@ baseline_racvm2$fit()
 
 ```{r final estimates baseline_racvm2, message=FALSE}
 
-final_tab_baseline_racvm2=get_final_baseline_tab(baseline_racvm2,include_sigma_obs=FALSE)
+make_final_baseline_tab(baseline_racvm2,include_sigma_obs=FALSE)
 
 ```
 
@@ -753,7 +989,9 @@ final_tab_baseline_racvm2=get_final_baseline_tab(baseline_racvm2,include_sigma_o
 
 Ishore_values=c(1/0.25,1/2,1/5)
 plots=lapply(1:length(Ishore_values),function(i){
-  baseline_racvm2$plot_par(var="theta_translated",covs=data.frame("ID"="Asgeir","Ishore_translated"=Ishore_values[i]),
+  baseline_racvm2$plot_par(
+    var="theta_translated",
+    covs=data.frame("ID"="Asgeir","Ishore_translated"=Ishore_values[i]),
                          par_names=c("omega"),n_post=100)})
 plots
 
@@ -766,10 +1004,10 @@ plots
 ```{r plot smooth parameters CI baseline_racvm2}
 #plot parameters
 
-xmin=list("Ishore_translated"=1/3)
-xmax=list("Ishore_translated"=1/0.3)
-link=list("Ishore_translated"=\(x) 1/x)
-xlabel=list("Ishore_translated"="Distance to shore")
+xmin=list("Ishore"=1/3)
+xmax=list("Ishore"=1/0.1)
+link=list("Ishore"=\(x) 1/x)
+xlabel=list("Ishore"="Distance to shore")
 
 plots_bas_racvm2=baseline_racvm2$get_all_plots(baseline=NULL,
       xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise")
@@ -818,18 +1056,26 @@ We have seen in the simulation study that the splines give good estimates for $\
 the shore. Thus we fit the parametric function on the spline surface cropped close to the shore.
 We fix the value of $a$ to 0.5 to ensure that simulated trajectories will be constrained.
 
-```{r}
+```{r get smooth parametric estimates baseline_racvm2}
 
-res_racvm2=estimate_parametric_omega(baseline_racvm2,fixed_a=2)
+res_racvm2=estimate_parametric_omega(baseline_racvm2,
+                                     fixed_a=4,probs=c(0.75,0.95))
 
 res_racvm2
 ```
 
+To check the baseline model, we simulate trajectory using the estimated 
+parameters, compare it to the observed data and use the simulated trajectory to 
+estimate again the parameters. We check that the values estimated 
+from the simulated trajectories are consistent with the values 
+estimated from the data.
 
-## Simulate trajectories before exposure from fitted models
 
+# Check baseline models
 
-```{r,cache=TRUE}
+## Simulate trajectories using estimated parameters
+
+```{r set up for simulation of trajectories,cache=TRUE}
 
 #initial narwhals positions (convert to matrix to avoid bugs)
 z0_BE <- as.matrix(dataBE12[!duplicated(dataBE12$ID), c("x", "y")])
@@ -919,76 +1165,59 @@ times_df <- data.frame(
 )
 n=length(times_df$time)
 # Define covariates data (needed in the function simulate)
-data_reg=data.frame("AngleNormal"=rep(0,n),"Ishore"=rep(1,n),"Ishore_translated"=rep(1,n),
-                    "theta"=rep(0,n),"DistanceShore"=rep(1,n),"theta_translated"=rep(0,n))
+data_reg=data.frame("Ishore"=rep(1,n),"Ishore_translated"=rep(1,n),
+                    "theta"=rep(0,n),"DistanceShore"=rep(1,n),
+                    "theta_translated"=rep(0,n))
 
 data_reg=cbind(data_reg,times_df)
 
 ```
 
 
-```{r}
-est_par_racvm1=res_racvm1$est_par
-
-formulas=list(tau=~s(theta_translated,k=10,bs="cc")+s(ID,bs="re"),nu=~s(ID,bs="re"),a=~1,b=~1,D0=~1,D1=~1,
-              sigma_D=~1,sigma_theta=~1)
-baseline_crcvm1<-SDE$new(formulas=formulas,data=dataBE12,type="CRCVM_SSM",response=c("x","y"),
-               par0=c(baseline_racvm1$par()[1,c("tau","nu")],2,
-                        exp(est_par_racvm1)))
-
-baseline_crcvm1$update_coeff_re(baseline_racvm1$coeff_re()[1:20,])
-baseline_crcvm1$update_lambda(baseline_racvm1$lambda()[1:3,])
-
-baseline_crcvm1_trajectory=baseline_crcvm1$simulate(z0=z0_BE,data=data_reg,atw=atw,land=land,verbose=FALSE)
-
-
-n=length(baseline_crcvm1_trajectory$time)
-
-baseline_crcvm1_trajectory_sub=baseline_crcvm1_trajectory[seq(1,n,by=60),]
-
-plot_baseline_crcvm1_trajectory=ggplot() +
-  geom_sf(data=land$geometry,fill="grey")+
-  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
-  geom_path(data=baseline_crcvm1_trajectory_sub, 
-            aes(x = x, y = y,color=ID),size = 0.5, 
-            lineend = "round",alpha=0.15) +     
-  geom_point(data=baseline_crcvm1_trajectory_sub,
-             aes(x = x, y = y,color=ID),size =0.5 ) +
-  theme_minimal()
-```
 
 ```{r,message=FALSE,results=console}
 
-set.seed(1)
+#set.seed(51)
+set.seed(52)
 est_par_racvm2=res_racvm2$est_par
+fixed_a=4
 
 formulas=list(tau=~s(ID,bs="re"),nu=~s(ID,bs="re"),a=~1,b=~1,D0=~1,D1=~1,
               sigma_D=~1,sigma_theta=~1)
-baseline_crcvm2<-SDE$new(formulas=formulas,data=dataBE12,type="CRCVM_SSM",response=c("x","y"),
-               par0=c(baseline_racvm2$par()[1,c("tau","nu")],2,
-                        exp(est_par_racvm2)))
+baseline_crcvm2<-SDE$new(formulas=formulas,data=dataBE12,
+                         type="CRCVM_SSM",response=c("x","y"),
+               par0=c(baseline_racvm2$par()[1,c("tau","nu")],fixed_a,
+                        est_par_racvm2))
 
 baseline_crcvm2$update_coeff_re(baseline_racvm2$coeff_re()[1:12,])
 baseline_crcvm2$update_lambda(baseline_racvm2$lambda()[1:2,])
 
-baseline_crcvm2_trajectory=baseline_crcvm2$simulate(z0=z0_BE,data=data_reg,atw=atw,land=shrunk_land,verbose=FALSE)
+baseline_crcvm2_trajectory=baseline_crcvm2$simulate(
+  z0=z0_BE,data=data_reg,atw=atw,land=shrunk_land,verbose=FALSE)
 
 n=length(baseline_crcvm2_trajectory$time)
 
 baseline_crcvm2_trajectory_sub=baseline_crcvm2_trajectory[seq(1,n,by=60),]
 
+
+
 plot_baseline_crcvm2_trajectory=ggplot() +
-  geom_sf(data=land$geometry,fill="grey")+
+  geom_sf(data=shrunk_land$geometry,fill="grey")+
   coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
   geom_path(data=baseline_crcvm2_trajectory_sub, 
             aes(x = x, y = y,color=ID),size = 0.5, 
             lineend = "round",alpha=0.5) +     
   geom_point(data=baseline_crcvm2_trajectory_sub,
              aes(x = x, y = y,color=ID),size =0.5 ) +
-  theme_minimal()
+  theme_minimal()+
+  scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme(
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    legend.text = element_text(size = 18),
+    axis.title.y = element_text(angle = 0)  # Rotate the y-axis label and adjust horizontal justification
+  )
 
-ggsave("plot_baseline_crcvm2_trajectory.pdf", plot=plot_baseline_crcvm2_trajectory,
-       path="baseline_racvm2", width=10, height=6, units="in")
+
 
 ```
 
@@ -996,15 +1225,13 @@ ggsave("plot_baseline_crcvm2_trajectory.pdf", plot=plot_baseline_crcvm2_trajecto
 
 ```{r}
 
-baseline_crcvm1_trajectory_sub <- baseline_crcvm1_trajectory_sub %>% 
-  mutate(data_type = "Simulated baseline_crcvm1")
 baseline_crcvm2_trajectory_sub<- baseline_crcvm2_trajectory_sub %>% 
   mutate(data_type = "Simulated baseline_crcvm2")
 observed_trajectory<- dataBE12%>% 
   mutate(data_type = "Observed")
 
-baseline_trajectories <- bind_rows(baseline_crcvm1_trajectory_sub,
-                                   baseline_crcvm2_trajectory_sub,observed_trajectory)
+baseline_trajectories <- bind_rows(baseline_crcvm2_trajectory_sub,
+                                   observed_trajectory)
 
 # Basic ggplot setup
 plot_baseline_trajectories <- ggplot() +
@@ -1034,7 +1261,6 @@ animate(anim, nframes = 100, fps = 5, width = 800, height = 600,
 ```
 
 
-We continue the analysis with the fitted baseline model \texttt{baseline\_racvm2}.
 
 
 ## Check estimation on simulations from fitted model
@@ -1085,7 +1311,8 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
                                    vexp_df <- cbind(dx / dtimes, dy / dtimes)
                                    
                                    # Nearest points on shore
-                                   sub_data <- cbind(sub_data, nearest_boundary_points(as.matrix(sub_data[, c("x", "y")]), border))
+                                   sub_data <-cbind(sub_data,
+                                                    nearest_boundary_points(as.matrix(sub_data[, c("x", "y")]), border))
                                    
                                    # Normal vectors
                                    normal <- as.matrix(sub_data[2:n_sub, c("x", "y")] - sub_data[2:n_sub, c("p1", "p2")])
@@ -1126,26 +1353,127 @@ add_covs_parallel <- function(data, n_cores = parallel::detectCores() - 1) {
 border=shrunk_land
 
 # add noise
-noise=rmvn(length(baseline_crcvm2_trajectory_sub$time),rep(0,2),diag(rep(0.05^2,2)))
-baseline_crcvm2_trajectory_sub_obs=baseline_crcvm2_trajectory[seq(1,n,by=30),c("time","x","y","ID")]
-baseline_crcvm2_trajectory_sub_obs[,c("x","y")]=baseline_crcvm2_trajectory_sub_obs[,c("x","y")]+noise
-baseline_crcvm2_trajectory_sub_obs=add_covs_parallel(baseline_crcvm2_trajectory_sub_obs)
+baseline_crcvm2_trajectory_lf_obs=baseline_crcvm2_trajectory_sub[,c("time","x","y","ID")]
+noise=rmvn(length(baseline_crcvm2_trajectory_lf_obs$time),rep(0,2),diag(rep(0.05^2,2)))
+
+baseline_crcvm2_trajectory_lf_obs[,c("x","y")]=baseline_crcvm2_trajectory_lf_obs[,c("x","y")]+noise
+ 
+baseline_crcvm2_trajectory_hf_obs=baseline_crcvm2_trajectory[seq(1,nrow(baseline_crcvm2_trajectory),by=30),c("time","x","y","ID")]
+noise=rmvn(length(baseline_crcvm2_trajectory_hf_obs$time),rep(0,2),diag(rep(0.05^2,2)))
+baseline_crcvm2_trajectory_hf_obs[,c("x","y")]=baseline_crcvm2_trajectory_hf_obs[,c("x","y")]+noise
+ 
+
+baseline_crcvm2_trajectory_lf_obs=add_covs_parallel(baseline_crcvm2_trajectory_lf_obs)
+baseline_crcvm2_trajectory_hf_obs=add_covs_parallel(baseline_crcvm2_trajectory_hf_obs)
+
+```
+
+
+```{r}
+
+
+plot_baseline_crcvm2_trajectory_obs=ggplot() +
+  geom_sf(data=shrunk_land$geometry,fill="grey")+
+  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
+  geom_path(data=baseline_crcvm2_trajectory_lf_obs, 
+            aes(x = x, y = y,color=ID),size = 0.2, 
+            lineend = "round",alpha=0.5) +     
+  geom_point(data=baseline_crcvm2_trajectory_lf_obs,
+             aes(x = x, y = y,color=ID),size =0.2 ) +
+  theme_minimal()+ scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme(
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    legend.text = element_text(size = 18),
+    axis.title.y = element_text(angle = 0)  # Rotate the y-axis label and adjust horizontal justification
+  )
+
+
+plot_dataBE12=ggplot() +
+  geom_sf(data=shrunk_land$geometry,fill="grey")+
+  coord_sf(datum=st_crs("+init=EPSG:32626 +units=km"))+
+  geom_path(data=dataBE12, 
+            aes(x = x, y = y,color=ID),size = 0.2, 
+            lineend = "round",alpha=0.5) +     
+  geom_point(data=dataBE12,
+             aes(x = x, y = y,color=ID),size =0.2 ) +
+  theme_minimal()+ scale_color_viridis_d(labels=c("A1","A2","A3","A4","A5","A6"))+theme(
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    legend.text = element_text(size = 18),
+    axis.title.y = element_text(angle = 0)  # Rotate the y-axis label and adjust horizontal justification
+  )
+
+final_plot=ggarrange(plotlist=list(plot_dataBE12,plot_baseline_crcvm2_trajectory_obs),
+                     ncol=2, nrow=1, common.legend = TRUE, legend="bottom",
+                     labels= c("Observed","Simulated"))
+
+
+ggsave("plot_baseline_crcvm2_trajectory.pdf", plot = final_plot,path="baseline_racvm2",width = 14, height = 8)
+```
+
+
+
+```{r}
+
+
+
+# Determine the common x-axis limits
+x_min <- min(baseline_crcvm2_trajectory_hf_obs$DistanceShore, 
+              dataBE12$DistanceShore_translated, na.rm = TRUE)
+x_max <- max(baseline_crcvm2_trajectory_hf_obs$DistanceShore, 
+              dataBE12$DistanceShore_translated, na.rm = TRUE)
+
+# Plot the two histograms with consistent x-axis scales
+Dshore_hist_crcvm2 <- ggplot(baseline_crcvm2_trajectory_hf_obs) +
+  geom_histogram(aes(x = DistanceShore), color = "red", fill = "white", bins = 30) +
+  theme_minimal() +
+  xlim(x_min, x_max) +
+  xlab("Distance to Shore") +
+  ggtitle("Simulated data") +theme(
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    legend.text = element_text(size = 18),
+    axis.title.y = element_text(angle = 0)  # Rotate the y-axis label and adjust horizontal justification
+  )
+
+
+
+Dshore_hist_dataBE12 <- ggplot(dataBE12) +
+  geom_histogram(aes(x = DistanceShore_translated), color = "red", fill = "white", bins = 30) +
+  theme_minimal() +
+  xlim(x_min, x_max) +
+  xlab("Distance to Shore ") +
+  ggtitle("Observed data")+theme(
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    legend.text = element_text(size = 18),
+    axis.title.y = element_text(angle = 0)  # Rotate the y-axis label and adjust horizontal justification
+  )
+
+
+# Combine the plots
+Dshore_histograms <- Dshore_hist_crcvm2 + Dshore_hist_dataBE12
+
+Dshore_histograms
+
+# Save the plot as a PDF
+ggsave("Dshore_histograms.pdf", plot = Dshore_histograms,path="baseline_racvm2", width = 10, height = 5)
 
 ```
 
 ```{r}
 
 #initial parameters
-par0 <- c(0,0,2,4,0)
-init_lambda=c(exp(3),exp(3),m1$sp)
+par0 <- c(0,0,1,1,0)
+init_lambda=c(1/0.5^2,1/0.5^2,m1$sp)
 
 #mapping for fixed smoothing penalties
 new_map=list("log_lambda"=factor(c(1,2,rep(NA,2))))
 
 #Fixed measurement error
 sigma_obs=0.05
-H=array(rep(sigma_obs^2*diag(2),length(baseline_crcvm2_trajectory_sub_obs$time)),
-        dim=c(2,2,length(baseline_crcvm2_trajectory_sub_obs$time)))
+H=array(rep(sigma_obs^2*diag(2),length(baseline_crcvm2_trajectory_hf_obs$time)),
+        dim=c(2,2,length(baseline_crcvm2_trajectory_hf_obs$time)))
 
 
 #parameters formulas
@@ -1153,7 +1481,8 @@ formulas <- list(mu1 = ~1 ,mu2 =~1,tau =~s(ID,bs="re"),nu=~s(ID,bs="re"),
                    omega=~te(theta,Ishore,k=c(5,5),bs=c("cs")))
 
 # Fit baseline
-baseline_racvm2_check<- SDE$new(formulas = formulas,data = baseline_crcvm2_trajectory_sub_obs,type = "RACVM_SSM",
+baseline_racvm2_check<- SDE$new(formulas = formulas,
+                                data = baseline_crcvm2_trajectory_hf_obs[baseline_crcvm2_trajectory_hf_obs$ID %in% c("Asgeir","Frederik","Kyrri","Nemo"),],type = "RACVM_SSM",
                     response = c("x","y"),par0 = par0,other_data=list("H"=H),
                     fixpar=c("mu1","mu2"))
 
@@ -1162,8 +1491,9 @@ baseline_racvm2_check$update_map(new_map)
 baseline_racvm2_check$fit()
 
 ```
+
 ```{r}
-get_final_baseline_tab(baseline_racvm2_check,include_sigma_obs=FALSE)
+make_final_baseline_tab(baseline_racvm2_check,include_sigma_obs=FALSE)
 ```
 
 ```{r}
@@ -1177,12 +1507,15 @@ baseline_racvm2_check$get_all_plots(baseline=NULL,
       xmin=xmin,xmax=xmax,link=link,xlabel=xlabel,show_CI="pointwise")
 ```
 
+We continue the analysis with the fitted baseline model \texttt{baseline\_racvm2}.
+
+
 # Fit response models
 
 
 ## Try a model directly on the whole data
 
-```{r}
+```{r fit response all data}
 
 par0 <- c(0,0,1,4,0)
 
@@ -1202,7 +1535,9 @@ response0$update_lambda(exp(c(3,3,m1$sp)))
 
 response0$fit()
 ```
-```{r}
+
+
+```{r plot estimates response all data}
 #plot parameters
 xmin=list("AngleNormal"=-pi,"ExpShip"=1/45,"Ishore"=1/3)
 xmax=list("AngleNormal"=pi,"ExpShip"=1/3,"Ishore"=1/0.1)
@@ -1214,7 +1549,7 @@ response0$get_all_plots(baseline=NULL,
 
 ## Response model with splines of ExpShip
 
-```{r fit response1}
+```{r fit response splines}
 
 
 par0 <- c(0,0,1,4,0)
@@ -1254,7 +1589,7 @@ response_racvm_sp$fit()
 
 ```
 
-```{r get results response1}
+```{r get results response splines}
 #plot parameters
 xmin=list("Ishore_translated"=1/3,"ExpShip"=1/60)
 xmax=list("Ishore_translated"=1/0.5,"ExpShip"=1/5)
@@ -1271,7 +1606,7 @@ plots_res_racvm_sp
 
 ## Log linear RACVM response model with exponential of ExpShip
 
-```{r}
+```{r fit response log linear}
 
 par0=c(0,0,1,4,0)
 
@@ -1310,7 +1645,7 @@ response_racvm_exp$fit()
 
 ```
 
-```{r}
+```{r plot estimates response log linear}
 
 #plot parameters
 xmin=list("Ishore_translated"=1/3,"ExpShip"=1/60)
@@ -1325,7 +1660,7 @@ plots_res_racvm_exp=response_racvm_exp$get_all_plots(baseline=baseline_racvm2,xm
 
 ```
 
-```{r display plots response3_sp}
+```{r display plots response log linear}
 
 #print plots
 plots_res_racvm_exp
@@ -1354,9 +1689,9 @@ lapply(seq_along(plots_res_racvm_exp), function(i) {
     })
 ```
 
-```{r results response_ctcrw_exp}
+```{r get final estimates response_racvm_exp}
 
-get_final_response_tab<-function(sde,show=TRUE) {
+make_final_response_tab<-function(sde,show=TRUE) {
   
   
   post_coeff=sde$post_coeff(n_post=10000)
@@ -1389,28 +1724,19 @@ get_final_response_tab<-function(sde,show=TRUE) {
     label = "table:response_log_linear_estimations"
   )
   
-  if (show) {
-    print(
+  print(
     xtab,type="latex",
     include.rownames = FALSE,
     sanitize.text.function = identity,  # Prevent escaping of LaTeX math symbols
     hline.after = c(-1, 0, nrow(table_data)),
     table.placement="H")
-  }
-  
-  return (xtab)
 
   }
 
-
+make_final_response_tab(response_racvm_exp)
 ```
 
 
-
-```{r,results='asis',echo=FALSE}
-final_tab_response_exp=get_final_response_tab(response_racvm_exp)
-
-```
 
 These confidence intervals do not include the uncertainty from the baseline estimations.
 
@@ -1637,7 +1963,7 @@ plot_nu_response_exp
 ## Compute recovery distances
 
 ```{r}
-get_recovery_distances_tab<-function(p) {
+make_recovery_distances_tab<-function(p) {
   
   parameter_names=names(mean_alpha)
   scaling=as.list(c(log(1-p),log(1+p)))
@@ -1675,8 +2001,10 @@ get_recovery_distances_tab<-function(p) {
   )
 }
 
-get_recovery_distances_tab(0.5)
+make_recovery_distances_tab(0.5)
 
-get_recovery_distances_tab(0.1)
+make_recovery_distances_tab(0.1)
 ```
 
+
+The main difference with the CVM without omega, that is without influence of the shore, is that we now get much wider confidence intervals for the recovery distances. However, the mean values are somehow similar.
