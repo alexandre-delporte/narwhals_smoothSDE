@@ -6,16 +6,17 @@
 #
 # Date:     2024-09-20
 #
-# Script Name:    ~/Documents/Research/Projects/narwhals_smoothSDE/R/preprocessing/greenland/process_boundaries.R
+# Script Name:  process_boundaries.R
 #
 # Script Description:
-# Code to process the shapefile dowloaded from https://osmdata.openstreetmap.de/data/land-polygons.html
-# We only keep polygons for Scoresby Sound region, and project it in UTM coordinate North zone 26
-#
+# Code to process the shapefile downloaded from 
+# https://osmdata.openstreetmap.de/data/land-polygons.html
+# We only keep polygons for Scoresby Sound region, 
+# and project it in UTM coordinate North zone 26
 
 # SETUP ------------------------------------
-cat("\014")                 # Clears the console
-rm(list = ls())             # Remove all variables of the work space
+cat("\014")                 
+rm(list = ls())           
 
 
 
