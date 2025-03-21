@@ -28,7 +28,7 @@ library(gganimate)
 library(doParallel)
 library(foreach)
 library(ggpubr)
-
+library(fitdistrplus)
 ```
 
 # Read data
@@ -190,7 +190,7 @@ fit_baseline<-function(data,interpolation_data,sigma_obs=0.05,a=2,b=1,D0=0.3,D1=
   # Fit baseline
   baseline <- SDE$new(formulas = formulas,
                               data = data,type = "CRCVM_SSM",
-                              response = response,par0 = c(2,1,a,b,D0,D1,sigma_D,sigma_theta),
+                              response = response,par0 = c(1.2,4.5,a,b,D0,D1,sigma_D,sigma_theta),
                               fixpar=fixpar,
                               other_data=
                                 list("H"=H,"interpolated_distance"=interpolated_dist,
@@ -247,9 +247,9 @@ get_baseline_estimates<- function(sde,include_sigma_obs=FALSE,n_post=100,
 #' @param n_post number of draws from the posterior distribution used to give estimates
 #' and confidence intervals
 #' @return NULL (just print latex table)
-make_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,n_post=100) {
+make_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,n_post=100,resp=FALSE) {
   
-  est=get_baseline_estimates(sde,include_sigma_obs,n_post)
+  est=get_baseline_estimates(sde,include_sigma_obs,n_post,resp)
   mean_par=est$estimates
   sd_par=est$std.error
   quant_par=est$quantiles
@@ -288,79 +288,83 @@ make_final_baseline_tab<-function(sde,include_sigma_obs=FALSE,n_post=100) {
 
 ```{r define functions to compare simulation and observations}
 
-#' Make plot to compare BoundaryDistance in simulation and observation
-#' @param simulated_data list of data frames simulated from an SDE model, each containing a column "BoundaryDistance".
+#' Make plot to compare distributions in simulation and observation
+#' @param simulated_data list of data frames simulated from an SDE model, each containing columns "BoundaryDistance", "BoundaryAngle" and "speed"
 #' @param observed_data real GPS data (data frame).
 #' @return ggplot of boundary distances distributions
-make_distance_density_plot <- function(simulated_data, observed_data) {
+make_density_plots <- function(simulated_data, observed_data) {
   
   # Ensure simulated_data is a list of data frames
   if (!is.list(simulated_data) || !all(sapply(simulated_data, is.data.frame))) {
     stop("simulated_data must be a list of data frames")
   }
 
+  # drop trajectories that reached land
+  
   simulated_combined <- bind_rows(
     lapply(seq_along(simulated_data), function(i) {
       simulated_data[[i]] %>% mutate(SimulationID = as.factor(i), Source = "Simulated")
     })
   )
   
+  
   observed_combined <- observed_data %>% mutate(Source = "Observed")
   
   combined_data <- bind_rows(simulated_combined, observed_combined)
 
   # Plot density distribution
-  plot_combined <- ggplot(combined_data, aes(x = BoundaryDistance, color = Source, fill = Source)) +
+  plot_distance <- ggplot(combined_data, aes(x = BoundaryDistance, color = Source, fill = Source)) +
     geom_density(data = simulated_combined, aes(group = SimulationID), alpha = 0.1) + 
-    geom_density(data = observed_combined, alpha = 0.2) +  # Single density for observed data
+    geom_density(data = observed_combined, alpha = 0.2) +
     xlab("Distance to Shore") +
     scale_color_manual(values = c("Simulated" = "blue", "Observed" = "red")) + 
     scale_fill_manual(values = c("Simulated" = "blue", "Observed" = "red")) +
-    theme_minimal() +
+    theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 20),
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank())
     theme(legend.title = element_blank())
-
-  return(plot_combined)
-}
-
-#' Make plot to compare BoundaryAngle in simulation and observation
-#' @param simulated_data data simulated from a sde model containing a column "BoundaryAngle".
-#' @param observed real GPS data
-#' @return ggplot of boundary angle distributions
-make_angle_density_plot <- function(simulated_data, observed_data) {
-  
-  # Ensure simulated_data is a list of data frames
-  if (!is.list(simulated_data) || !all(sapply(simulated_data, is.data.frame))) {
-    stop("simulated_data must be a list of data frames")
-  }
-
-  simulated_combined <- bind_rows(
-    lapply(seq_along(simulated_data), function(i) {
-      simulated_data[[i]] %>% mutate(SimulationID = as.factor(i), Source = "Simulated")
-    })
-  )
-  
-  observed_combined <- observed_data %>% mutate(Source = "Observed")
-  
-  simulated_combined$BoundaryAngle<-abs(simulated_combined$BoundaryAngle)
-  observed_combined$BoundaryAngle<-abs(observed_combined$BoundaryAngle)
-  combined_data <- bind_rows(simulated_combined, observed_combined)
-  
-  
-
-  # Plot density distribution
-  plot_combined <- ggplot(combined_data, aes(x = BoundaryAngle, color = Source, fill = Source)) +
-    geom_density(data = simulated_combined, aes(group = SimulationID), alpha = 0.1) + 
-    geom_density(data = observed_combined, alpha = 0.2) +  # Single density for observed data
+    
+    plot_angle <- ggplot(combined_data, aes(x = abs(BoundaryAngle), color = Source, 
+                                            fill = Source)) +
+    geom_density(data = simulated_combined, aes(group = SimulationID), 
+                 alpha = 0.1) + 
+    geom_density(data = observed_combined, alpha = 0.2) + 
     xlab(expression(Theta)) +
     scale_color_manual(values = c("Simulated" = "blue", "Observed" = "red")) + 
     scale_fill_manual(values = c("Simulated" = "blue", "Observed" = "red")) +
-    theme_minimal() +
+    theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 20),
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank())
+    theme(legend.title = element_blank())
+    
+    plot_speed <- ggplot(combined_data, aes(x = speed, color = Source, 
+                                            fill = Source)) +
+    geom_density(data = simulated_combined, aes(group = SimulationID), 
+                 alpha = 0.1) + 
+    geom_density(data = observed_combined, alpha = 0.2) + 
+    xlab("Speed") +
+    scale_color_manual(values = c("Simulated" = "blue", "Observed" = "red")) + 
+    scale_fill_manual(values = c("Simulated" = "blue", "Observed" = "red")) +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 20),
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank())
     theme(legend.title = element_blank())
 
-  return(plot_combined)
-  
-}
 
+  return(list("distance"=plot_distance,"speed"=plot_speed,"angle"=plot_angle))
+}
 
 #' Compute empirical speed from finite differences
 #' @param data data with column time
@@ -392,39 +396,6 @@ compute_speed<-function(data,response=c("x","y")) {
   return(speed_vector)
 }
 
-#' Make plot to compare speed in simulation and observation
-#' @param simulated_data data simulated from a sde model containing a column "speed".
-#' @param observed real GPS data
-#' @return ggplot of boundary angle distributions
-make_speed_density_plot <- function(simulated_data, observed_data,response) {
-  
-    # Ensure simulated_data is a list of data frames
-  if (!is.list(simulated_data) || !all(sapply(simulated_data, is.data.frame))) {
-    stop("simulated_data must be a list of data frames")
-  }
-
-  simulated_combined <- bind_rows(
-    lapply(seq_along(simulated_data), function(i) {
-      simulated_data[[i]] %>% mutate(SimulationID = as.factor(i), Source = "Simulated")
-    })
-  )
-  
-  observed_combined <- observed_data %>% mutate(Source = "Observed")
-  
-  combined_data <- bind_rows(simulated_combined, observed_combined)
-
-  # Plot density distribution
-  plot_combined <- ggplot(combined_data, aes(x = speed, color = Source, fill = Source)) +
-    geom_density(data = simulated_combined, aes(group = SimulationID), alpha = 0.1) + 
-    geom_density(data = observed_combined, alpha = 0.2) +  # Single density for observed data
-    xlab("Speed") +
-    scale_color_manual(values = c("Simulated" = "blue", "Observed" = "red")) + 
-    scale_fill_manual(values = c("Simulated" = "blue", "Observed" = "red")) +
-    theme_minimal() +
-    theme(legend.title = element_blank())
-
-  return(plot_combined)
-}
 ```
 
 
@@ -457,12 +428,12 @@ interpolation_plots
 
 
 ```{r}
-D0=quantile(dataBE12_prep200$BoundaryDistance,0.8)
-D1=quantile(dataBE12_prep200$BoundaryDistance,0.5)
-a=0.3*D0
+D0=quantile(dataBE12_prep200$BoundaryDistance,0.9)
+D1=quantile(dataBE12_prep200$BoundaryDistance,0.75)
+a=0.22*D0
 
 baseline_crcvm200<- fit_baseline(dataBE12_prep200,interpolation_bas_200,
-                    b=0.5,a=a,sigma_D=1,D0=D0,D1=D1,sigma_theta=pi/6,
+                    b=2,a=a,sigma_D=1,D0=D0,D1=D1,sigma_theta=pi/6,
                     sigma_obs=0.05)
 
 ```
@@ -473,11 +444,11 @@ baseline_crcvm200$get_all_plots(baseline=NULL,show_CI="simultaneous")
 ```
 
 ```{r}
-make_final_baseline_tab(baseline_crcvm200,include_sigma_obs=FALSE,n_post=10000)
+make_final_baseline_tab(baseline_crcvm200,include_sigma_obs=FALSE,n_post=100)
 ```
 
 
-# Check baseline models
+# Check baseline model
 
 ## Simulate trajectories
 
@@ -556,15 +527,75 @@ for (i in 1:n_sim) {
 
 ```
 
+
+## Simulate time steps
+
+
+```{r reproduce realistic time steps,warning=FALSE,message=FALSE}
+
+dtimes<-unlist(lapply(unique(dataBE12_prep200$ID),function(id) {
+    sub_data<-dataBE12_prep200[dataBE12_prep200$ID==id,]
+    dt=diff(sub_data$time)
+    dt
+}))
+
+fit_lognorm <- fitdist(dtimes * 60, "lnorm")
+fit_gamma <- fitdist(dtimes * 60, "gamma")
+gofstat(list(fit_lognorm,fit_gamma))
+
+```
+
+```{r}
+# Extract estimated parameters
+meanlog <- fit_lognorm$estimate["meanlog"]
+sdlog <- fit_lognorm$estimate["sdlog"]
+
+# Generate new time steps
+dtimes_sim <- rlnorm(nrow(dataBE12_prep200)-6, meanlog, sdlog)
+
+times_sim<-lapply(unique(dataBE12_prep200$ID),function(ID) {
+  sub_time<- dataBE12_prep200[dataBE12_prep200$ID==ID,"time"]
+  sub_n<-length(sub_time)
+  min_time=min(sub_time)
+  times<-rep(min_time,sub_n)+c(0,cumsum(dtimes_sim[1:(sub_n-1)]/60))
+  return (times)})
+names(times_sim)<-unique(dataBE12_prep200$ID)
+```
+
+
+
+## Subsample and interpolate simulated trajectory
+
+```{r}
+all_sim_sub=list()
+
+for (i in seq_along(all_sim)) {
+  sim_data<-all_sim[[i]]
+  interp_sim_data<-dataBE12_prep200[,c("time","ID","x","y")]
+  interp_sim_data$time<-unlist(times_sim)
+
+  for (id in unique(sim_data$ID)) {
+    sub_sim_data<-sim_data[sim_data$ID==id,]
+    sim_x_interp <- approx(sub_sim_data$time, sub_sim_data$x, xout = times_sim[[id]])$y
+    sim_y_interp <- approx(sub_sim_data$time, sub_sim_data$y, xout = times_sim[[id]])$y
+    sub_ind=interp_sim_data$ID==id
+    interp_sim_data[sub_ind,"x"]<-sim_x_interp
+    interp_sim_data[sub_ind,"y"]<-sim_y_interp
+  }
+  
+  all_sim_sub[[i]]<-interp_sim_data
+}
+```
+
 ```{r subsample simulations}
 #subsample to 5 minutes and add measurement noise
-all_sim_sub<-lapply(all_sim,function(data) {
+all_sim_sub<-lapply(all_sim_sub,function(data) {
   
-  data_sub<-data[seq(1,nrow(data),by=60),]
-  noise<-rmvn(nrow(data_sub),rep(0,2),diag(rep(0.05^2,2)))
+  data<-data[!(is.na(data$x)),]
+  noise<-rmvn(nrow(data),rep(0,2),diag(rep(0.02^2,2)))
 
-  data_sub[,c("x","y")]=data_sub[,c("x","y")]+noise
-  return (data_sub)
+  data[,c("x","y")]=data[,c("x","y")]+noise
+  return (data)
 })
 
 
@@ -616,9 +647,9 @@ ggsave(plot = final_plot, "sim_crcvm_trajectory.pdf",
 
 ```{r animate observed vs simulated trajectories}
 dataBE12_prep200$type <- "Observed"
-all_sim_sub[[1]]$type <- "Simulated"
+all_sim_sub[[2]]$type <- "Simulated"
 
-combined_data <- rbind(dataBE12_prep200[,c("BoundaryDistance","BoundaryAngle","ID","time","x","y","type")], all_sim_sub[[1]])
+combined_data <- rbind(dataBE12_prep200[,c("ID","time","x","y","type")], all_sim_sub[[2]])
 
 combined_plot <- ggplot() +
   geom_sf(data=border200$geometry, fill="grey") +
@@ -659,15 +690,13 @@ for (i in seq_along(all_sim_sub)) {
   
 dataBE12_prep200$speed<-compute_speed(dataBE12_prep200)
 
-plot_distance<-make_distance_density_plot(all_sim_sub,dataBE12_prep200) 
-plot_angle<-make_angle_density_plot(all_sim_sub,dataBE12_prep200)
-plot_speed<-make_speed_density_plot(all_sim_sub,dataBE12_prep200)
+plots<-make_density_plots(all_sim_sub,dataBE12_prep200) 
 
-final_densities_plots<-ggarrange(plotlist=list(plot_distance,plot_angle),
+final_densities_plots<-ggarrange(plotlist=list(plots$distance,plots$angle),
                      ncol=2, nrow=1, common.legend = TRUE, legend="bottom", vjust=2)
-ggsave("BoundaryDistance_density.pdf",path="baseline_crcvm_200",plot=plot_distance)
-ggsave("BoundaryAngle_density.pdf",path="baseline_crcvm_200",plot=plot_angle)
-ggsave("speed_density.pdf",path="baseline_crcvm_200",plot=plot_speed)
+ggsave("BoundaryDistance_density.pdf",path="baseline_crcvm_200",plot=plots$distance)
+ggsave("BoundaryAngle_density.pdf",path="baseline_crcvm_200",plot=plots$angle)
+ggsave("speed_density.pdf",path="baseline_crcvm_200",plot=plots$speed)
 ```
 
 
@@ -681,10 +710,10 @@ ggsave("speed_density.pdf",path="baseline_crcvm_200",plot=plot_speed)
 #prepare data for interpolation
 dataAE_prep200=dataAE[,c("ID","x","y","time","theta200","DistanceShore200","ExpShip")]
 
-colnames(dataAE_prep200)[colnames(dataAE_prep100)=="DistanceShore200"]<-"BoundaryDistance"
-colnames(dataAE_prep200)[colnames(dataAE_prep100)=="theta200"]<-"BoundaryAngle"
+colnames(dataAE_prep200)[colnames(dataAE_prep200)=="DistanceShore200"]<-"BoundaryDistance"
+colnames(dataAE_prep200)[colnames(dataAE_prep200)=="theta200"]<-"BoundaryAngle"
 
-
+dataAE_prep200$speed<-compute_speed(dataAE_prep200)
 #remove points on land
 dataAE_prep200<-dataAE_prep200[dataAE_prep200$BoundaryDistance>0,]
 
