@@ -231,7 +231,7 @@ all_sim_sub<-lapply(all_sim_sub,function(data) {
 
 plot_list<-plot_trajectories(all_sim_sub,dataBE12_prep200)
 
-lapply(plot_list,function(plot) {ggsave(plot = plot, paste("sim",i,hyperparams_file_name,".pdf"), 
+lapply(plot_list,function(plot) {ggsave(plot = plot, paste0("sim",i,"_",hyperparams_file_name,".pdf"), 
                         width = 10, height = 6, units = "in", limitsize = FALSE)})
 
 all_boundary_data<- lapply(all_sim_sub,function(data) {
