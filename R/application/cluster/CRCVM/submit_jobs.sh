@@ -12,21 +12,20 @@ for hp_file in "${hyperparams_files[@]}"; do
     job_name="job_$(basename "$hp_file" .txt).sh"
     
     # Create a unique job script for each hyperparameter set
-    cat <<EOF > "$job_name"
-#!/bin/bash
-#OAR -n job_$(basename "$hp_file" .txt)
-#OAR -l /nodes=1/core=$CORES,walltime=$WALLTIME
-#OAR --stdout job_$(basename "$hp_file" .txt).out
-#OAR --stderr job_$(basename "$hp_file" .txt).err
-#OAR --project pr-whales
+	echo "#!/bin/bash" >> "$job_name"
+	echo "#OAR -n job_$(basename "$hp_file" .txt)" >> "$job_name"
+	echo "#OAR -l /nodes=1/core=$CORES,walltime=$WALLTIME" >> "$job_name"
+	echo "#OAR --stdout job_$(basename "$hp_file" .txt).out" >> "$job_name"
+	echo "#OAR --stderr job_$(basename "$hp_file" .txt).err" >> "$job_name"
+	echo "#OAR --project pr-whales" >> "$job_name"
 
-source /applis/site/guix-start.sh
-Rscript fit_baseline.R "$hp_file"
-EOF
-    # Make the script executable
-    chmod +x "$job_name"
-    # Submit the job
-    oarsub -S "$job_name"
-    sleep 1  
+	echo "source /applis/site/guix-start.sh" >> "$job_name"
+	echo "Rscript fit_baseline.R '$hp_file'" >> $job_name"
+
+    	# Make the script executable
+    	chmod +x "$job_name"
+    	# Submit the job
+    	oarsub -S "$job_name"
+    	sleep 1  
 done
 
