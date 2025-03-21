@@ -14,13 +14,13 @@ for hp_file in "${hyperparams_files[@]}"; do
     # Create a unique job script for each hyperparameter set
     cat <<EOF > "$job_name"
 #!/bin/bash
-#OAR -n "job_$(basename "$hp_file" .txt)"
+#OAR -n job_$(basename "$hp_file" .txt)
 #OAR -l /nodes=1/core=$CORES,walltime=$WALLTIME
 #OAR --stdout job_$(basename "$hp_file" .txt).out
 #OAR --stderr job_$(basename "$hp_file" .txt).err
 #OAR --project pr-whales
 
-module load R
+source /applis/site/guix-start.sh
 Rscript fit_baseline.R "$hp_file"
 EOF
     # Make the script executable
