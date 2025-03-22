@@ -1,7 +1,6 @@
 #!/bin/bash
 
-hyperparams_files=("hyperparams_set1.txt" "hyperparams_set2.txt" "hyperparams_set3.txt","hyperparams_set4.txt",
-"hyperparams_set5.txt") 
+hyperparams_files=("hyperparams_set1.txt","hyperparams_set2.txt","hyperparams_set3.txt","hyperparams_set4.txt","hyperparams_set5.txt") 
 
 
 # Ask the user for the number of cores
