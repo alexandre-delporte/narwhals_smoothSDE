@@ -20,7 +20,7 @@ for hp_file in "${hyperparams_files[@]}"; do
 	echo "#OAR --project pr-whales" >> "$job_name"
 
 	echo "source /applis/site/guix-start.sh" >> "$job_name"
-	echo "Rscript fit_baseline.R '$hp_file'" >> "$job_name"
+	echo "Rscript fit.R '$hp_file'" >> "$job_name"
 
     	# Make the script executable
     	chmod +x "$job_name"
