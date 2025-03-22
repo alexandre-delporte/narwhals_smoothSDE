@@ -40,7 +40,7 @@ hyperparams_file <- args[1]
 # get name of hyperparameters file without extension
 hyperparams_file_name=sapply(strsplit(hyperparams_file,"\\."),'[',1)
 
-path=here("R","application","cluster","CRCVM")
+path=here("R","application","cluster","CRCVM","repulsion_sensitivity")
 
 
 # Read hyperparameters from a user specified file
