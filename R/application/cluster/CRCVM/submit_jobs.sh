@@ -12,7 +12,7 @@ for hp_file in "${hyperparams_files[@]}"; do
     job_name="job_$(basename "$hp_file" .txt).sh"
     
     # Create a unique job script for each hyperparameter set
-	echo "#!/bin/bash" >> "$job_name"
+	echo "#!/bin/bash" > "$job_name"
 	echo "#OAR -n job_$(basename "$hp_file" .txt)" >> "$job_name"
 	echo "#OAR -l /nodes=1/core=$CORES,walltime=$WALLTIME" >> "$job_name"
 	echo "#OAR --stdout job_$(basename "$hp_file" .txt).out" >> "$job_name"
