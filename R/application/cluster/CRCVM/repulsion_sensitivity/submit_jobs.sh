@@ -1,6 +1,7 @@
 #!/bin/bash
 
-hyperparams_files=("hyperparams_set1.txt" "hyperparams_set2.txt" "hyperparams_set3.txt") 
+hyperparams_files=("hyperparams_set1.txt" "hyperparams_set2.txt" "hyperparams_set3.txt","hyperparams_set4.txt",
+"hyperparams_set5.txt") 
 
 
 # Ask the user for the number of cores
@@ -25,7 +26,7 @@ for hp_file in "${hyperparams_files[@]}"; do
     	# Make the script executable
     	chmod +x "$job_name"
     	# Submit the job
-    	oarsub -S "$job_name"
+    	oarsub -S "./$job_name"
     	sleep 1  
 done
 

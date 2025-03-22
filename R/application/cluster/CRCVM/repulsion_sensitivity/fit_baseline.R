@@ -12,8 +12,8 @@
 #
 #
 # SETUP ------------------------------------
-cat("\014")                 # Clears the console
-rm(list = ls())             # Remove all variables of the work space
+cat("\014")                 
+rm(list = ls())           
 .libPaths(c("~/R/library", .libPaths()))
 
 library(smoothSDE)
@@ -98,7 +98,7 @@ baseline_crcvm200<- fit_baseline(dataBE12_prep200,interpolation_bas_200,
                                  sigma_obs=SIGMA_OBS)
 
 
-
+make_final_baseline_tab(baseline_crcvm200,include_sigma_obs=FALSE,n_post=100,resp=TRUE)
 
 # Check baseline model
 
@@ -172,45 +172,18 @@ for (i in 1:N_SIM) {
 }
 
 
-
-## Simulate time steps with log normal distribution
-dtimes<-unlist(lapply(unique(dataBE12_prep200$ID),function(id) {
-  sub_data<-dataBE12_prep200[dataBE12_prep200$ID==id,]
-  dt=diff(sub_data$time)
-  dt
-}))
-
-fit_lognorm <- fitdist(dtimes * 60, "lnorm")
-fit_gamma <- fitdist(dtimes * 60, "gamma")
-gofstat(list(fit_lognorm,fit_gamma))
-
-# Extract estimated parameters
-meanlog <- fit_lognorm$estimate["meanlog"]
-sdlog <- fit_lognorm$estimate["sdlog"]
-
-# Generate new time steps
-dtimes_sim <- rlnorm(nrow(dataBE12_prep200)-6, meanlog, sdlog)
-
-times_sim<-lapply(unique(dataBE12_prep200$ID),function(ID) {
-  sub_time<- dataBE12_prep200[dataBE12_prep200$ID==ID,"time"]
-  sub_n<-length(sub_time)
-  min_time=min(sub_time)
-  times<-rep(min_time,sub_n)+c(0,cumsum(dtimes_sim[1:(sub_n-1)]/60))
-  return (times)})
-names(times_sim)<-unique(dataBE12_prep200$ID)
-
-
 all_sim_sub=list()
 
 for (i in seq_along(all_sim)) {
   sim_data<-all_sim[[i]]
   interp_sim_data<-dataBE12_prep200[,c("time","ID","x","y")]
-  interp_sim_data$time<-unlist(times_sim)
   
   for (id in unique(sim_data$ID)) {
     sub_sim_data<-sim_data[sim_data$ID==id,]
-    sim_x_interp <- approx(sub_sim_data$time, sub_sim_data$x, xout = times_sim[[id]])$y
-    sim_y_interp <- approx(sub_sim_data$time, sub_sim_data$y, xout = times_sim[[id]])$y
+    sim_x_interp <- approx(sub_sim_data$time, sub_sim_data$x, 
+                           xout = dataBE12_prep200[dataBE12_prep200$ID==id,"time"])$y
+    sim_y_interp <- approx(sub_sim_data$time, sub_sim_data$y,
+                           xout = dataBE12_prep200[dataBE12_prep200$ID==id,"time"])$y
     sub_ind=interp_sim_data$ID==id
     interp_sim_data[sub_ind,"x"]<-sim_x_interp
     interp_sim_data[sub_ind,"y"]<-sim_y_interp
@@ -247,6 +220,10 @@ for (i in seq_along(all_sim_sub)) {
   all_sim_sub[[i]]$speed<- compute_speed(data=all_sim_sub[[i]])
 }
 
+percentage<-sum(unlist(lapply(all_sim_sub,function(data) {
+  sum(tapply(data$BoundaryDistance == 0, data$ID, any))
+})))/(N_SIM*6)
+cat(percentage,"% of simulated trajectories reached boundary.","\n",sep=" ")
 
 dataBE12_prep200$speed<-compute_speed(dataBE12_prep200)
 

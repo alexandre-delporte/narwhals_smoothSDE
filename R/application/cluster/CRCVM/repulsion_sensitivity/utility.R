@@ -212,6 +212,7 @@ make_density_plots <- function(simulated_data, observed_data) {
     stop("simulated_data must be a list of data frames")
   }
   
+  
   simulated_combined <- bind_rows(
     lapply(seq_along(simulated_data), function(i) {
       simulated_data[[i]] %>% mutate(SimulationID = as.factor(i), Type = "Simulated")
